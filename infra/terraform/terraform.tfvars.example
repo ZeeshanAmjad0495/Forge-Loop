@@ -1,0 +1,18 @@
+project_id = "your-gcp-project-id"
+
+# Uncomment and override only the values that differ from defaults:
+# region                       = "us-central1"
+# service_name                 = "incidentpilot-api"
+# artifact_registry_repository = "incidentpilot"
+# firestore_database_name      = "(default)"
+# deepseek_secret_name         = "incidentpilot-deepseek-api-key"
+# llm_model                    = "deepseek-chat"
+
+# api_image is intentionally left as the default placeholder (gcr.io/cloudrun/hello).
+# The deploy workflow (Task 10) updates the image via gcloud run deploy --image.
+# Terraform will not overwrite that update due to lifecycle.ignore_changes.
+
+# After running terraform apply, add the real DeepSeek API key:
+#
+#   printf "sk-YOUR-REAL-DEEPSEEK-KEY" | gcloud secrets versions add \
+#     incidentpilot-deepseek-api-key --data-file=- --project=your-gcp-project-id
