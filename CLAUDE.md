@@ -8,22 +8,23 @@ This project must be completed as a focused MVP within 1–2 weeks. Do not expan
 
 ## Product Definition
 
-IncidentPilot is a human-supervised autonomous SDLC platform.
+IncidentPilot is a **human-supervised SDLC control plane**.
 
-The long-term vision is:
+It orchestrates and supervises agentic software delivery work. It does not blindly generate and deploy code, and it does not rebuild a coding agent from scratch.
 
-- agents analyze requirements
-- agents create implementation plans
-- agents decompose tasks
-- agents create branches
-- agents generate tests
-- agents open PRs
-- agents review PRs
-- agents analyze CI failures
-- agents generate incident reports
-- humans approve risky actions, merges, deployments, and production changes
+Core responsibilities of IncidentPilot:
+- Own the workflow state, task lifecycle, and artifact store
+- Coordinate agent runs and evaluate their outputs
+- Enforce human approval at defined transition points
+- Delegate code execution to existing open-source coding tools where practical
+- Maintain a full audit trail of agent runs, evaluations, and human decisions
 
-The MVP is much smaller.
+IncidentPilot is not responsible for:
+- Writing production code directly
+- Executing terminal commands autonomously
+- Merging or deploying without human approval
+
+The MVP is much smaller — see MVP Goal below.
 
 ## MVP Goal
 
@@ -36,6 +37,54 @@ Ticket
 → PlanningAgent
 → ImplementationBrief Artifact
 → Human reads/reviews the brief
+
+## Product Direction — Release 2+
+
+This section defines the architectural direction for work beyond the MVP. It is not implemented yet. It exists to guide design decisions and prevent scope drift.
+
+### 1. Control-plane principle
+
+IncidentPilot owns orchestration, approvals, audit trail, evaluation, task state, artifacts, and workflow control. It does not own code generation or execution. Those are delegated.
+
+### 2. Delegation principle
+
+Where practical, code execution is delegated to existing open-source coding tools:
+- OpenHands
+- Cline
+- Aider
+- OpenCode
+
+IncidentPilot invokes these tools via API or CLI and tracks their output as artifacts. It does not reimplement what these tools already do well.
+
+### 3. Orchestrator/evaluator pattern
+
+Each workflow stage may run multiple agent candidates. IncidentPilot evaluates, scores, and selects the best output before proceeding to the next stage. This applies to:
+- Planning briefs (multiple LLM candidates → evaluated → selected)
+- Dev task outputs (multiple coding tool attempts → tested → selected)
+- PR content (generated → reviewed by AI → reviewed by human → merged)
+
+### 4. Human approval gates
+
+The following transitions require explicit human approval before the system proceeds:
+- Plan approval (brief reviewed and accepted)
+- Dev task approval (task scope confirmed before coding starts)
+- Branch and PR creation
+- Merge to main
+- Deployment to production
+- Production remediation actions
+
+### 5. Work-safe features
+
+The following capabilities are planned as implementation details of existing Release 2 tasks. They are **folded into the 32-task roadmap** — they do not add new tasks beyond it:
+- Approval gates with explicit human confirmation per stage
+- Audit log of all agent runs, scores, selections, and human decisions
+- Agent output scoring and evaluation metadata stored on artifacts
+- Change request loop: human requests revision, agent reruns against feedback
+- Prompt version tracking: which prompt version produced which artifact
+- Repo safety profile: branch protection awareness, no-force-push enforcement
+- Work-safe mode: dry-run and preview for risky operations before execution
+- Definition-of-done checklist enforcement before stage transition
+- GitHub branch protection awareness
 
 ## Hard MVP Scope
 
@@ -58,33 +107,27 @@ Build only these capabilities:
 
 ## Explicitly Out of Scope
 
+The items below are out of scope for Release 1 (MVP). Some are planned for Release 2+. See "Product Direction — Release 2+" for architectural framing.
+
 Do not implement these in the MVP:
 
-- autonomous code editing
-- branch creation
-- PR creation
-- PR review agent
-- incident triage agent
-- production auto-fixes
-- Pub/Sub
-- Eventarc
+- Building a coding agent from scratch — use existing tools (OpenHands, Cline, Aider, OpenCode) instead
+- Branch creation
+- PR creation or review
+- Incident triage agent
+- Production auto-fixes
+- Pub/Sub or Eventarc
 - Kubernetes
 - Slack integration
-- GitHub issue integration
-- GitHub App
-- authentication
-- user accounts
-- RBAC
-- billing
-- multi-tenancy
-- complex dashboard
-- background workers
-- vector database
-- RAG
+- GitHub issue integration or GitHub App
+- Authentication, user accounts, or RBAC
+- Billing or multi-tenancy
+- Complex dashboard
+- Background workers
+- Vector database or RAG
 - MCP server
-- swarm orchestration
-- LangGraph
-- long-running agent workflows
+- Swarm orchestration or LangGraph
+- Long-running agent workflows
 
 If asked to implement any out-of-scope item, state that it is outside the MVP and propose the smallest future placeholder only if necessary.
 
@@ -641,7 +684,7 @@ Plan format:
 
 ## Approved Milestone Order
 
-Follow this exact order:
+### Release 1 (MVP) — Complete
 
 1. Backend health endpoint
 2. Ticket API with in-memory repository
@@ -656,7 +699,28 @@ Follow this exact order:
 11. Minimal frontend
 12. README and architecture docs
 
-Do not skip ahead.
+### Release 2 — Control-plane and orchestration (tasks 13–32)
+
+Tasks 13–32 cover the following areas, implemented in a sequence to be defined at the start of Release 2 planning:
+
+- Approval gate workflow (human sign-off at each stage transition)
+- Audit log (full history of agent runs, evaluations, and human decisions)
+- Multi-candidate orchestration (run multiple agents/prompts, evaluate and select best output)
+- Change request loop (human requests revision; agent reruns against feedback)
+- Dev task decomposition (break approved briefs into actionable dev tasks)
+- Work-safe mode (dry-run and preview for risky operations)
+- Delegation to coding tools (invoke OpenHands, Cline, Aider, or OpenCode for code execution)
+- GitHub App or webhook integration (trigger agents from GitHub events)
+- Branch and PR management
+- AI-assisted PR review
+- Authentication and RBAC
+- Frontend expansion (task list, approval UI, audit view)
+- Deployment pipeline hardening
+- Multi-environment infrastructure (dev/staging/prod)
+
+Work-safe features (approval gates, audit log, output scoring, change request loop, prompt version tracking, repo safety profile, work-safe mode, DoD checklist, branch protection awareness) are folded into these tasks. They do not add tasks beyond 32.
+
+Do not skip ahead. Do not implement Release 2 items unless explicitly instructed.
 
 ## Definition of MVP Done
 

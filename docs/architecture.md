@@ -202,3 +202,71 @@ All agent output is markdown text for human review. The system generates briefs;
 - Pub/Sub or Eventarc triggers
 - Vector search or RAG
 - Multi-environment Terraform workspaces
+
+---
+
+## Release 2+ architectural direction
+
+IncidentPilot's long-term role is **control plane**, not coding agent. This section describes the intended architecture for Release 2+ work. Nothing here is implemented yet.
+
+### Control-plane principle
+
+IncidentPilot owns workflow state, task lifecycle, artifact storage, approval gates, and the audit trail. It does not own code generation or execution — those are delegated to existing tools.
+
+### Planned Release 2 workflow
+
+```
+Ticket / Requirement
+       │
+       ▼
+PlanningAgent(s) — multiple candidates generated
+       │
+       ▼
+Evaluator / Orchestrator — score and select best output
+       │
+       ▼
+Human Approval Gate ──(reject / request changes)──→ Change Request Loop
+       │ (approve)
+       ▼
+Dev Task Decomposition — brief broken into actionable tasks
+       │
+       ▼
+For each dev task:
+  Coding Tool (OpenHands / Cline / Aider / OpenCode)
+       │
+       ▼
+  Test Run + Evaluation
+       │
+       ▼
+  PR Creation → AI Review → Human Review
+       │ (approved)
+       ▼
+  Merge (human-approved) → Deploy (human-approved)
+```
+
+### Delegation design
+
+IncidentPilot invokes coding tools via API or CLI and stores their output as artifacts. It tracks status, surfaces results to humans, and enforces approval gates. It does not reimplement code generation.
+
+Tools targeted for delegation (not yet integrated):
+- **OpenHands** — autonomous coding agent with sandboxed execution
+- **Cline** — VS Code agent with file editing and terminal access
+- **Aider** — CLI coding agent with git integration
+- **OpenCode** — lightweight LLM-driven code editor
+
+### Audit trail
+
+Every agent run, candidate output, evaluation score, human decision, and artifact version is stored and queryable. This makes the system auditable and reversible.
+
+### Work-safe features (planned)
+
+These are implementation details of Release 2 tasks — not separate tasks:
+- Approval gates per stage transition
+- Audit log of all actions and decisions
+- Agent output scoring metadata on artifacts
+- Change request loop with revision tracking
+- Prompt version tracking (which prompt → which artifact)
+- Repo safety profile (branch protection, no-force-push)
+- Work-safe / dry-run mode before executing risky actions
+- Definition-of-done checklist before stage advancement
+- GitHub branch protection awareness

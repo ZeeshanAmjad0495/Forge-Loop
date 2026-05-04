@@ -303,17 +303,28 @@ See [docs/demo-flow.md](docs/demo-flow.md) for a step-by-step local demo.
 
 ## Future roadmap
 
-The following are **not implemented** in the current MVP:
+IncidentPilot's long-term direction is a **human-supervised SDLC control plane** — it orchestrates and delegates work to existing tools rather than reimplementing a coding agent from scratch. The features below reflect this direction. None are implemented in the current MVP.
 
-- **PR review agent** — analyze pull request diffs and generate review notes
-- **Incident triage agent** — analyze production failures and generate triage reports
-- **Branch and task decomposition** — break briefs into subtasks and create branches
-- **GitHub App integration** — trigger agents from GitHub events
-- **Slack notifications** — post agent output to Slack channels
-- **Authentication and RBAC** — user accounts, roles, organization scoping
+### Tier 1 — Control-plane and orchestration (Release 2)
+
+- **Approval gate workflow** — explicit human sign-off at each stage transition (plan, task, branch, merge, deploy)
+- **Audit log** — full history of agent runs, evaluation scores, and human decisions
+- **Multi-candidate orchestration** — run multiple agents or prompts, score outputs, select the best before proceeding
+- **Change request loop** — human requests a revision; agent reruns against the feedback
+- **Dev task decomposition** — break an approved brief into actionable, trackable dev tasks
+- **Work-safe mode** — dry-run and preview for risky operations before execution
+- **Delegation to coding tools** — invoke OpenHands, Cline, Aider, or OpenCode for code execution rather than building from scratch
+- **GitHub App integration** — trigger agents from GitHub events; manage branches and PRs
+- **AI-assisted PR review** — analyze pull request diffs and generate structured review notes
+
+### Tier 2 — Integration and scale
+
+- **Authentication and RBAC** — user accounts, roles, and organization scoping
 - **Multi-tenancy and billing** — isolated workspaces per organization
+- **Frontend expansion** — task list, approval UI, and audit view
 - **Pub/Sub / Eventarc triggers** — event-driven agent execution
 - **Frontend deployment** — Cloud Storage or Firebase Hosting for the web UI
-- **Vector search / RAG** — retrieve relevant context for planning prompts
+- **Vector search / RAG** — retrieve relevant codebase context for planning prompts
 - **MCP server** — expose IncidentPilot tools to Claude or other agents
 - **Multi-environment infrastructure** — dev/staging/prod Terraform workspaces
+- **Incident triage agent** — analyze production failures and generate triage reports
