@@ -8,23 +8,78 @@ This project must be completed as a focused MVP within 1–2 weeks. Do not expan
 
 ## Product Definition
 
-IncidentPilot is a **human-supervised SDLC control plane**.
+IncidentPilot is a **human-supervised product engineering control plane**.
 
-It orchestrates and supervises agentic software delivery work. It does not blindly generate and deploy code, and it does not rebuild a coding agent from scratch.
+It orchestrates the full software delivery lifecycle from requirement to production. It accepts requirements, coordinates AI agent runs, tracks artifacts, enforces human approval at defined transition points, and delegates code execution to existing open-source coding tools where practical. It does not rebuild coding agents from scratch and it does not autonomously merge or deploy.
 
 Core responsibilities of IncidentPilot:
-- Own the workflow state, task lifecycle, and artifact store
+- Own project context, project memory, workflow state, task lifecycle, and the artifact store
 - Coordinate agent runs and evaluate their outputs
 - Enforce human approval at defined transition points
 - Delegate code execution to existing open-source coding tools where practical
 - Maintain a full audit trail of agent runs, evaluations, and human decisions
+- Enforce work-safe rules and repo safety profiles
 
 IncidentPilot is not responsible for:
 - Writing production code directly
 - Executing terminal commands autonomously
 - Merging or deploying without human approval
+- Sending proprietary or customer data to external LLMs unless explicitly approved
 
 The MVP is much smaller — see MVP Goal below.
+
+### Project-Centered Model (planned, Releases 3–6)
+
+The future data model is project-centered, not only ticket-centered:
+
+```
+Project
+  ├── ProjectMemory (architecture decisions, tech stack, domain rules,
+  │                  coding standards, testing/deploy commands, prior feedback,
+  │                  approved/rejected approaches, known risks, prompt versions)
+  ├── Tickets / Requirements
+  │     └── Planning AgentRuns (N candidates) → Evaluator → Selected Artifact
+  │           → Human Approval → DevTasks
+  │                 └── Subtasks → ToolRunner execution
+  │                       └── Branch → PR → AI Review → Human Review
+  │                             → Revision Loop → Merge
+  └── Monitoring / Incident Triage
+```
+
+The MVP implements only the leftmost path (Ticket → PlanningAgentRun → Artifact). Project, ProjectMemory, DevTasks, ToolRunner, and the Review/Merge loop are planned for Releases 3–6.
+
+### Delegation Principle
+
+Where practical, code execution is delegated to existing open-source coding tools rather than reimplemented. Target tools (none integrated yet):
+- OpenHands
+- Hermes Agent
+- Cline
+- Aider
+- OpenCode
+- OpenClaw (evaluate if useful)
+
+IncidentPilot invokes these tools via API or CLI and stores their output as artifacts. It tracks status, surfaces results to humans, and enforces approval gates.
+
+### Swarm / Evaluator Pattern (planned, Releases 4–5)
+
+Each workflow stage may run multiple agent candidates in parallel. An evaluator scores the outputs and selects the best before proceeding. A human approves or requests changes. May be implemented later via Kimi swarm capabilities, a parallel AgentRun abstraction, or LangGraph if it proves necessary.
+
+### Work-Safe Principles
+
+The system must always preserve:
+- Human approval for risky transitions (plan, merge, deploy, remediation)
+- No direct merge without approval
+- No production deployment without approval
+- No secret exposure to agents or in logs
+- No uncontrolled agent execution
+- Audit trail for important actions
+- Repo safety profiles (branch protection awareness, no-force-push enforcement)
+- Blocked paths and required checks
+- Work-safe / dry-run mode for risky operations
+
+Two operating modes are planned:
+- **Personal-product mode**: Faster, lighter approvals allowed.
+- **Workplace mode**: Stricter — sanitized inputs where needed, no proprietary or customer data sent to external LLMs unless explicitly approved, no secrets sent to agents, no direct production changes.
 
 ## MVP Goal
 
@@ -38,55 +93,15 @@ Ticket
 → ImplementationBrief Artifact
 → Human reads/reviews the brief
 
-## Product Direction — Release 2+
+## Product Direction — Releases 3–6
 
-This section defines the architectural direction for work beyond the MVP. It is not implemented yet. It exists to guide design decisions and prevent scope drift.
+The architectural direction for work beyond the current implementation is summarised under "Product Definition" above (Project-Centered Model, Delegation Principle, Swarm/Evaluator Pattern, Work-Safe Principles) and detailed per release in "Approved Milestone Order" below.
 
-### 1. Control-plane principle
+The full target architecture diagram lives in [`docs/architecture.md`](docs/architecture.md#target-architecture-releases-36).
 
-IncidentPilot owns orchestration, approvals, audit trail, evaluation, task state, artifacts, and workflow control. It does not own code generation or execution. Those are delegated.
+Work-safe capabilities (approval gates, audit log, scoring metadata, change request loop, prompt version tracking, repo safety profile, work-safe / dry-run mode, DoD checklist, branch protection awareness) are folded into the existing Releases 3–6 tasks and **do not add tasks beyond 32**.
 
-### 2. Delegation principle
-
-Where practical, code execution is delegated to existing open-source coding tools:
-- OpenHands
-- Cline
-- Aider
-- OpenCode
-
-IncidentPilot invokes these tools via API or CLI and tracks their output as artifacts. It does not reimplement what these tools already do well.
-
-### 3. Orchestrator/evaluator pattern
-
-Each workflow stage may run multiple agent candidates. IncidentPilot evaluates, scores, and selects the best output before proceeding to the next stage. This applies to:
-- Planning briefs (multiple LLM candidates → evaluated → selected)
-- Dev task outputs (multiple coding tool attempts → tested → selected)
-- PR content (generated → reviewed by AI → reviewed by human → merged)
-
-### 4. Human approval gates
-
-The following transitions require explicit human approval before the system proceeds:
-- Plan approval (brief reviewed and accepted)
-- Dev task approval (task scope confirmed before coding starts)
-- Branch and PR creation
-- Merge to main
-- Deployment to production
-- Production remediation actions
-
-### 5. Work-safe features
-
-The following capabilities are planned as implementation details of existing Release 2 tasks. They are **folded into the 32-task roadmap** — they do not add new tasks beyond it:
-- Approval gates with explicit human confirmation per stage
-- Audit log of all agent runs, scores, selections, and human decisions
-- Agent output scoring and evaluation metadata stored on artifacts
-- Change request loop: human requests revision, agent reruns against feedback
-- Prompt version tracking: which prompt version produced which artifact
-- Repo safety profile: branch protection awareness, no-force-push enforcement
-- Work-safe mode: dry-run and preview for risky operations before execution
-- Definition-of-done checklist enforcement before stage transition
-- GitHub branch protection awareness
-
-## Hard MVP Scope
+## Hard MVP Scope (Releases 1 + 2)
 
 Build only these capabilities:
 
@@ -95,41 +110,51 @@ Build only these capabilities:
 3. AgentRun creation for planning
 4. ImplementationBrief artifact generation
 5. LLM provider abstraction
-6. DeepSeek provider as the first real provider
-7. Kimi provider only if explicitly instructed later
+6. DeepSeek provider
+7. Kimi provider
 8. Firestore persistence
 9. Minimal frontend
 10. Dockerized backend
 11. GitHub Actions CI
 12. Cloud Run deployment
 13. Terraform for minimum GCP infrastructure
-14. README and architecture documentation
+14. Per-request provider selection (UI + `GET /llm/providers`)
+15. README and architecture documentation aligned with product direction
 
-## Explicitly Out of Scope
+## Explicitly Out of Scope (until their release)
 
-The items below are out of scope for Release 1 (MVP). Some are planned for Release 2+. See "Product Direction — Release 2+" for architectural framing.
+The items below are out of scope for the current release. Most are planned in Releases 3–6. See "Approved Milestone Order" for which release owns each item. Do not implement any of these ahead of their release.
 
-Do not implement these in the MVP:
+- Building a coding agent from scratch — use existing tools (OpenHands, Aider, Cline, OpenCode, Hermes Agent) instead → Release 4
+- Branch creation → Release 3
+- PR creation → Release 3
+- AI-assisted PR review → Release 5
+- Incident triage agent → Release 6
+- Production auto-fixes / remediation → Release 6
+- GitHub App or webhook integration → Release 3
+- Approval gate workflow / audit log → Release 3
+- Tool runner abstraction → Release 4
+- Multi-candidate / swarm orchestration → Release 4
+- Project memory → Release 4 (or earlier if needed by tool runners)
+- Prompt version tracking → Release 5
+- CI failure analysis → Release 5
+- Marketing / product-growth workflows → Release 7 (parked, not in active roadmap)
 
-- Building a coding agent from scratch — use existing tools (OpenHands, Cline, Aider, OpenCode) instead
-- Branch creation
-- PR creation or review
-- Incident triage agent
-- Production auto-fixes
+Always out of scope for the current 32-task roadmap:
+
 - Pub/Sub or Eventarc
 - Kubernetes
 - Slack integration
-- GitHub issue integration or GitHub App
 - Authentication, user accounts, or RBAC
 - Billing or multi-tenancy
 - Complex dashboard
 - Background workers
 - Vector database or RAG
 - MCP server
-- Swarm orchestration or LangGraph
+- LangGraph (only adopt if a real need appears in Release 4–5)
 - Long-running agent workflows
 
-If asked to implement any out-of-scope item, state that it is outside the MVP and propose the smallest future placeholder only if necessary.
+If asked to implement any out-of-scope item, state which release owns it (or that it is parked) and ask whether to proceed before implementing anything.
 
 ## Tech Stack
 
@@ -428,9 +453,9 @@ DeepSeek provider must:
 - raise clean application errors on provider failure
 - be mocked in tests
 
-Before DeepSeek is implemented, use a mock provider.
+Implemented providers: mock (default), DeepSeek, Kimi (Moonshot). Provider can be selected per request via the `provider` field on `POST /tickets/{ticket_id}/planning-runs`. The `GET /llm/providers` endpoint reports which providers are configured (key present) without exposing secrets.
 
-Do not implement Kimi, Gemini, Claude, LangGraph, MCP, or tool calling unless explicitly instructed.
+Do not implement Gemini, Claude, LangGraph, MCP, or autonomous tool calling unless explicitly instructed.
 
 ## Configuration Rules
 
@@ -684,7 +709,9 @@ Plan format:
 
 ## Approved Milestone Order
 
-### Release 1 (MVP) — Complete
+The active engineering scope is fixed at **32 tasks across 6 releases**. Do not add work beyond these. Marketing/product-growth (Release 7) is parked separately.
+
+### Release 1 — Planning Platform (Tasks 1–12) — Complete
 
 1. Backend health endpoint
 2. Ticket API with in-memory repository
@@ -699,28 +726,48 @@ Plan format:
 11. Minimal frontend
 12. README and architecture docs
 
-### Release 2 — Control-plane and orchestration (tasks 13–32)
+### Release 2 — Provider + Basic Usability (Tasks 13–15) — Complete
 
-Tasks 13–32 cover the following areas, implemented in a sequence to be defined at the start of Release 2 planning:
+13. Kimi provider integration
+14. Per-request provider selection (`GET /llm/providers` + UI selector)
+15. Documentation alignment with product direction
 
-- Approval gate workflow (human sign-off at each stage transition)
-- Audit log (full history of agent runs, evaluations, and human decisions)
-- Multi-candidate orchestration (run multiple agents/prompts, evaluate and select best output)
-- Change request loop (human requests revision; agent reruns against feedback)
-- Dev task decomposition (break approved briefs into actionable dev tasks)
-- Work-safe mode (dry-run and preview for risky operations)
-- Delegation to coding tools (invoke OpenHands, Cline, Aider, or OpenCode for code execution)
+### Release 3 — GitHub + Approval Foundation (Tasks 16–20)
+
 - GitHub App or webhook integration (trigger agents from GitHub events)
-- Branch and PR management
+- Branch creation
+- PR creation
+- Human approval gate workflow (explicit sign-off at each stage transition)
+- Audit log (full history of agent runs, evaluations, and human decisions)
+
+### Release 4 — Tool-based Coding Automation (Tasks 21–25)
+
+- Tool runner abstraction (interface for invoking external coding tools)
+- First tool runner integration (OpenHands or Aider)
+- Dev task decomposition (break approved briefs into actionable dev tasks)
+- Multi-candidate orchestration (run multiple agents/prompts, evaluate and select)
+- Change request loop (human requests revision; agent reruns against feedback)
+
+### Release 5 — Review + CI Intelligence (Tasks 26–29)
+
 - AI-assisted PR review
-- Authentication and RBAC
-- Frontend expansion (task list, approval UI, audit view)
-- Deployment pipeline hardening
-- Multi-environment infrastructure (dev/staging/prod)
+- CI failure analysis
+- Test run evaluation
+- Prompt version tracking (which prompt produced which artifact)
 
-Work-safe features (approval gates, audit log, output scoring, change request loop, prompt version tracking, repo safety profile, work-safe mode, DoD checklist, branch protection awareness) are folded into these tasks. They do not add tasks beyond 32.
+### Release 6 — IncidentOps (Tasks 30–32)
 
-Do not skip ahead. Do not implement Release 2 items unless explicitly instructed.
+- Incident triage agent
+- Production failure analysis
+- Remediation brief workflow
+
+### Release 7 — Marketing / Product-Growth (Future, parked)
+
+Not part of the active 32-task roadmap. Plan separately after Release 6 is done. Possible scope: product brief generator, landing page copy, marketing campaign planner, social post generator, cold outreach drafts, user feedback collector, competitor/research tracker.
+
+Work-safe features (approval gates, audit log, output scoring, change request loop, prompt version tracking, repo safety profile, work-safe mode, DoD checklist, branch protection awareness) are folded into Releases 3–6 and do not add tasks beyond 32.
+
+Do not skip ahead. Do not implement Release 3+ items unless explicitly instructed.
 
 ## Definition of MVP Done
 

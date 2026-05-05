@@ -41,3 +41,32 @@ class Artifact(BaseModel):
 class PlanningRunResponse(BaseModel):
     agent_run: AgentRun
     artifact: Artifact
+
+
+class PlanningRunCreate(BaseModel):
+    provider: str | None = None
+
+
+class ProviderInfo(BaseModel):
+    name: str
+    configured: bool
+    default_model: str
+
+
+class ProvidersResponse(BaseModel):
+    default_provider: str
+    providers: list[ProviderInfo]
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class LoginResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+class MeResponse(BaseModel):
+    email: str

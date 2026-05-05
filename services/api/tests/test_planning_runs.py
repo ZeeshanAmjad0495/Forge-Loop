@@ -1,5 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
+from app import config
 from app.main import app
 from app.llm.mock import MockLLMProvider
 from app.models import Ticket
@@ -78,6 +79,47 @@ def test_planning_run_unknown_ticket_404():
 def test_get_artifacts_unknown_ticket_404():
     response = client.get("/tickets/nonexistent-id/artifacts")
     assert response.status_code == 404
+
+
+def test_planning_run_with_explicit_mock_provider_body():
+    ticket = _create_ticket()
+    response = client.post(
+        f"/tickets/{ticket['id']}/planning-runs",
+        json={"provider": "mock"},
+    )
+    assert response.status_code == 201
+    assert response.json()["agent_run"]["provider"] == "mock"
+
+
+def test_planning_run_unknown_provider_returns_400():
+    ticket = _create_ticket()
+    response = client.post(
+        f"/tickets/{ticket['id']}/planning-runs",
+        json={"provider": "gemini"},
+    )
+    assert response.status_code == 400
+    assert "Unknown provider" in response.json()["detail"]
+
+
+def test_planning_run_unconfigured_provider_returns_400(monkeypatch):
+    monkeypatch.setattr(config, "DEEPSEEK_API_KEY", "")
+    ticket = _create_ticket()
+    response = client.post(
+        f"/tickets/{ticket['id']}/planning-runs",
+        json={"provider": "deepseek"},
+    )
+    assert response.status_code == 400
+    assert "DEEPSEEK_API_KEY" in response.json()["detail"]
+
+
+def test_planning_run_null_provider_uses_default():
+    ticket = _create_ticket()
+    response = client.post(
+        f"/tickets/{ticket['id']}/planning-runs",
+        json={"provider": None},
+    )
+    assert response.status_code == 201
+    assert response.json()["agent_run"]["provider"] == "mock"
 
 
 def test_run_planning_agent_returns_run_and_artifact():

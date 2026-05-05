@@ -6,7 +6,7 @@ Step-by-step guide to running IncidentPilot locally and generating a planning br
 
 - Python 3.12+
 - Node.js 18+
-- A DeepSeek API key — **or** use the mock provider (no key needed)
+- (Optional) A DeepSeek API key, a Kimi (Moonshot) API key, or both — **or** use the mock provider (no key needed)
 
 ---
 
@@ -24,12 +24,19 @@ cp .env.example .env
 
 To use the **mock provider** (instant response, no key needed), leave `.env` as-is.
 
-To use the **real DeepSeek provider**, edit `.env`:
+`LLM_PROVIDER` sets the **default** provider. The frontend lets you pick any configured provider per planning run, so you can leave the default as `mock` and still use DeepSeek or Kimi from the UI as long as their API keys are set.
+
+To enable the **real DeepSeek provider**, add to `.env`:
 ```
-LLM_PROVIDER=deepseek
-LLM_MODEL=deepseek-chat
-DEEPSEEK_API_KEY=sk-your-real-key
+DEEPSEEK_API_KEY=sk-your-deepseek-key
 ```
+
+To enable the **real Kimi (Moonshot) provider**, add to `.env`:
+```
+KIMI_API_KEY=sk-your-kimi-key
+```
+
+To set DeepSeek (or Kimi) as the default instead of mock, also set `LLM_PROVIDER=deepseek` (or `kimi`).
 
 Start the server:
 ```bash
@@ -66,14 +73,22 @@ The ticket is created and its details appear below the form.
 
 ---
 
-## Step 4: Generate a planning brief
+## Step 4: Pick a provider and generate a planning brief
 
-Click **Generate planning brief**.
+After the ticket is created, a **LLM provider** dropdown appears below the ticket details. It lists every implemented provider:
+
+- `mock` — always available, instant response.
+- `deepseek` — enabled if `DEEPSEEK_API_KEY` is set on the backend.
+- `kimi` — enabled if `KIMI_API_KEY` is set on the backend.
+
+Providers without an API key are shown as disabled. The default selection is whatever `LLM_PROVIDER` was set to on the backend.
+
+Pick a provider and click **Generate planning brief**.
 
 - With the mock provider: the brief appears instantly.
-- With DeepSeek: expect 10–30 seconds while the model responds.
+- With DeepSeek or Kimi: expect 10–30 seconds while the model responds.
 
-The generated brief renders as markdown directly on the page.
+The generated brief renders as markdown directly on the page. The response also includes the `agent_run.provider` and `agent_run.model` so it is auditable which provider produced the brief.
 
 ---
 

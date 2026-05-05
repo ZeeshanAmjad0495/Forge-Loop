@@ -152,3 +152,43 @@ button:disabled {
   font-size: 0.95rem;
   text-decoration: underline;
 }
+
+.app-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+
+.app-header h1 {
+  margin-bottom: 0;
+}
+
+.logout {
+  background: none;
+  border: 1px solid #d1d5db;
+  color: #374151;
+  font-size: 0.875rem;
+  padding: 0.35rem 0.85rem;
+  border-radius: 6px;
+}
+
+.logout:hover {
+  background: #f3f4f6;
+}
+
+.provider-select {
+  margin-bottom: 1rem;
+}
+
+.provider-select select {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-family: inherit;
+  background: #fff;
+  margin-top: 0.25rem;
+}

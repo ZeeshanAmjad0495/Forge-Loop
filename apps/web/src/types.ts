@@ -32,3 +32,28 @@ export interface PlanningRunResponse {
   agent_run: AgentRun
   artifact: Artifact
 }
+
+export interface ProviderInfo {
+  name: string
+  configured: boolean
+  default_model: string
+}
+
+export interface ProvidersResponse {
+  default_provider: string
+  providers: ProviderInfo[]
+}
+
+export interface LoginRequest {
+  email: string
+  password: string
+}
+
+export interface LoginResponse {
+  access_token: string
+  token_type: string
+}
+
+export interface MeResponse {
+  email: string
+}

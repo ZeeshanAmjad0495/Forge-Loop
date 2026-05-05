@@ -1,4 +1,5 @@
 import pytest
+from app import config
 from app.main import agent_run_repo, artifact_repo, repo
 
 
@@ -7,3 +8,8 @@ def clear_repos():
     for r in (repo, agent_run_repo, artifact_repo):
         if hasattr(r, "_store"):
             r._store.clear()
+
+
+@pytest.fixture(autouse=True)
+def disable_auth_by_default(monkeypatch):
+    monkeypatch.setattr(config, "AUTH_ENABLED", False)
