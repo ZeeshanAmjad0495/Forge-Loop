@@ -1,12 +1,13 @@
 from typing import Protocol
 
 from . import config
-from .models import AgentRun, Artifact, Ticket
+from .models import AgentRun, Artifact, Project, ProjectContext, Ticket
 
 
 class TicketRepository(Protocol):
     def save(self, ticket: Ticket) -> None: ...
     def get(self, ticket_id: str) -> Ticket | None: ...
+    def list_by_project(self, project_id: str) -> list[Ticket]: ...
 
 
 class InMemoryTicketRepository:
@@ -18,6 +19,9 @@ class InMemoryTicketRepository:
 
     def get(self, ticket_id: str) -> Ticket | None:
         return self._store.get(ticket_id)
+
+    def list_by_project(self, project_id: str) -> list[Ticket]:
+        return [t for t in self._store.values() if t.project_id == project_id]
 
 
 class AgentRunRepository(Protocol):
@@ -52,6 +56,42 @@ class InMemoryArtifactRepository:
         return [a for a in self._store.values() if a.ticket_id == ticket_id]
 
 
+class ProjectRepository(Protocol):
+    def save(self, project: Project) -> None: ...
+    def get(self, project_id: str) -> Project | None: ...
+    def list_all(self) -> list[Project]: ...
+
+
+class InMemoryProjectRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, Project] = {}
+
+    def save(self, project: Project) -> None:
+        self._store[project.id] = project
+
+    def get(self, project_id: str) -> Project | None:
+        return self._store.get(project_id)
+
+    def list_all(self) -> list[Project]:
+        return list(self._store.values())
+
+
+class ProjectContextRepository(Protocol):
+    def save(self, ctx: ProjectContext) -> None: ...
+    def get(self, project_id: str) -> ProjectContext | None: ...
+
+
+class InMemoryProjectContextRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, ProjectContext] = {}
+
+    def save(self, ctx: ProjectContext) -> None:
+        self._store[ctx.project_id] = ctx
+
+    def get(self, project_id: str) -> ProjectContext | None:
+        return self._store.get(project_id)
+
+
 class FirestoreTicketRepository:
     def __init__(self, client, collection_name: str = "tickets") -> None:
         self._collection = client.collection(collection_name)
@@ -64,6 +104,10 @@ class FirestoreTicketRepository:
         if not snap.exists:
             return None
         return Ticket(**snap.to_dict())
+
+    def list_by_project(self, project_id: str) -> list[Ticket]:
+        docs = self._collection.where("project_id", "==", project_id).stream()
+        return [Ticket(**d.to_dict()) for d in docs]
 
 
 class FirestoreAgentRunRepository:
@@ -92,12 +136,51 @@ class FirestoreArtifactRepository:
         return [Artifact(**d.to_dict()) for d in docs]
 
 
-def get_repositories() -> tuple[TicketRepository, AgentRunRepository, ArtifactRepository]:
+class FirestoreProjectRepository:
+    def __init__(self, client, collection_name: str = "projects") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, project: Project) -> None:
+        self._collection.document(project.id).set(project.model_dump(mode="python"))
+
+    def get(self, project_id: str) -> Project | None:
+        snap = self._collection.document(project_id).get()
+        if not snap.exists:
+            return None
+        return Project(**snap.to_dict())
+
+    def list_all(self) -> list[Project]:
+        return [Project(**d.to_dict()) for d in self._collection.stream()]
+
+
+class FirestoreProjectContextRepository:
+    def __init__(self, client, collection_name: str = "project_contexts") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, ctx: ProjectContext) -> None:
+        self._collection.document(ctx.project_id).set(ctx.model_dump(mode="python"))
+
+    def get(self, project_id: str) -> ProjectContext | None:
+        snap = self._collection.document(project_id).get()
+        if not snap.exists:
+            return None
+        return ProjectContext(**snap.to_dict())
+
+
+def get_repositories() -> tuple[
+    TicketRepository,
+    AgentRunRepository,
+    ArtifactRepository,
+    ProjectRepository,
+    ProjectContextRepository,
+]:
     if config.REPOSITORY_PROVIDER == "memory":
         return (
             InMemoryTicketRepository(),
             InMemoryAgentRunRepository(),
             InMemoryArtifactRepository(),
+            InMemoryProjectRepository(),
+            InMemoryProjectContextRepository(),
         )
     if config.REPOSITORY_PROVIDER == "firestore":
         from google.cloud import firestore
@@ -110,6 +193,8 @@ def get_repositories() -> tuple[TicketRepository, AgentRunRepository, ArtifactRe
             FirestoreTicketRepository(client),
             FirestoreAgentRunRepository(client),
             FirestoreArtifactRepository(client),
+            FirestoreProjectRepository(client),
+            FirestoreProjectContextRepository(client),
         )
     raise ValueError(
         f"Unknown REPOSITORY_PROVIDER: {config.REPOSITORY_PROVIDER!r}. Supported: memory, firestore"

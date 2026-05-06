@@ -1,5 +1,13 @@
 import { clearToken, getToken } from './auth'
-import type { LoginResponse, PlanningRunResponse, ProvidersResponse, Ticket } from './types'
+import type {
+  LoginResponse,
+  PlanningRunResponse,
+  Project,
+  ProjectContext,
+  ProjectCreate,
+  ProvidersResponse,
+  Ticket,
+} from './types'
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
 
@@ -32,6 +40,63 @@ export async function login(email: string, password: string): Promise<LoginRespo
   })
   return handleResponse<LoginResponse>(res)
 }
+
+// ---------------------------------------------------------------------------
+// Projects
+// ---------------------------------------------------------------------------
+
+export async function listProjects(): Promise<Project[]> {
+  const res = await fetch(`${BASE}/projects`, { headers: authHeaders() })
+  return handleResponse<Project[]>(res)
+}
+
+export async function createProject(data: ProjectCreate): Promise<Project> {
+  const res = await fetch(`${BASE}/projects`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(data),
+  })
+  return handleResponse<Project>(res)
+}
+
+export async function getProjectContext(projectId: string): Promise<ProjectContext> {
+  const res = await fetch(`${BASE}/projects/${projectId}/context`, { headers: authHeaders() })
+  return handleResponse<ProjectContext>(res)
+}
+
+export async function updateProjectContext(
+  projectId: string,
+  ctx: Omit<ProjectContext, 'project_id' | 'updated_at'>,
+): Promise<ProjectContext> {
+  const res = await fetch(`${BASE}/projects/${projectId}/context`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(ctx),
+  })
+  return handleResponse<ProjectContext>(res)
+}
+
+export async function createProjectTicket(
+  projectId: string,
+  title: string,
+  description: string,
+): Promise<Ticket> {
+  const res = await fetch(`${BASE}/projects/${projectId}/tickets`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ title, description }),
+  })
+  return handleResponse<Ticket>(res)
+}
+
+export async function listProjectTickets(projectId: string): Promise<Ticket[]> {
+  const res = await fetch(`${BASE}/projects/${projectId}/tickets`, { headers: authHeaders() })
+  return handleResponse<Ticket[]>(res)
+}
+
+// ---------------------------------------------------------------------------
+// Tickets (legacy standalone flow)
+// ---------------------------------------------------------------------------
 
 export async function createTicket(title: string, description: string): Promise<Ticket> {
   const res = await fetch(`${BASE}/tickets`, {

@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 
 from .llm.base import LLMProvider
-from .models import AgentRun, Artifact, Ticket
+from .models import AgentRun, Artifact, ProjectContext, Ticket
 from .repositories import AgentRunRepository, ArtifactRepository
 
 
@@ -11,6 +11,7 @@ def run_planning_agent(
     provider: LLMProvider,
     agent_run_repo: AgentRunRepository,
     artifact_repo: ArtifactRepository,
+    project_context: ProjectContext | None = None,
 ) -> tuple[AgentRun, Artifact]:
     now = datetime.now(timezone.utc)
     run = AgentRun(
@@ -61,6 +62,26 @@ Respond in markdown using exactly these sections in order:
 Ticket title: {ticket.title}
 
 Ticket description: {ticket.description}
+"""
+    if project_context and any(
+        [
+            project_context.architecture_notes,
+            project_context.coding_standards,
+            project_context.test_commands,
+            project_context.deployment_commands,
+            project_context.domain_rules,
+            project_context.safety_rules,
+        ]
+    ):
+        prompt += f"""
+## Project Context (provided by ForgeLoop for this project)
+
+Architecture notes: {project_context.architecture_notes or "none"}
+Coding standards: {project_context.coding_standards or "none"}
+Test commands: {project_context.test_commands or "none"}
+Deployment commands: {project_context.deployment_commands or "none"}
+Domain rules: {project_context.domain_rules or "none"}
+Safety rules: {project_context.safety_rules or "none"}
 """
     content = provider.generate_text(prompt)
     artifact = Artifact(

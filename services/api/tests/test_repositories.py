@@ -8,36 +8,46 @@ from app.models import Artifact, Ticket
 from app.repositories import (
     FirestoreAgentRunRepository,
     FirestoreArtifactRepository,
+    FirestoreProjectContextRepository,
+    FirestoreProjectRepository,
     FirestoreTicketRepository,
     InMemoryAgentRunRepository,
     InMemoryArtifactRepository,
+    InMemoryProjectContextRepository,
+    InMemoryProjectRepository,
     InMemoryTicketRepository,
     get_repositories,
 )
 
 
 def test_default_repository_is_memory():
-    tickets, runs, artifacts = get_repositories()
+    tickets, runs, artifacts, projects, contexts = get_repositories()
     assert isinstance(tickets, InMemoryTicketRepository)
     assert isinstance(runs, InMemoryAgentRunRepository)
     assert isinstance(artifacts, InMemoryArtifactRepository)
+    assert isinstance(projects, InMemoryProjectRepository)
+    assert isinstance(contexts, InMemoryProjectContextRepository)
 
 
 def test_memory_repository_explicitly(monkeypatch):
     monkeypatch.setattr(config, "REPOSITORY_PROVIDER", "memory")
-    tickets, runs, artifacts = get_repositories()
+    tickets, runs, artifacts, projects, contexts = get_repositories()
     assert isinstance(tickets, InMemoryTicketRepository)
     assert isinstance(runs, InMemoryAgentRunRepository)
     assert isinstance(artifacts, InMemoryArtifactRepository)
+    assert isinstance(projects, InMemoryProjectRepository)
+    assert isinstance(contexts, InMemoryProjectContextRepository)
 
 
 def test_firestore_repository_selected(monkeypatch):
     monkeypatch.setattr(config, "REPOSITORY_PROVIDER", "firestore")
     with patch("google.cloud.firestore.Client"):
-        tickets, runs, artifacts = get_repositories()
+        tickets, runs, artifacts, projects, contexts = get_repositories()
     assert isinstance(tickets, FirestoreTicketRepository)
     assert isinstance(runs, FirestoreAgentRunRepository)
     assert isinstance(artifacts, FirestoreArtifactRepository)
+    assert isinstance(projects, FirestoreProjectRepository)
+    assert isinstance(contexts, FirestoreProjectContextRepository)
 
 
 def test_unknown_repository_raises(monkeypatch):

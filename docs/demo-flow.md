@@ -1,6 +1,6 @@
 # Demo Flow
 
-Step-by-step guide to running IncidentPilot locally and generating a planning brief.
+Step-by-step guide to running ForgeLoop locally and generating a planning brief.
 
 ## Prerequisites
 

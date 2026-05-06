@@ -1,6 +1,6 @@
 # Sample Ticket
 
-Use this as a realistic input to the planning agent when demoing or testing IncidentPilot.
+Use this as a realistic input to the planning agent when demoing or testing ForgeLoop.
 
 ---
 

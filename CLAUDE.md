@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-# IncidentPilot MVP — Claude Code Operating Instructions
+# ForgeLoop — Claude Code Operating Instructions
 
 You are the primary coding agent for this repository.
 
@@ -8,11 +8,11 @@ This project must be completed as a focused MVP within 1–2 weeks. Do not expan
 
 ## Product Definition
 
-IncidentPilot is a **human-supervised product engineering control plane**.
+ForgeLoop is a **human-supervised autonomous SDLC + STLC control plane** for building, testing, reviewing, maintaining, and improving software products using project-aware AI agents and existing open-source coding, QA, and review tools.
 
 It orchestrates the full software delivery lifecycle from requirement to production. It accepts requirements, coordinates AI agent runs, tracks artifacts, enforces human approval at defined transition points, and delegates code execution to existing open-source coding tools where practical. It does not rebuild coding agents from scratch and it does not autonomously merge or deploy.
 
-Core responsibilities of IncidentPilot:
+Core responsibilities of ForgeLoop:
 - Own project context, project memory, workflow state, task lifecycle, and the artifact store
 - Coordinate agent runs and evaluate their outputs
 - Enforce human approval at defined transition points
@@ -20,7 +20,7 @@ Core responsibilities of IncidentPilot:
 - Maintain a full audit trail of agent runs, evaluations, and human decisions
 - Enforce work-safe rules and repo safety profiles
 
-IncidentPilot is not responsible for:
+ForgeLoop is not responsible for:
 - Writing production code directly
 - Executing terminal commands autonomously
 - Merging or deploying without human approval
@@ -58,7 +58,7 @@ Where practical, code execution is delegated to existing open-source coding tool
 - OpenCode
 - OpenClaw (evaluate if useful)
 
-IncidentPilot invokes these tools via API or CLI and stores their output as artifacts. It tracks status, surfaces results to humans, and enforces approval gates.
+ForgeLoop invokes these tools via API or CLI and stores their output as artifacts. It tracks status, surfaces results to humans, and enforces approval gates.
 
 ### Swarm / Evaluator Pattern (planned, Releases 4–5)
 
@@ -80,6 +80,26 @@ The system must always preserve:
 Two operating modes are planned:
 - **Personal-product mode**: Faster, lighter approvals allowed.
 - **Workplace mode**: Stricter — sanitized inputs where needed, no proprietary or customer data sent to external LLMs unless explicitly approved, no secrets sent to agents, no direct production changes.
+
+### ForgeLoop Studio (future vision, not in active roadmap)
+
+ForgeLoop (this repo) is the active build. It belongs to a larger future product suite called **ForgeLoop Studio** — documented here for architectural awareness only. Nothing in this section is implemented.
+
+ForgeLoop Studio consists of four modules:
+
+| Module | Role |
+|--------|------|
+| **ProductScout** | Market research and product discovery bot. Researches markets, competitors, pain points, user needs, and pricing signals. Outputs structured product briefs and requirements that feed into ForgeLoop. |
+| **ForgeLoop** | This repo. Human-supervised SDLC + STLC control plane. Converts requirements into planning briefs, tasks, code, QA, PRs, reviews, deployments, and maintenance. |
+| **AuditLens** | Independent auditor. Audits implemented software for security, compliance, accessibility, UX, performance, test coverage, and market-readiness. Creates improvement tickets that re-enter ForgeLoop. |
+| **LaunchPilot** | Marketing and sales support. Landing pages, positioning, outreach, demos, sales material, client requirement intake. Client feedback returns to ForgeLoop as new tickets. Subsumes Release 7 (parked). |
+
+**Rules for this repo:**
+- Do not implement ProductScout, AuditLens, or LaunchPilot without explicit instruction.
+- LaunchPilot subsumes marketing/product-growth (Release 7). It is parked and not in the active 32-task roadmap.
+- Active implementation continues through the 32-task ForgeLoop core roadmap only.
+
+---
 
 ## MVP Goal
 
@@ -138,7 +158,7 @@ The items below are out of scope for the current release. Most are planned in Re
 - Project memory → Release 4 (or earlier if needed by tool runners)
 - Prompt version tracking → Release 5
 - CI failure analysis → Release 5
-- Marketing / product-growth workflows → Release 7 (parked, not in active roadmap)
+- ProductScout, AuditLens, LaunchPilot — ForgeLoop Studio modules, not in the active 32-task roadmap. LaunchPilot subsumes marketing/product-growth (Release 7, parked). Do not implement any of these without explicit instruction.
 
 Always out of scope for the current 32-task roadmap:
 
@@ -612,7 +632,7 @@ Do not add auth, dashboard complexity, design systems, charts, or admin panels.
 
 README must eventually include:
 
-- what IncidentPilot does
+- what ForgeLoop does
 - MVP scope
 - architecture summary
 - tech stack

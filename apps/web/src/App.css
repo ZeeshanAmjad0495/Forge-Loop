@@ -192,3 +192,175 @@ button:disabled {
   background: #fff;
   margin-top: 0.25rem;
 }
+
+/* Project list */
+.project-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 2rem;
+}
+
+.project-card {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.project-card:hover {
+  border-color: #1d4ed8;
+  background: #fff;
+}
+
+.project-card strong {
+  display: block;
+  font-size: 1rem;
+  margin-bottom: 0.25rem;
+}
+
+.project-card p {
+  margin: 0 0 0.5rem;
+  color: #374151;
+  font-size: 0.9rem;
+}
+
+.project-description {
+  color: #374151;
+  margin-bottom: 0.75rem;
+}
+
+.tech-stack {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.tech-badge {
+  font-size: 0.75rem;
+  background: #eff6ff;
+  color: #1d4ed8;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+/* Back link */
+.back-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #1d4ed8;
+  font-size: 0.9rem;
+  cursor: pointer;
+  text-decoration: underline;
+  margin-bottom: 1rem;
+  display: inline-block;
+}
+
+/* Context section */
+.context-section {
+  margin-top: 2rem;
+  border-top: 1px solid #e5e7eb;
+  padding-top: 1.5rem;
+}
+
+.section-hint {
+  color: #6b7280;
+  font-size: 0.875rem;
+  margin-top: -0.5rem;
+  margin-bottom: 1rem;
+}
+
+.ctx-textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
+.ctx-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.ctx-saved {
+  color: #065f46;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+/* Ticket list */
+.tickets-section {
+  margin-top: 2rem;
+  border-top: 1px solid #e5e7eb;
+  padding-top: 1.5rem;
+}
+
+.ticket-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.ticket-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 0.6rem 1rem;
+  cursor: pointer;
+  font-size: 0.95rem;
+  color: #111;
+  transition: border-color 0.15s;
+}
+
+.ticket-row:hover {
+  border-color: #1d4ed8;
+  background: #fff;
+}
+
+.ticket-row.done {
+  border-color: #a7f3d0;
+}
+
+.ticket-row-title {
+  font-weight: 500;
+}
+
+.ticket-row-status {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.ticket-row.done .ticket-row-status {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 0.75rem;
+}
+
+h4 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 1.25rem 0 0.5rem;
+}

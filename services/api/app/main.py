@@ -18,6 +18,10 @@ from .models import (
     MeResponse,
     PlanningRunCreate,
     PlanningRunResponse,
+    Project,
+    ProjectContext,
+    ProjectContextUpdate,
+    ProjectCreate,
     ProviderInfo,
     ProvidersResponse,
     Ticket,
@@ -33,7 +37,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-repo, agent_run_repo, artifact_repo = get_repositories()
+repo, agent_run_repo, artifact_repo, project_repo, project_context_repo = get_repositories()
 
 
 # ---------------------------------------------------------------------------
@@ -65,6 +69,97 @@ def login(body: LoginRequest):
 @app.get("/auth/me", response_model=MeResponse)
 def me(current_user: str = Depends(require_auth)):
     return MeResponse(email=current_user)
+
+
+@app.post("/projects", response_model=Project, status_code=201)
+def create_project(body: ProjectCreate, _: str = Depends(require_auth)):
+    now = datetime.now(timezone.utc)
+    project = Project(
+        id=str(uuid.uuid4()),
+        name=body.name,
+        description=body.description,
+        repo_url=body.repo_url,
+        tech_stack=body.tech_stack,
+        status="active",
+        created_at=now,
+        updated_at=now,
+    )
+    project_repo.save(project)
+    return project
+
+
+@app.get("/projects", response_model=list[Project])
+def list_projects(_: str = Depends(require_auth)):
+    return project_repo.list_all()
+
+
+@app.get("/projects/{project_id}", response_model=Project)
+def get_project(project_id: str, _: str = Depends(require_auth)):
+    project = project_repo.get(project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project
+
+
+@app.get("/projects/{project_id}/context", response_model=ProjectContext)
+def get_project_context(project_id: str, _: str = Depends(require_auth)):
+    if project_repo.get(project_id) is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    ctx = project_context_repo.get(project_id)
+    if ctx is None:
+        return ProjectContext(project_id=project_id)
+    return ctx
+
+
+@app.put("/projects/{project_id}/context", response_model=ProjectContext)
+def update_project_context(
+    project_id: str,
+    body: ProjectContextUpdate,
+    _: str = Depends(require_auth),
+):
+    if project_repo.get(project_id) is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    ctx = ProjectContext(
+        project_id=project_id,
+        architecture_notes=body.architecture_notes,
+        coding_standards=body.coding_standards,
+        test_commands=body.test_commands,
+        deployment_commands=body.deployment_commands,
+        domain_rules=body.domain_rules,
+        safety_rules=body.safety_rules,
+        updated_at=datetime.now(timezone.utc),
+    )
+    project_context_repo.save(ctx)
+    return ctx
+
+
+@app.post("/projects/{project_id}/tickets", response_model=Ticket, status_code=201)
+def create_project_ticket(
+    project_id: str,
+    body: TicketCreate,
+    _: str = Depends(require_auth),
+):
+    if project_repo.get(project_id) is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    now = datetime.now(timezone.utc)
+    ticket = Ticket(
+        id=str(uuid.uuid4()),
+        title=body.title,
+        description=body.description,
+        status="created",
+        created_at=now,
+        updated_at=now,
+        project_id=project_id,
+    )
+    repo.save(ticket)
+    return ticket
+
+
+@app.get("/projects/{project_id}/tickets", response_model=list[Ticket])
+def list_project_tickets(project_id: str, _: str = Depends(require_auth)):
+    if project_repo.get(project_id) is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return repo.list_by_project(project_id)
 
 
 @app.post("/tickets", response_model=Ticket, status_code=201)
@@ -106,7 +201,10 @@ def create_planning_run(
         raise HTTPException(status_code=400, detail=str(e))
     except ProviderError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    run, artifact = run_planning_agent(ticket, provider, agent_run_repo, artifact_repo)
+    context = None
+    if ticket.project_id:
+        context = project_context_repo.get(ticket.project_id)
+    run, artifact = run_planning_agent(ticket, provider, agent_run_repo, artifact_repo, context)
     updated = ticket.model_copy(update={"status": "brief_generated", "updated_at": datetime.now(timezone.utc)})
     repo.save(updated)
     return PlanningRunResponse(agent_run=run, artifact=artifact)

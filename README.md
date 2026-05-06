@@ -1,10 +1,10 @@
-# IncidentPilot
+# ForgeLoop
 
-> A human-supervised product engineering control plane. IncidentPilot orchestrates the full software delivery lifecycle — from requirements to production — coordinating AI agent runs, enforcing human approvals, and delegating code execution to existing tools.
+> A human-supervised autonomous SDLC + STLC control plane. ForgeLoop orchestrates the full software delivery lifecycle — from requirements to production — coordinating AI agent runs, enforcing human approvals, and delegating code execution to existing tools.
 
 The current release is the planning platform (Release 1) plus per-request provider selection (Release 2). Project memory, GitHub integration, tool-runner-driven coding, AI-assisted PR review, and incident triage are on the roadmap but **not yet implemented** — see [Future roadmap](#future-roadmap).
 
-## What IncidentPilot does today (Releases 1 + 2)
+## What ForgeLoop does today (Releases 1 + 2)
 
 1. Accept a ticket (title + description) via API or web UI.
 2. Let the user choose which LLM provider drafts the planning brief (mock, DeepSeek, or Kimi).
@@ -35,6 +35,27 @@ The backend is a FastAPI service running on Cloud Run. It receives tickets, orch
 The longer-term target architecture (Releases 3–6) is project-centered: Project → ProjectMemory → Tickets → multi-candidate AgentRuns → Evaluator → Approved Brief → DevTasks → ToolRunner execution → Branch / PR → AI Review → Human Review → Merge. None of that is implemented yet.
 
 See [docs/architecture.md](docs/architecture.md) for full details.
+
+---
+
+## ForgeLoop vs ForgeLoop Studio
+
+**ForgeLoop** (this repo) is the current product being built. It is a human-supervised SDLC + STLC control plane that converts requirements into planning briefs, tasks, code, QA, PRs, reviews, and deployments.
+
+**ForgeLoop Studio** is the broader future vision — an AI-native product factory of which ForgeLoop is the core engine. It consists of four modules:
+
+| Module | Role | Status |
+|--------|------|--------|
+| **ProductScout** | Market research and product discovery. Outputs structured requirements that feed into ForgeLoop. | Not implemented |
+| **ForgeLoop** | This repo. Engineering control plane — planning through deployment. | Active build |
+| **AuditLens** | Independent software auditor (security, compliance, UX, performance). Creates improvement tickets back into ForgeLoop. | Not implemented |
+| **LaunchPilot** | Marketing and sales support. Landing pages, positioning, outreach, client requirement intake. | Not implemented (parked) |
+
+**This repo contains ForgeLoop core only.** ProductScout, AuditLens, and LaunchPilot are not implemented here. The active engineering roadmap covers ForgeLoop Releases 1–6 (32 tasks).
+
+See [docs/architecture.md — ForgeLoop Studio](docs/architecture.md#forgeloop-studio-future-vision) for the full flow and shared data model.
+
+---
 
 ## Tech stack
 
@@ -253,7 +274,7 @@ The runtime service account needs `roles/datastore.user` on the project (handled
 
 ## Terraform
 
-The `infra/terraform/` directory provisions the minimum GCP infrastructure needed to run IncidentPilot in production.
+The `infra/terraform/` directory provisions the minimum GCP infrastructure needed to run ForgeLoop in production.
 
 **Resources created:**
 - Artifact Registry (Docker repository)
@@ -348,7 +369,7 @@ See [docs/demo-flow.md](docs/demo-flow.md) for a step-by-step local demo.
 
 ## Future roadmap
 
-IncidentPilot's long-term direction is a **human-supervised product engineering control plane** — it orchestrates the SDLC and delegates code execution to existing tools rather than reimplementing them from scratch. The active engineering scope is fixed at **32 tasks across 6 releases**. None of the items below are implemented yet unless explicitly noted.
+ForgeLoop's long-term direction is a **human-supervised autonomous SDLC + STLC control plane** — it orchestrates the full software delivery lifecycle and delegates code execution to existing tools rather than reimplementing them from scratch. The active engineering scope is fixed at **32 tasks across 6 releases**. None of the items below are implemented yet unless explicitly noted.
 
 ### Release 1 — Planning Platform (Tasks 1–12) — Complete
 
@@ -389,9 +410,9 @@ Ticket creation, planning agent with mock provider, DeepSeek integration, Firest
 - Production failure analysis
 - Remediation brief workflow
 
-### Release 7 — Marketing / Product-Growth (Future, parked)
+### Release 7 — LaunchPilot / Marketing (Future, parked)
 
-**Not part of the active 32-task roadmap.** Plan separately after Release 6 is complete. Possible scope: product brief generator, landing page copy, marketing campaign planner, social post generator, cold outreach drafts, user feedback collector, competitor/research tracker.
+**Not part of the active 32-task roadmap.** This release is subsumed by LaunchPilot, a ForgeLoop Studio module. Plan separately after Release 6 is complete. Possible scope: landing page copy, product positioning, marketing campaign planner, social post generator, cold outreach drafts, user feedback collector, competitor/research tracker.
 
 ### Always out of scope (for the current 32-task roadmap)
 

@@ -2,7 +2,7 @@
 
 ## MVP overview
 
-IncidentPilot is a human-supervised product engineering control plane. The current implementation (Releases 1 + 2) accepts software tickets and generates implementation-ready planning briefs using a user-selectable LLM provider. All output is for human review — the system does not create branches, open pull requests, or make any autonomous production changes.
+ForgeLoop is a human-supervised autonomous SDLC + STLC control plane. The current implementation (Releases 1 + 2) accepts software tickets and generates implementation-ready planning briefs using a user-selectable LLM provider. All output is for human review — the system does not create branches, open pull requests, or make any autonomous production changes.
 
 Releases 3–6 (planned, not implemented) extend this to a project-centered model with project memory, tool-runner-driven code execution, AI-assisted PR review, and incident triage. See [Target architecture](#target-architecture-releases-36) below.
 
@@ -223,11 +223,11 @@ Planned items are listed with their target release. Always-out items will not be
 
 ## Target architecture (Releases 3–6)
 
-IncidentPilot's long-term role is **control plane**, not coding agent. This section describes the intended architecture for Releases 3–6. **Nothing here is implemented yet.** The active engineering scope is fixed at 32 tasks across 6 releases — see [README → Future roadmap](../README.md#future-roadmap) for the per-release breakdown.
+ForgeLoop's long-term role is **control plane**, not coding agent. This section describes the intended architecture for Releases 3–6. **Nothing here is implemented yet.** The active engineering scope is fixed at 32 tasks across 6 releases — see [README → Future roadmap](../README.md#future-roadmap) for the per-release breakdown.
 
 ### Control-plane principle
 
-IncidentPilot owns:
+ForgeLoop owns:
 
 - Project context and project memory
 - Workflow state, task and subtask lifecycle
@@ -279,7 +279,7 @@ The MVP implements only the leftmost path (Ticket → PlanningAgentRun → Artif
 
 ### Project Memory (planned, Release 4)
 
-Per-project storage that gives planning agents the context they need to produce a useful brief without re-explaining the codebase each time. Stores: architecture decisions, tech stack, domain rules, important files, coding standards, testing/deployment commands, previous feedback, approved/rejected approaches, known risks, common failure patterns, prompt versions, and other project-specific context. Project memory is owned by IncidentPilot, not the LLM.
+Per-project storage that gives planning agents the context they need to produce a useful brief without re-explaining the codebase each time. Stores: architecture decisions, tech stack, domain rules, important files, coding standards, testing/deployment commands, previous feedback, approved/rejected approaches, known risks, common failure patterns, prompt versions, and other project-specific context. Project memory is owned by ForgeLoop, not the LLM.
 
 ### Tool Runner abstraction (planned, Release 4)
 
@@ -289,7 +289,7 @@ A single interface for invoking external coding tools. Conceptual shape:
 ToolRunner.invoke(task, project_context) → ToolRunResult
 ```
 
-First targets: OpenHands, Aider. Later: Cline, OpenCode, Hermes Agent, OpenClaw (if useful). IncidentPilot tracks each tool run as an AgentRun, stores its output as an Artifact, and surfaces results to humans for approval. It does not reimplement what these tools already do.
+First targets: OpenHands, Aider. Later: Cline, OpenCode, Hermes Agent, OpenClaw (if useful). ForgeLoop tracks each tool run as an AgentRun, stores its output as an Artifact, and surfaces results to humans for approval. It does not reimplement what these tools already do.
 
 ### Orchestrator / Evaluator pattern (planned, Releases 4–5)
 
@@ -341,4 +341,67 @@ These are implementation details of existing tasks — they do not add tasks bey
 
 ### Marketing / product-growth (Release 7, parked)
 
-Not part of the active 32-task roadmap. Plan separately after Release 6 is complete. Possible future scope: product brief generator, landing page copy, marketing campaign planner, social post generator, cold outreach drafts, user feedback collector, competitor/research tracker.
+Not part of the active 32-task roadmap. This release is subsumed by LaunchPilot (a ForgeLoop Studio module). Plan separately after Release 6 is complete. Possible future scope: landing page copy, product positioning, marketing campaign planner, social post generator, cold outreach drafts, user feedback collector, competitor/research tracker.
+
+---
+
+## ForgeLoop Studio (future vision)
+
+> **Nothing in this section is implemented.** The active build is ForgeLoop core (Releases 1–6, 32 tasks). ForgeLoop Studio is documented here for architectural awareness only.
+
+ForgeLoop Studio is a future AI-native product factory. ForgeLoop is its core engine. The full suite adds market discovery upstream (ProductScout), independent auditing downstream (AuditLens), and marketing/sales support (LaunchPilot).
+
+### Flow diagram
+
+```
+ProductScout
+  → Product Brief / Requirements
+  → ForgeLoop
+       → Planning
+       → Task / Subtask Decomposition
+       → Coding Tool Runners
+       → QA / STLC Pipeline
+       → PR / Review Loop
+       → Deployment / Maintenance
+  → AuditLens
+       → Independent Audit
+       → Improvement Tickets
+       → ForgeLoop
+  → LaunchPilot
+       → Website / Positioning / Outreach
+       → Client Feedback / Custom Requirements
+       → ForgeLoop
+```
+
+### Module descriptions
+
+**ProductScout** — market research and product discovery bot. Researches markets, competitors, pain points, target users, pricing signals, and product opportunities. Produces structured product briefs and requirements that enter ForgeLoop as tickets.
+
+**ForgeLoop** — this repo. Human-supervised SDLC + STLC control plane. Converts requirements into architecture decisions, planning briefs, dev tasks, code (via tool runners), QA runs, PR/review loops, deployments, maintenance loops, and project memory. All transitions are human-approved.
+
+**AuditLens** — independent third-party style auditor. Audits implemented software for security, compliance, accessibility, UX, performance, test coverage, business logic gaps, and market-readiness. Generates improvement tickets that re-enter ForgeLoop. Can re-audit periodically as market expectations, dependencies, and security risks evolve.
+
+**LaunchPilot** — marketing and sales support bot. Helps create landing pages, product positioning, launch plans, outreach messages, demos, sales material, and client-specific requirement intake. Client feedback and custom requirements return to ForgeLoop as new tickets. Subsumes Release 7 (parked, not in active roadmap).
+
+### Shared data model
+
+These concepts are used across Studio modules. ForgeLoop owns and stores all of them.
+
+| Concept | Owner | Description |
+|---------|-------|-------------|
+| `Project` | ForgeLoop | All work is project-scoped |
+| `ProjectMemory` | ForgeLoop | Architecture decisions, standards, feedback, history |
+| `Requirement` | ProductScout → ForgeLoop | Structured input from discovery |
+| `Ticket` | ForgeLoop | Unit of work entering the engineering pipeline |
+| `Task / Subtask` | ForgeLoop | Decomposed from approved tickets |
+| `AgentRun` | ForgeLoop | One execution of an AI agent against a task |
+| `Artifact` | ForgeLoop | Agent-generated output (brief, code diff, review notes, etc.) |
+| `Evaluation` | ForgeLoop | Score and selection from multi-candidate agent runs |
+| `Approval` | Human → ForgeLoop | Explicit human sign-off at gate transitions |
+| `AuditEvent` | AuditLens → ForgeLoop | Finding from an independent audit pass |
+| `ToolRun` | ForgeLoop | External coding-tool invocation record (OpenHands, Aider, etc.) |
+| `CostRecord` | ForgeLoop | Token usage and compute cost per agent run |
+
+### Active build boundary
+
+The current implementation is **ForgeLoop Releases 1–2** (ticket creation, planning agent, LLM provider selection, auth, minimal frontend). Everything else in this section — including all ForgeLoop Studio modules — is future architecture only.
