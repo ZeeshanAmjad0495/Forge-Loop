@@ -6,8 +6,11 @@ import type {
   ProjectContext,
   ProjectCreate,
   ProvidersResponse,
+  Requirement,
   RequirementAnalysis,
   RequirementAnalysisRunResponse,
+  RequirementCreate,
+  RequirementUpdate,
   Ticket,
 } from './types'
 
@@ -151,4 +154,60 @@ export async function listRequirementAnalyses(ticketId: string): Promise<Require
 export async function listProviders(): Promise<ProvidersResponse> {
   const res = await fetch(`${BASE}/llm/providers`, { headers: authHeaders() })
   return handleResponse<ProvidersResponse>(res)
+}
+
+// ---------------------------------------------------------------------------
+// Structured requirements
+// ---------------------------------------------------------------------------
+
+export async function listProjectRequirements(projectId: string): Promise<Requirement[]> {
+  const res = await fetch(`${BASE}/projects/${projectId}/requirements`, {
+    headers: authHeaders(),
+  })
+  return handleResponse<Requirement[]>(res)
+}
+
+export async function createProjectRequirement(
+  projectId: string,
+  data: RequirementCreate,
+): Promise<Requirement> {
+  const res = await fetch(`${BASE}/projects/${projectId}/requirements`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(data),
+  })
+  return handleResponse<Requirement>(res)
+}
+
+export async function getRequirement(requirementId: string): Promise<Requirement> {
+  const res = await fetch(`${BASE}/requirements/${requirementId}`, { headers: authHeaders() })
+  return handleResponse<Requirement>(res)
+}
+
+export async function updateRequirement(
+  requirementId: string,
+  data: RequirementUpdate,
+): Promise<Requirement> {
+  const res = await fetch(`${BASE}/requirements/${requirementId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(data),
+  })
+  return handleResponse<Requirement>(res)
+}
+
+export async function createRequirementAnalysisForRequirement(
+  requirementId: string,
+  provider?: string,
+): Promise<RequirementAnalysisRunResponse> {
+  const init: RequestInit = {
+    method: 'POST',
+    headers: { ...authHeaders() },
+  }
+  if (provider) {
+    init.headers = { 'Content-Type': 'application/json', ...authHeaders() }
+    init.body = JSON.stringify({ provider })
+  }
+  const res = await fetch(`${BASE}/requirements/${requirementId}/requirement-analyses`, init)
+  return handleResponse<RequirementAnalysisRunResponse>(res)
 }

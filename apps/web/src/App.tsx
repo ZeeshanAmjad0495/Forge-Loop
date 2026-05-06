@@ -4,9 +4,12 @@ import { clearToken, getToken, setToken } from './auth'
 import {
   createPlanningRun,
   createProject,
+  createProjectRequirement,
   createProjectTicket,
   createRequirementAnalysis,
+  createRequirementAnalysisForRequirement,
   getProjectContext,
+  listProjectRequirements,
   listProjectTickets,
   listProjects,
   listProviders,
@@ -14,7 +17,14 @@ import {
   updateProjectContext,
 } from './api'
 import './App.css'
-import type { Project, ProjectContext, ProviderInfo, RequirementAnalysis, Ticket } from './types'
+import type {
+  Project,
+  ProjectContext,
+  ProviderInfo,
+  Requirement,
+  RequirementAnalysis,
+  Ticket,
+} from './types'
 
 // ---------------------------------------------------------------------------
 // View state — discriminated union, no router
@@ -24,6 +34,15 @@ type View =
   | { view: 'projects' }
   | { view: 'project'; project: Project }
   | { view: 'ticket'; project: Project; ticket: Ticket }
+  | { view: 'requirement'; project: Project; requirement: Requirement }
+
+function splitLines(value: string): string[] {
+  return value
+    .split('\n')
+    .map(s => s.trim())
+    .filter(Boolean)
+}
+
 
 // ---------------------------------------------------------------------------
 // Login screen
@@ -213,6 +232,7 @@ function ProjectView({
   project,
   onBack,
   onSelectTicket,
+  onSelectRequirement,
   providers,
   selectedProvider,
   onProviderChange,
@@ -220,6 +240,7 @@ function ProjectView({
   project: Project
   onBack: () => void
   onSelectTicket: (ticket: Ticket) => void
+  onSelectRequirement: (requirement: Requirement) => void
   providers: ProviderInfo[]
   selectedProvider: string
   onProviderChange: (name: string) => void
@@ -240,6 +261,24 @@ function ProjectView({
   const [ticketCreating, setTicketCreating] = useState(false)
   const [ticketCreateError, setTicketCreateError] = useState('')
 
+  // Requirements state
+  const [requirements, setRequirements] = useState<Requirement[]>([])
+  const [reqLoadError, setReqLoadError] = useState('')
+
+  // Create requirement form
+  const [reqTitle, setReqTitle] = useState('')
+  const [reqProblem, setReqProblem] = useState('')
+  const [reqGoal, setReqGoal] = useState('')
+  const [reqUsers, setReqUsers] = useState('')
+  const [reqFunc, setReqFunc] = useState('')
+  const [reqNonFunc, setReqNonFunc] = useState('')
+  const [reqAccept, setReqAccept] = useState('')
+  const [reqConstraints, setReqConstraints] = useState('')
+  const [reqNonGoals, setReqNonGoals] = useState('')
+  const [reqAssumptions, setReqAssumptions] = useState('')
+  const [reqCreating, setReqCreating] = useState(false)
+  const [reqCreateError, setReqCreateError] = useState('')
+
   useEffect(() => {
     getProjectContext(project.id)
       .then(setCtx)
@@ -247,6 +286,9 @@ function ProjectView({
     listProjectTickets(project.id)
       .then(setTickets)
       .catch(err => setTicketError((err as Error).message))
+    listProjectRequirements(project.id)
+      .then(setRequirements)
+      .catch(err => setReqLoadError((err as Error).message))
   }, [project.id])
 
   function updateCtxField(field: keyof Omit<ProjectContext, 'project_id' | 'updated_at'>, value: string) {
@@ -289,6 +331,41 @@ function ProjectView({
       setCtxError((err as Error).message)
     } finally {
       setCtxSaving(false)
+    }
+  }
+
+  async function handleCreateRequirement(e: React.FormEvent) {
+    e.preventDefault()
+    setReqCreateError('')
+    setReqCreating(true)
+    try {
+      const created = await createProjectRequirement(project.id, {
+        title: reqTitle.trim(),
+        problem_statement: reqProblem.trim(),
+        business_goal: reqGoal.trim(),
+        target_users: splitLines(reqUsers),
+        functional_requirements: splitLines(reqFunc),
+        non_functional_requirements: splitLines(reqNonFunc),
+        acceptance_criteria: splitLines(reqAccept),
+        constraints: splitLines(reqConstraints),
+        non_goals: splitLines(reqNonGoals),
+        assumptions: splitLines(reqAssumptions),
+      })
+      setRequirements(prev => [...prev, created])
+      setReqTitle('')
+      setReqProblem('')
+      setReqGoal('')
+      setReqUsers('')
+      setReqFunc('')
+      setReqNonFunc('')
+      setReqAccept('')
+      setReqConstraints('')
+      setReqNonGoals('')
+      setReqAssumptions('')
+    } catch (err) {
+      setReqCreateError((err as Error).message)
+    } finally {
+      setReqCreating(false)
     }
   }
 
@@ -421,6 +498,83 @@ function ProjectView({
           {ticketCreateError && <div className="error">{ticketCreateError}</div>}
           <button type="submit" disabled={ticketCreating}>
             {ticketCreating ? 'Creating…' : 'Create ticket'}
+          </button>
+        </form>
+      </section>
+
+      {/* Requirements list + create */}
+      <section className="requirements-section">
+        <h3>Requirements</h3>
+        <p className="section-hint">
+          Structured requirements capture richer intake (problem, goal, criteria, constraints).
+        </p>
+        {reqLoadError && <div className="error">{reqLoadError}</div>}
+        {requirements.length > 0 && (
+          <div className="ticket-list">
+            {requirements.map(r => (
+              <button
+                key={r.id}
+                className={`ticket-row ${r.status === 'analyzed' ? 'done' : ''}`}
+                onClick={() => onSelectRequirement(r)}
+              >
+                <span className="ticket-row-title">{r.title}</span>
+                <span className="ticket-row-status">{r.status}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        <h4>New requirement</h4>
+        <form onSubmit={handleCreateRequirement}>
+          <label htmlFor="req-title">Title</label>
+          <input
+            id="req-title"
+            value={reqTitle}
+            onChange={e => setReqTitle(e.target.value)}
+            placeholder="Short name for the requirement"
+            required
+            disabled={reqCreating}
+          />
+          <label htmlFor="req-problem">Problem statement</label>
+          <textarea
+            id="req-problem"
+            value={reqProblem}
+            onChange={e => setReqProblem(e.target.value)}
+            placeholder="What problem are we solving?"
+            disabled={reqCreating}
+          />
+          <label htmlFor="req-goal">Business goal</label>
+          <textarea
+            id="req-goal"
+            value={reqGoal}
+            onChange={e => setReqGoal(e.target.value)}
+            placeholder="Why does this matter?"
+            disabled={reqCreating}
+          />
+          {(
+            [
+              ['req-users', 'Target users (one per line)', reqUsers, setReqUsers],
+              ['req-func', 'Functional requirements (one per line)', reqFunc, setReqFunc],
+              ['req-nonfunc', 'Non-functional requirements (one per line)', reqNonFunc, setReqNonFunc],
+              ['req-accept', 'Acceptance criteria (one per line)', reqAccept, setReqAccept],
+              ['req-constraints', 'Constraints (one per line)', reqConstraints, setReqConstraints],
+              ['req-nongoals', 'Non-goals (one per line)', reqNonGoals, setReqNonGoals],
+              ['req-assumptions', 'Assumptions (one per line)', reqAssumptions, setReqAssumptions],
+            ] as const
+          ).map(([id, label, value, setter]) => (
+            <div key={id}>
+              <label htmlFor={id}>{label}</label>
+              <textarea
+                id={id}
+                value={value}
+                onChange={e => setter(e.target.value)}
+                disabled={reqCreating}
+              />
+            </div>
+          ))}
+          {reqCreateError && <div className="error">{reqCreateError}</div>}
+          <button type="submit" disabled={reqCreating}>
+            {reqCreating ? 'Creating…' : 'Create requirement'}
           </button>
         </form>
       </section>
@@ -624,6 +778,118 @@ function TicketView({
 }
 
 // ---------------------------------------------------------------------------
+// Requirement view — structured requirement details + analysis
+// ---------------------------------------------------------------------------
+
+function RequirementBulletList({ label, items }: { label: string; items: string[] }) {
+  if (items.length === 0) return null
+  return (
+    <>
+      <strong>{label}</strong>
+      <ul>
+        {items.map((x, i) => <li key={i}>{x}</li>)}
+      </ul>
+    </>
+  )
+}
+
+function RequirementView({
+  requirement: initialRequirement,
+  project,
+  onBack,
+  providers,
+  selectedProvider,
+  onProviderChange,
+}: {
+  requirement: Requirement
+  project: Project
+  onBack: () => void
+  providers: ProviderInfo[]
+  selectedProvider: string
+  onProviderChange: (name: string) => void
+}) {
+  const [requirement, setRequirement] = useState(initialRequirement)
+  const [phase, setPhase] = useState<AnalysisPhase>({ name: 'idle' })
+
+  async function handleAnalyze() {
+    setPhase({ name: 'analyzing' })
+    try {
+      const result = await createRequirementAnalysisForRequirement(
+        requirement.id,
+        selectedProvider || undefined,
+      )
+      setRequirement(prev => ({ ...prev, status: 'analyzed' }))
+      setPhase({ name: 'done', analysis: result.requirement_analysis })
+    } catch (err) {
+      setPhase({ name: 'error', message: (err as Error).message })
+    }
+  }
+
+  return (
+    <div>
+      <button className="back-link" onClick={onBack}>← {project.name}</button>
+      <h2>{requirement.title}</h2>
+      <p>
+        <span className={`status ${requirement.status === 'analyzed' ? 'done' : ''}`}>
+          {requirement.status}
+        </span>
+      </p>
+
+      {requirement.problem_statement && (
+        <>
+          <strong>Problem statement</strong>
+          <p>{requirement.problem_statement}</p>
+        </>
+      )}
+      {requirement.business_goal && (
+        <>
+          <strong>Business goal</strong>
+          <p>{requirement.business_goal}</p>
+        </>
+      )}
+      <RequirementBulletList label="Target users" items={requirement.target_users} />
+      <RequirementBulletList label="Functional requirements" items={requirement.functional_requirements} />
+      <RequirementBulletList label="Non-functional requirements" items={requirement.non_functional_requirements} />
+      <RequirementBulletList label="Acceptance criteria" items={requirement.acceptance_criteria} />
+      <RequirementBulletList label="Constraints" items={requirement.constraints} />
+      <RequirementBulletList label="Non-goals" items={requirement.non_goals} />
+      <RequirementBulletList label="Assumptions" items={requirement.assumptions} />
+
+      {providers.length > 0 && phase.name !== 'done' && (
+        <div className="provider-select">
+          <label htmlFor="req-provider">LLM provider</label>
+          <select
+            id="req-provider"
+            value={selectedProvider}
+            onChange={e => onProviderChange(e.target.value)}
+            disabled={phase.name === 'analyzing'}
+          >
+            {providers.map(p => (
+              <option key={p.name} value={p.name} disabled={!p.configured}>
+                {p.name} ({p.default_model}){p.configured ? '' : ' — not configured'}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {phase.name === 'error' && <div className="error">{phase.message}</div>}
+      {phase.name !== 'done' && (
+        <button onClick={handleAnalyze} disabled={phase.name === 'analyzing'}>
+          {phase.name === 'analyzing' ? 'Analyzing…' : 'Analyze requirement'}
+        </button>
+      )}
+      {phase.name === 'done' && (
+        <>
+          <h3>Requirement Analysis</h3>
+          <RequirementAnalysisPanel analysis={phase.analysis} />
+        </>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Root App — auth gate + view router
 // ---------------------------------------------------------------------------
 
@@ -679,6 +945,9 @@ export default function App() {
           onSelectTicket={ticket =>
             setCurrentView({ view: 'ticket', project: currentView.project, ticket })
           }
+          onSelectRequirement={requirement =>
+            setCurrentView({ view: 'requirement', project: currentView.project, requirement })
+          }
           providers={providers}
           selectedProvider={selectedProvider}
           onProviderChange={setSelectedProvider}
@@ -692,6 +961,17 @@ export default function App() {
           onBack={_updatedTicket =>
             setCurrentView({ view: 'project', project: currentView.project })
           }
+          providers={providers}
+          selectedProvider={selectedProvider}
+          onProviderChange={setSelectedProvider}
+        />
+      )}
+
+      {currentView.view === 'requirement' && (
+        <RequirementView
+          requirement={currentView.requirement}
+          project={currentView.project}
+          onBack={() => setCurrentView({ view: 'project', project: currentView.project })}
           providers={providers}
           selectedProvider={selectedProvider}
           onProviderChange={setSelectedProvider}

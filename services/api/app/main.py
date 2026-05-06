@@ -24,15 +24,21 @@ from .models import (
     ProjectCreate,
     ProviderInfo,
     ProvidersResponse,
+    Requirement,
     RequirementAnalysis,
     RequirementAnalysisRunCreate,
     RequirementAnalysisRunResponse,
+    RequirementCreate,
+    RequirementUpdate,
     Ticket,
     TicketCreate,
 )
 from .planning_agent import run_planning_agent
 from .repositories import get_repositories
-from .requirement_analysis_agent import run_requirement_analysis_agent
+from .requirement_analysis_agent import (
+    run_requirement_analysis_agent,
+    run_requirement_analysis_for_requirement,
+)
 
 app = FastAPI()
 app.add_middleware(
@@ -41,7 +47,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-repo, agent_run_repo, artifact_repo, project_repo, project_context_repo, analysis_repo = get_repositories()
+(
+    repo,
+    agent_run_repo,
+    artifact_repo,
+    project_repo,
+    project_context_repo,
+    analysis_repo,
+    requirement_repo,
+) = get_repositories()
 
 
 # ---------------------------------------------------------------------------
@@ -262,4 +276,116 @@ def get_providers(_: str = Depends(require_auth)):
     return ProvidersResponse(
         default_provider=get_default_provider_name(),
         providers=[ProviderInfo(**p) for p in list_provider_status()],
+    )
+
+
+# ---------------------------------------------------------------------------
+# Structured requirements
+# ---------------------------------------------------------------------------
+
+@app.post("/projects/{project_id}/requirements", response_model=Requirement, status_code=201)
+def create_project_requirement(
+    project_id: str,
+    body: RequirementCreate,
+    _: str = Depends(require_auth),
+):
+    if project_repo.get(project_id) is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    now = datetime.now(timezone.utc)
+    requirement = Requirement(
+        id=str(uuid.uuid4()),
+        project_id=project_id,
+        title=body.title,
+        problem_statement=body.problem_statement,
+        business_goal=body.business_goal,
+        target_users=body.target_users,
+        functional_requirements=body.functional_requirements,
+        non_functional_requirements=body.non_functional_requirements,
+        acceptance_criteria=body.acceptance_criteria,
+        constraints=body.constraints,
+        non_goals=body.non_goals,
+        assumptions=body.assumptions,
+        source=body.source,
+        status=body.status,
+        created_at=now,
+        updated_at=now,
+    )
+    requirement_repo.save(requirement)
+    return requirement
+
+
+@app.get("/projects/{project_id}/requirements", response_model=list[Requirement])
+def list_project_requirements(project_id: str, _: str = Depends(require_auth)):
+    if project_repo.get(project_id) is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return requirement_repo.list_by_project(project_id)
+
+
+@app.get("/requirements/{requirement_id}", response_model=Requirement)
+def get_requirement(requirement_id: str, _: str = Depends(require_auth)):
+    requirement = requirement_repo.get(requirement_id)
+    if requirement is None:
+        raise HTTPException(status_code=404, detail="Requirement not found")
+    return requirement
+
+
+@app.put("/requirements/{requirement_id}", response_model=Requirement)
+def update_requirement(
+    requirement_id: str,
+    body: RequirementUpdate,
+    _: str = Depends(require_auth),
+):
+    existing = requirement_repo.get(requirement_id)
+    if existing is None:
+        raise HTTPException(status_code=404, detail="Requirement not found")
+    updated = existing.model_copy(
+        update={
+            "title": body.title,
+            "problem_statement": body.problem_statement,
+            "business_goal": body.business_goal,
+            "target_users": body.target_users,
+            "functional_requirements": body.functional_requirements,
+            "non_functional_requirements": body.non_functional_requirements,
+            "acceptance_criteria": body.acceptance_criteria,
+            "constraints": body.constraints,
+            "non_goals": body.non_goals,
+            "assumptions": body.assumptions,
+            "status": body.status,
+            "updated_at": datetime.now(timezone.utc),
+        }
+    )
+    requirement_repo.update(updated)
+    return updated
+
+
+@app.post(
+    "/requirements/{requirement_id}/requirement-analyses",
+    response_model=RequirementAnalysisRunResponse,
+    status_code=201,
+)
+def create_requirement_analysis_for_requirement(
+    requirement_id: str,
+    body: RequirementAnalysisRunCreate | None = Body(default=None),
+    _: str = Depends(require_auth),
+):
+    requirement = requirement_repo.get(requirement_id)
+    if requirement is None:
+        raise HTTPException(status_code=404, detail="Requirement not found")
+    provider_name = body.provider if (body and body.provider) else get_default_provider_name()
+    try:
+        provider = get_provider_by_name(provider_name)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except ProviderError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    context = project_context_repo.get(requirement.project_id)
+    run, analysis, artifact = run_requirement_analysis_for_requirement(
+        requirement, provider, agent_run_repo, artifact_repo, analysis_repo, context
+    )
+    updated = requirement.model_copy(
+        update={"status": "analyzed", "updated_at": datetime.now(timezone.utc)}
+    )
+    requirement_repo.update(updated)
+    return RequirementAnalysisRunResponse(
+        agent_run=run, requirement_analysis=analysis, artifact=artifact
     )

@@ -39,7 +39,8 @@ export interface ProjectContext {
 
 export interface AgentRun {
   id: string
-  ticket_id: string
+  ticket_id: string | null
+  requirement_id: string | null
   agent_type: 'planning' | 'requirement_analysis'
   provider: string
   model: string
@@ -51,7 +52,8 @@ export interface AgentRun {
 
 export interface Artifact {
   id: string
-  ticket_id: string
+  ticket_id: string | null
+  requirement_id: string | null
   agent_run_id: string
   artifact_type: 'implementation_brief' | 'requirement_analysis'
   content: string
@@ -66,7 +68,8 @@ export interface PlanningRunResponse {
 export interface RequirementAnalysis {
   id: string
   project_id: string | null
-  ticket_id: string
+  ticket_id: string | null
+  requirement_id: string | null
   agent_run_id: string
   status: 'completed' | 'failed'
   summary: string
@@ -110,4 +113,55 @@ export interface LoginResponse {
 
 export interface MeResponse {
   email: string
+}
+
+export type RequirementStatus = 'draft' | 'ready_for_analysis' | 'analyzed'
+export type RequirementSource = 'manual' | 'agent_generated' | 'imported'
+
+export interface RequirementCreate {
+  title: string
+  problem_statement?: string
+  business_goal?: string
+  target_users?: string[]
+  functional_requirements?: string[]
+  non_functional_requirements?: string[]
+  acceptance_criteria?: string[]
+  constraints?: string[]
+  non_goals?: string[]
+  assumptions?: string[]
+  source?: RequirementSource
+  status?: RequirementStatus
+}
+
+export interface RequirementUpdate {
+  title: string
+  problem_statement: string
+  business_goal: string
+  target_users: string[]
+  functional_requirements: string[]
+  non_functional_requirements: string[]
+  acceptance_criteria: string[]
+  constraints: string[]
+  non_goals: string[]
+  assumptions: string[]
+  status: RequirementStatus
+}
+
+export interface Requirement {
+  id: string
+  project_id: string
+  title: string
+  problem_statement: string
+  business_goal: string
+  target_users: string[]
+  functional_requirements: string[]
+  non_functional_requirements: string[]
+  acceptance_criteria: string[]
+  constraints: string[]
+  non_goals: string[]
+  assumptions: string[]
+  source: RequirementSource
+  status: RequirementStatus
+  created_at: string
+  updated_at: string
 }

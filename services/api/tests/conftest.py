@@ -1,11 +1,27 @@
 import pytest
 from app import config
-from app.main import agent_run_repo, analysis_repo, artifact_repo, project_context_repo, project_repo, repo
+from app.main import (
+    agent_run_repo,
+    analysis_repo,
+    artifact_repo,
+    project_context_repo,
+    project_repo,
+    repo,
+    requirement_repo,
+)
 
 
 @pytest.fixture(autouse=True)
 def clear_repos():
-    for r in (repo, agent_run_repo, artifact_repo, project_repo, project_context_repo, analysis_repo):
+    for r in (
+        repo,
+        agent_run_repo,
+        artifact_repo,
+        project_repo,
+        project_context_repo,
+        analysis_repo,
+        requirement_repo,
+    ):
         if hasattr(r, "_store"):
             r._store.clear()
 
