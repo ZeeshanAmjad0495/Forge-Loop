@@ -24,11 +24,15 @@ from .models import (
     ProjectCreate,
     ProviderInfo,
     ProvidersResponse,
+    RequirementAnalysis,
+    RequirementAnalysisRunCreate,
+    RequirementAnalysisRunResponse,
     Ticket,
     TicketCreate,
 )
 from .planning_agent import run_planning_agent
 from .repositories import get_repositories
+from .requirement_analysis_agent import run_requirement_analysis_agent
 
 app = FastAPI()
 app.add_middleware(
@@ -37,7 +41,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-repo, agent_run_repo, artifact_repo, project_repo, project_context_repo = get_repositories()
+repo, agent_run_repo, artifact_repo, project_repo, project_context_repo, analysis_repo = get_repositories()
 
 
 # ---------------------------------------------------------------------------
@@ -215,6 +219,42 @@ def list_artifacts(ticket_id: str, _: str = Depends(require_auth)):
     if repo.get(ticket_id) is None:
         raise HTTPException(status_code=404, detail="Ticket not found")
     return artifact_repo.list_by_ticket(ticket_id)
+
+
+@app.post(
+    "/tickets/{ticket_id}/requirement-analyses",
+    response_model=RequirementAnalysisRunResponse,
+    status_code=201,
+)
+def create_requirement_analysis(
+    ticket_id: str,
+    body: RequirementAnalysisRunCreate | None = Body(default=None),
+    _: str = Depends(require_auth),
+):
+    ticket = repo.get(ticket_id)
+    if ticket is None:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    provider_name = body.provider if (body and body.provider) else get_default_provider_name()
+    try:
+        provider = get_provider_by_name(provider_name)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except ProviderError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    context = None
+    if ticket.project_id:
+        context = project_context_repo.get(ticket.project_id)
+    run, analysis, artifact = run_requirement_analysis_agent(
+        ticket, provider, agent_run_repo, artifact_repo, analysis_repo, context
+    )
+    return RequirementAnalysisRunResponse(agent_run=run, requirement_analysis=analysis, artifact=artifact)
+
+
+@app.get("/tickets/{ticket_id}/requirement-analyses", response_model=list[RequirementAnalysis])
+def list_requirement_analyses(ticket_id: str, _: str = Depends(require_auth)):
+    if repo.get(ticket_id) is None:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    return analysis_repo.list_by_ticket(ticket_id)
 
 
 @app.get("/llm/providers", response_model=ProvidersResponse)

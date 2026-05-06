@@ -40,7 +40,7 @@ export interface ProjectContext {
 export interface AgentRun {
   id: string
   ticket_id: string
-  agent_type: 'planning'
+  agent_type: 'planning' | 'requirement_analysis'
   provider: string
   model: string
   status: 'pending' | 'running' | 'completed' | 'failed'
@@ -53,13 +53,37 @@ export interface Artifact {
   id: string
   ticket_id: string
   agent_run_id: string
-  artifact_type: 'implementation_brief'
+  artifact_type: 'implementation_brief' | 'requirement_analysis'
   content: string
   created_at: string
 }
 
 export interface PlanningRunResponse {
   agent_run: AgentRun
+  artifact: Artifact
+}
+
+export interface RequirementAnalysis {
+  id: string
+  project_id: string | null
+  ticket_id: string
+  agent_run_id: string
+  status: 'completed' | 'failed'
+  summary: string
+  clarified_requirement: string
+  assumptions: string[]
+  ambiguities: string[]
+  clarification_questions: string[]
+  risks: string[]
+  affected_areas: string[]
+  readiness: 'ready_for_planning' | 'needs_clarification'
+  created_at: string
+  updated_at: string
+}
+
+export interface RequirementAnalysisRunResponse {
+  agent_run: AgentRun
+  requirement_analysis: RequirementAnalysis
   artifact: Artifact
 }
 

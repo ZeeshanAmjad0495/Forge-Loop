@@ -6,6 +6,8 @@ import type {
   ProjectContext,
   ProjectCreate,
   ProvidersResponse,
+  RequirementAnalysis,
+  RequirementAnalysisRunResponse,
   Ticket,
 } from './types'
 
@@ -121,6 +123,29 @@ export async function createPlanningRun(
   }
   const res = await fetch(`${BASE}/tickets/${ticketId}/planning-runs`, init)
   return handleResponse<PlanningRunResponse>(res)
+}
+
+export async function createRequirementAnalysis(
+  ticketId: string,
+  provider?: string,
+): Promise<RequirementAnalysisRunResponse> {
+  const init: RequestInit = {
+    method: 'POST',
+    headers: { ...authHeaders() },
+  }
+  if (provider) {
+    init.headers = { 'Content-Type': 'application/json', ...authHeaders() }
+    init.body = JSON.stringify({ provider })
+  }
+  const res = await fetch(`${BASE}/tickets/${ticketId}/requirement-analyses`, init)
+  return handleResponse<RequirementAnalysisRunResponse>(res)
+}
+
+export async function listRequirementAnalyses(ticketId: string): Promise<RequirementAnalysis[]> {
+  const res = await fetch(`${BASE}/tickets/${ticketId}/requirement-analyses`, {
+    headers: authHeaders(),
+  })
+  return handleResponse<RequirementAnalysis[]>(res)
 }
 
 export async function listProviders(): Promise<ProvidersResponse> {

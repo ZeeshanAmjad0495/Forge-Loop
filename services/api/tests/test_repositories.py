@@ -10,44 +10,49 @@ from app.repositories import (
     FirestoreArtifactRepository,
     FirestoreProjectContextRepository,
     FirestoreProjectRepository,
+    FirestoreRequirementAnalysisRepository,
     FirestoreTicketRepository,
     InMemoryAgentRunRepository,
     InMemoryArtifactRepository,
     InMemoryProjectContextRepository,
     InMemoryProjectRepository,
+    InMemoryRequirementAnalysisRepository,
     InMemoryTicketRepository,
     get_repositories,
 )
 
 
 def test_default_repository_is_memory():
-    tickets, runs, artifacts, projects, contexts = get_repositories()
+    tickets, runs, artifacts, projects, contexts, analyses = get_repositories()
     assert isinstance(tickets, InMemoryTicketRepository)
     assert isinstance(runs, InMemoryAgentRunRepository)
     assert isinstance(artifacts, InMemoryArtifactRepository)
     assert isinstance(projects, InMemoryProjectRepository)
     assert isinstance(contexts, InMemoryProjectContextRepository)
+    assert isinstance(analyses, InMemoryRequirementAnalysisRepository)
 
 
 def test_memory_repository_explicitly(monkeypatch):
     monkeypatch.setattr(config, "REPOSITORY_PROVIDER", "memory")
-    tickets, runs, artifacts, projects, contexts = get_repositories()
+    tickets, runs, artifacts, projects, contexts, analyses = get_repositories()
     assert isinstance(tickets, InMemoryTicketRepository)
     assert isinstance(runs, InMemoryAgentRunRepository)
     assert isinstance(artifacts, InMemoryArtifactRepository)
     assert isinstance(projects, InMemoryProjectRepository)
     assert isinstance(contexts, InMemoryProjectContextRepository)
+    assert isinstance(analyses, InMemoryRequirementAnalysisRepository)
 
 
 def test_firestore_repository_selected(monkeypatch):
     monkeypatch.setattr(config, "REPOSITORY_PROVIDER", "firestore")
     with patch("google.cloud.firestore.Client"):
-        tickets, runs, artifacts, projects, contexts = get_repositories()
+        tickets, runs, artifacts, projects, contexts, analyses = get_repositories()
     assert isinstance(tickets, FirestoreTicketRepository)
     assert isinstance(runs, FirestoreAgentRunRepository)
     assert isinstance(artifacts, FirestoreArtifactRepository)
     assert isinstance(projects, FirestoreProjectRepository)
     assert isinstance(contexts, FirestoreProjectContextRepository)
+    assert isinstance(analyses, FirestoreRequirementAnalysisRepository)
 
 
 def test_unknown_repository_raises(monkeypatch):

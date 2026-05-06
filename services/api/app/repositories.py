@@ -1,7 +1,7 @@
 from typing import Protocol
 
 from . import config
-from .models import AgentRun, Artifact, Project, ProjectContext, Ticket
+from .models import AgentRun, Artifact, Project, ProjectContext, RequirementAnalysis, Ticket
 
 
 class TicketRepository(Protocol):
@@ -167,12 +167,54 @@ class FirestoreProjectContextRepository:
         return ProjectContext(**snap.to_dict())
 
 
+class RequirementAnalysisRepository(Protocol):
+    def save(self, analysis: RequirementAnalysis) -> None: ...
+    def list_by_ticket(self, ticket_id: str) -> list[RequirementAnalysis]: ...
+    def get_latest_by_ticket(self, ticket_id: str) -> RequirementAnalysis | None: ...
+
+
+class InMemoryRequirementAnalysisRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, RequirementAnalysis] = {}
+
+    def save(self, analysis: RequirementAnalysis) -> None:
+        self._store[analysis.id] = analysis
+
+    def list_by_ticket(self, ticket_id: str) -> list[RequirementAnalysis]:
+        return [a for a in self._store.values() if a.ticket_id == ticket_id]
+
+    def get_latest_by_ticket(self, ticket_id: str) -> RequirementAnalysis | None:
+        matches = self.list_by_ticket(ticket_id)
+        if not matches:
+            return None
+        return max(matches, key=lambda a: a.created_at)
+
+
+class FirestoreRequirementAnalysisRepository:
+    def __init__(self, client, collection_name: str = "requirement_analyses") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, analysis: RequirementAnalysis) -> None:
+        self._collection.document(analysis.id).set(analysis.model_dump(mode="python"))
+
+    def list_by_ticket(self, ticket_id: str) -> list[RequirementAnalysis]:
+        docs = self._collection.where("ticket_id", "==", ticket_id).stream()
+        return [RequirementAnalysis(**d.to_dict()) for d in docs]
+
+    def get_latest_by_ticket(self, ticket_id: str) -> RequirementAnalysis | None:
+        matches = self.list_by_ticket(ticket_id)
+        if not matches:
+            return None
+        return max(matches, key=lambda a: a.created_at)
+
+
 def get_repositories() -> tuple[
     TicketRepository,
     AgentRunRepository,
     ArtifactRepository,
     ProjectRepository,
     ProjectContextRepository,
+    RequirementAnalysisRepository,
 ]:
     if config.REPOSITORY_PROVIDER == "memory":
         return (
@@ -181,6 +223,7 @@ def get_repositories() -> tuple[
             InMemoryArtifactRepository(),
             InMemoryProjectRepository(),
             InMemoryProjectContextRepository(),
+            InMemoryRequirementAnalysisRepository(),
         )
     if config.REPOSITORY_PROVIDER == "firestore":
         from google.cloud import firestore
@@ -195,6 +238,7 @@ def get_repositories() -> tuple[
             FirestoreArtifactRepository(client),
             FirestoreProjectRepository(client),
             FirestoreProjectContextRepository(client),
+            FirestoreRequirementAnalysisRepository(client),
         )
     raise ValueError(
         f"Unknown REPOSITORY_PROVIDER: {config.REPOSITORY_PROVIDER!r}. Supported: memory, firestore"

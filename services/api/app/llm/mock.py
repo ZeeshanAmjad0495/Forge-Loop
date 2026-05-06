@@ -1,8 +1,36 @@
+import json
+
+_MOCK_ANALYSIS_RESPONSE = json.dumps(
+    {
+        "summary": "Implement the changes described in the ticket.",
+        "clarified_requirement": "The system should behave as specified in the ticket description with no ambiguities assumed.",
+        "assumptions": [
+            "Existing system behaviour is stable.",
+            "No breaking changes to public interfaces.",
+        ],
+        "ambiguities": [
+            "Exact acceptance criteria not specified in the ticket.",
+        ],
+        "clarification_questions": [],
+        "risks": [
+            "Unintended side effects in adjacent features.",
+        ],
+        "affected_areas": [
+            "To be determined after further codebase investigation.",
+        ],
+        "readiness": "ready_for_planning",
+    },
+    indent=2,
+)
+
+
 class MockLLMProvider:
     provider_name = "mock"
     model_name = "mock-planning-model"
 
     def generate_text(self, prompt: str) -> str:
+        if "REQUIREMENT_ANALYSIS_AGENT" in prompt:
+            return _MOCK_ANALYSIS_RESPONSE
         return """\
 # Implementation Brief
 

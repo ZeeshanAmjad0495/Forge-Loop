@@ -5,6 +5,7 @@ import {
   createPlanningRun,
   createProject,
   createProjectTicket,
+  createRequirementAnalysis,
   getProjectContext,
   listProjectTickets,
   listProjects,
@@ -13,7 +14,7 @@ import {
   updateProjectContext,
 } from './api'
 import './App.css'
-import type { Project, ProjectContext, ProviderInfo, Ticket } from './types'
+import type { Project, ProjectContext, ProviderInfo, RequirementAnalysis, Ticket } from './types'
 
 // ---------------------------------------------------------------------------
 // View state — discriminated union, no router
@@ -428,14 +429,89 @@ function ProjectView({
 }
 
 // ---------------------------------------------------------------------------
-// Ticket view — generate brief + display
+// Ticket view — requirement analysis + planning brief
 // ---------------------------------------------------------------------------
+
+type AnalysisPhase =
+  | { name: 'idle' }
+  | { name: 'analyzing' }
+  | { name: 'done'; analysis: RequirementAnalysis }
+  | { name: 'error'; message: string }
 
 type BriefPhase =
   | { name: 'idle' }
   | { name: 'generating' }
   | { name: 'done'; brief: string }
   | { name: 'error'; message: string }
+
+function ReadinessBadge({ readiness }: { readiness: RequirementAnalysis['readiness'] }) {
+  const ready = readiness === 'ready_for_planning'
+  return (
+    <span
+      style={{
+        display: 'inline-block',
+        padding: '2px 8px',
+        borderRadius: 4,
+        fontSize: 12,
+        fontWeight: 600,
+        background: ready ? '#d4edda' : '#fff3cd',
+        color: ready ? '#155724' : '#856404',
+        border: `1px solid ${ready ? '#c3e6cb' : '#ffeeba'}`,
+        marginBottom: 8,
+      }}
+    >
+      {ready ? '✓ Ready for planning' : '⚠ Needs clarification'}
+    </span>
+  )
+}
+
+function RequirementAnalysisPanel({ analysis }: { analysis: RequirementAnalysis }) {
+  return (
+    <div style={{ marginTop: 12, marginBottom: 16 }}>
+      <ReadinessBadge readiness={analysis.readiness} />
+
+      {analysis.summary && (
+        <p style={{ margin: '6px 0', fontStyle: 'italic' }}>{analysis.summary}</p>
+      )}
+
+      {analysis.ambiguities.length > 0 && (
+        <>
+          <strong>Ambiguities</strong>
+          <ul>
+            {analysis.ambiguities.map((a, i) => <li key={i}>{a}</li>)}
+          </ul>
+        </>
+      )}
+
+      {analysis.clarification_questions.length > 0 && (
+        <>
+          <strong>Clarification questions</strong>
+          <ul>
+            {analysis.clarification_questions.map((q, i) => <li key={i}>{q}</li>)}
+          </ul>
+        </>
+      )}
+
+      {analysis.risks.length > 0 && (
+        <>
+          <strong>Risks</strong>
+          <ul>
+            {analysis.risks.map((r, i) => <li key={i}>{r}</li>)}
+          </ul>
+        </>
+      )}
+
+      {analysis.affected_areas.length > 0 && (
+        <>
+          <strong>Affected areas</strong>
+          <ul>
+            {analysis.affected_areas.map((a, i) => <li key={i}>{a}</li>)}
+          </ul>
+        </>
+      )}
+    </div>
+  )
+}
 
 function TicketView({
   ticket: initialTicket,
@@ -453,7 +529,20 @@ function TicketView({
   onProviderChange: (name: string) => void
 }) {
   const [ticket, setTicket] = useState(initialTicket)
+  const [analysisPhase, setAnalysisPhase] = useState<AnalysisPhase>({ name: 'idle' })
   const [briefPhase, setBriefPhase] = useState<BriefPhase>({ name: 'idle' })
+
+  const busy = analysisPhase.name === 'analyzing' || briefPhase.name === 'generating'
+
+  async function handleAnalyzeRequirement() {
+    setAnalysisPhase({ name: 'analyzing' })
+    try {
+      const result = await createRequirementAnalysis(ticket.id, selectedProvider || undefined)
+      setAnalysisPhase({ name: 'done', analysis: result.requirement_analysis })
+    } catch (err) {
+      setAnalysisPhase({ name: 'error', message: (err as Error).message })
+    }
+  }
 
   async function handleGenerateBrief() {
     setBriefPhase({ name: 'generating' })
@@ -465,8 +554,6 @@ function TicketView({
       setBriefPhase({ name: 'error', message: (err as Error).message })
     }
   }
-
-  const generating = briefPhase.name === 'generating'
 
   return (
     <div>
@@ -488,7 +575,7 @@ function TicketView({
             id="ticket-provider"
             value={selectedProvider}
             onChange={e => onProviderChange(e.target.value)}
-            disabled={generating}
+            disabled={busy}
           >
             {providers.map(p => (
               <option key={p.name} value={p.name} disabled={!p.configured}>
@@ -499,16 +586,31 @@ function TicketView({
         </div>
       )}
 
+      {/* Requirement analysis */}
+      {analysisPhase.name === 'error' && (
+        <div className="error">{analysisPhase.message}</div>
+      )}
+      {analysisPhase.name !== 'done' && briefPhase.name !== 'done' && (
+        <button onClick={handleAnalyzeRequirement} disabled={busy} style={{ marginRight: 8 }}>
+          {analysisPhase.name === 'analyzing' ? 'Analyzing…' : 'Analyze requirement'}
+        </button>
+      )}
+      {analysisPhase.name === 'done' && (
+        <>
+          <h2>Requirement Analysis</h2>
+          <RequirementAnalysisPanel analysis={analysisPhase.analysis} />
+        </>
+      )}
+
+      {/* Planning brief */}
       {briefPhase.name === 'error' && (
         <div className="error">{briefPhase.message}</div>
       )}
-
       {briefPhase.name !== 'done' && (
-        <button onClick={handleGenerateBrief} disabled={generating}>
-          {generating ? 'Generating brief…' : 'Generate planning brief'}
+        <button onClick={handleGenerateBrief} disabled={busy}>
+          {briefPhase.name === 'generating' ? 'Generating brief…' : 'Generate planning brief'}
         </button>
       )}
-
       {briefPhase.name === 'done' && (
         <>
           <h2>Implementation Brief</h2>

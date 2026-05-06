@@ -54,7 +54,7 @@ class ProjectContext(ProjectContextUpdate):
 class AgentRun(BaseModel):
     id: str
     ticket_id: str
-    agent_type: Literal["planning"]
+    agent_type: Literal["planning", "requirement_analysis"]
     provider: str
     model: str
     status: Literal["pending", "running", "completed", "failed"]
@@ -67,7 +67,7 @@ class Artifact(BaseModel):
     id: str
     ticket_id: str
     agent_run_id: str
-    artifact_type: Literal["implementation_brief"]
+    artifact_type: Literal["implementation_brief", "requirement_analysis"]
     content: str
     created_at: datetime
 
@@ -79,6 +79,34 @@ class PlanningRunResponse(BaseModel):
 
 class PlanningRunCreate(BaseModel):
     provider: str | None = None
+
+
+class RequirementAnalysis(BaseModel):
+    id: str
+    project_id: str | None
+    ticket_id: str
+    agent_run_id: str
+    status: Literal["completed", "failed"]
+    summary: str
+    clarified_requirement: str
+    assumptions: list[str]
+    ambiguities: list[str]
+    clarification_questions: list[str]
+    risks: list[str]
+    affected_areas: list[str]
+    readiness: Literal["ready_for_planning", "needs_clarification"]
+    created_at: datetime
+    updated_at: datetime
+
+
+class RequirementAnalysisRunCreate(BaseModel):
+    provider: str | None = None
+
+
+class RequirementAnalysisRunResponse(BaseModel):
+    agent_run: AgentRun
+    requirement_analysis: RequirementAnalysis
+    artifact: Artifact
 
 
 class ProviderInfo(BaseModel):
