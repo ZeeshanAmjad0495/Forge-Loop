@@ -30,52 +30,73 @@
 
 ---
 
-## Release 3 — Requirements + Task Planning Engine (Tasks 17–21)
+## Release 3 — Requirements + Task Planning Engine (Tasks 17–21) — Complete
 
-Scope (high-level — detailed tasks defined per sprint):
+Scope (implemented):
 
-- Requirements intake (structured input, not just free-text tickets)
-- Task decomposition (break approved planning briefs into dev tasks and subtasks)
+- Structured requirements intake (not just free-text tickets)
+- Requirement analysis and clarification questions
+- Task/subtask decomposition from approved planning briefs
 - Task lifecycle management (status tracking, sequencing, dependencies)
-- Human approval gate at planning-to-task transition
-- Audit log foundation (agent run history, human decisions)
+- Human approval gates at planning-to-task transitions
+- Audit event foundation (agent run history, human decisions)
+- Project context and project memory
 
 ---
 
-## Release 4 — QA / STLC Pipeline (Tasks 22–25)
+## Strategy note (post-Release 3)
 
-Scope:
+The original broad plan for Releases 4–6 has been narrowed based on deep research findings:
 
-- QA agent run type (test generation, test execution via tool runners)
-- Integration with QA tools (TestZeus, Playwright Test Agents)
-- Security scanning integration (Semgrep, OSV-Scanner, Trivy)
-- Quality gates: each stage must pass before advancing
-- QA artifacts stored in ForgeLoop (`QARunArtifact`)
-
-See `docs/qa-strategy.md` for full QA direction.
-
----
-
-## Release 5 — Tool Runner + Code Automation (Tasks 26–29)
-
-Scope:
-
-- Tool runner abstraction (interface for invoking external coding tools)
-- First tool runner integration (OpenHands or Aider)
-- Code review integration (PR-Agent or Kodus/Kody)
-- Multi-candidate orchestration (run multiple agents, evaluate, select best)
-
-See `docs/tooling-strategy.md` for tool catalogue and delegation principle.
+- **Avoid tool sprawl.** Do not integrate many tool runners or QA agents at once.
+- **Build one golden path first.** Validate the full loop with a single runner before adding more.
+- **Deterministic QA before LLM review.** No LLM agent should approve a stage without evidence from actual tool/test runs stored as artifacts.
+- **OpenHands** is the designated primary coding runner. Aider and Cline are local/manual fallbacks only.
+- **Playwright Test Agents** are the primary browser QA lane. TestZeus is secondary/experimental.
+- **Kodus/Kody** is the target PR review layer.
+- **Langfuse** is added earlier (Release 4) for prompt tracing, cost tracking, and token records.
+- **No typed project memory upgrade to RAG/vector DB yet.** Structured typed memory first.
+- **Avoid Temporal, Kestra, LangGraph, MCP** unless a clear, specific need appears.
 
 ---
 
-## Release 6 — Production + Learning Loop (Tasks 30–32)
+## Release 4 — Golden Path + Deterministic QA (Tasks 22–25)
 
 Scope:
 
-- Production monitoring and incident triage
-- Remediation brief workflow (failure → ticket → planning → fix)
-- Learning loop (project memory updated from outcomes, QA results, production events)
+- Repo connection + repo safety profile (branch protection awareness, no-force-push rules)
+- Deterministic QA/security bundle: Semgrep, OSV-Scanner, Trivy, Gitleaks, axe-core, native test/coverage tools
+- Playwright / browser QA lane (Playwright Test Agents as primary E2E tool)
+- Langfuse tracing: prompt versions, cost records, token usage per agent run
+
+All deterministic checks run before any LLM review step. Results are stored as QA artifacts.
+
+See `docs/qa-strategy.md` and `docs/tooling-strategy.md`.
+
+---
+
+## Release 5 — Tool Runner + PR Workflow (Tasks 26–29)
+
+Scope:
+
+- ToolRunner abstraction (single interface for invoking external coding tools)
+- OpenHandsRunner as the primary coding runner (first and only runner until validated)
+- PR draft workflow (task output → branch → PR draft)
+- Kodus/Kody PR review integration
+
+ForgeLoop does not integrate multiple coding runners at once. OpenHands is the first and primary runner. Aider and Cline are local/manual fallbacks only. OpenCode, Hermes Agent, and OpenClaw remain secondary adapters for later. Multi-candidate orchestration is deferred until the single-runner workflow is stable.
+
+See `docs/tooling-strategy.md`.
+
+---
+
+## Release 6 — CI + Incident + Learning Loop (Tasks 30–32)
+
+Scope:
+
+- CI failure ingestion and analysis (connect CI events → ForgeLoop tickets)
+- Production/incident ticket workflow (failure → triage → remediation brief)
+- Project memory learning loop (outcomes, QA results, production events update project memory)
 
 ---
 
@@ -104,4 +125,4 @@ The following cross-cutting capabilities are folded into Releases 3–6 and do n
 
 ## Rule
 
-Do not implement Release 3+ items unless the current task explicitly requests them.
+Do not implement Release 4+ items unless the current task explicitly requests them.

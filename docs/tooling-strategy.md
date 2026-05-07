@@ -14,11 +14,12 @@ ForgeLoop owns:
   artifact store, approval gates, audit trail
 
 ForgeLoop delegates to tools:
-  code generation → OpenHands / Aider / Cline / OpenCode / Hermes Agent
-  test execution  → TestZeus / Playwright Test Agents
-  code review     → PR-Agent / Kodus/Kody
-  security scan   → Semgrep / OSV-Scanner / Trivy
+  code generation → OpenHands (primary) / Aider / Cline (fallback)
+  test execution  → Playwright Test Agents (primary) / TestZeus (secondary)
+  code review     → Kodus/Kody
+  security scan   → Semgrep / OSV-Scanner / Trivy / Gitleaks
   accessibility   → axe-core
+  observability   → Langfuse (prompt tracing, cost, token records)
 ```
 
 Integration pattern for each tool:
@@ -29,33 +30,60 @@ Integration pattern for each tool:
 
 ---
 
+## Anti-Sprawl Rules
+
+Do not integrate many tool runners or QA agents at once. The strategy is:
+
+- Start with **one coding runner** (OpenHands) and validate the full loop before adding more.
+- Start with **one browser QA lane** (Playwright) before adding AI-based test generators.
+- Add tools only when a clear, specific gap exists — not speculatively.
+- Avoid workflow engines (Temporal, Kestra, LangGraph, MCP) until a concrete need appears.
+
+---
+
+## Preferred Primary Tools
+
+| Category | Primary | Fallback / Secondary |
+|----------|---------|---------------------|
+| Coding runner | OpenHands | Aider (local/manual), Cline (local/manual) |
+| Browser / E2E QA | Playwright Test Agents | TestZeus (experimental, not yet primary) |
+| PR review | Kodus / Kody | — |
+| SAST | Semgrep | — |
+| Dependency / container scan | OSV-Scanner, Trivy | — |
+| Secret scanning | Gitleaks | — |
+| Accessibility | axe-core | — |
+| Observability / cost / prompt tracing | Langfuse | — |
+
+---
+
 ## Tool Catalogue
 
 ### Code Automation
 
-| Tool | Role | Integration approach |
-|------|------|---------------------|
-| OpenHands | Autonomous coding agent | API invocation, returns diff/PR |
-| Aider | AI pair programmer (CLI) | CLI invocation, captures output |
-| Cline | VS Code AI coder | CLI or API |
-| OpenCode | Terminal coding agent | CLI invocation |
-| Hermes Agent | Lightweight agent framework | API invocation |
+| Tool | Role | Priority |
+|------|------|---------|
+| OpenHands | Autonomous coding agent (API invocation, returns diff/PR) | **Primary** |
+| Aider | AI pair programmer (CLI) | Local/manual fallback |
+| Cline | VS Code AI coder (CLI or API) | Local/manual fallback |
+| OpenCode | Terminal coding agent | Secondary adapter (later) |
+| Hermes Agent | Lightweight agent framework | Secondary adapter (later) |
+| OpenClaw | Coding agent | Secondary adapter (later) |
 
-ForgeLoop does not prefer one over another. The project's repo safety profile and task type determine which tool is invoked. Multiple candidates may run in parallel (Release 5 multi-candidate pattern).
+OpenHands is the designated first runner. The single-runner workflow must be validated before adding additional runners. Multi-candidate orchestration is deferred to after Release 5.
 
 ### QA / Test Execution
 
-| Tool | Role |
-|------|------|
-| TestZeus | AI-driven test generation and execution |
-| Playwright Test Agents | E2E browser test automation |
+| Tool | Role | Priority |
+|------|------|---------|
+| Playwright Test Agents | E2E browser test automation | **Primary** |
+| pytest / Jest / Vitest | Unit and integration tests (native, already in use) | **Primary** |
+| TestZeus | AI-driven test generation and execution | Secondary / experimental |
 
 ### Code Review
 
 | Tool | Role |
 |------|------|
-| PR-Agent | Automated PR review, summary, suggestions |
-| Kodus / Kody | AI code review platform |
+| Kodus / Kody | AI code review platform — target PR review layer |
 
 ### Security Scanning
 
@@ -64,12 +92,19 @@ ForgeLoop does not prefer one over another. The project's repo safety profile an
 | Semgrep | Static analysis (SAST) |
 | OSV-Scanner | Open source vulnerability scanning |
 | Trivy | Container and dependency scanning |
+| Gitleaks | Secret scanning |
 
 ### Accessibility
 
 | Tool | Role |
 |------|------|
 | axe-core | Accessibility rule engine |
+
+### Observability
+
+| Tool | Role |
+|------|------|
+| Langfuse | Prompt version tracking, cost records, token usage per agent run |
 
 ---
 
@@ -84,6 +119,6 @@ ForgeLoop does not prefer one over another. The project's repo safety profile an
 
 ## Current State
 
-No tool runners are integrated yet. Tool runner abstraction is planned for Release 5.
+No tool runners are integrated yet. Tool runner abstraction (OpenHandsRunner as primary) is planned for Release 5.
 
 See `docs/roadmap.md` for release schedule.

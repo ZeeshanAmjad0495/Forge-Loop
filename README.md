@@ -2,27 +2,30 @@
 
 > A human-supervised autonomous SDLC + STLC control plane. ForgeLoop orchestrates the full software delivery lifecycle — from requirements to production — coordinating AI agent runs, enforcing human approvals, and delegating code execution to existing tools.
 
-The current release is the planning platform (Release 1) plus per-request provider selection (Release 2). Project memory, GitHub integration, tool-runner-driven coding, AI-assisted PR review, and incident triage are on the roadmap but **not yet implemented** — see [Future roadmap](#future-roadmap).
+Releases 1–3 are complete. Tool-runner-driven coding, AI-assisted PR review, and incident triage are on the roadmap but **not yet implemented** — see [Future roadmap](#future-roadmap).
 
-## What ForgeLoop does today (Releases 1 + 2)
+## What ForgeLoop does today (Releases 1–3)
 
-1. Accept a ticket (title + description) via API or web UI.
-2. Let the user choose which LLM provider drafts the planning brief (mock, DeepSeek, or Kimi).
-3. Run a planning agent that calls the selected LLM to generate an implementation-ready brief in markdown.
-4. Store tickets, agent runs, and artifacts — in memory locally or in Firestore on GCP.
-5. Expose everything through a REST API and a minimal React frontend.
+1. Accept structured requirements or tickets via API or web UI.
+2. Manage projects with project context and project memory (architecture decisions, standards, prior feedback).
+3. Analyze requirements and generate clarification questions before planning.
+4. Let the user choose which LLM provider drafts the planning brief (mock, DeepSeek, or Kimi).
+5. Run a planning agent that calls the selected LLM to generate an implementation-ready brief in markdown.
+6. Decompose approved briefs into dev tasks and subtasks with lifecycle management.
+7. Enforce human approval gates at planning-to-task transitions.
+8. Record audit events for agent runs, human decisions, and state transitions.
+9. Store everything — in memory locally or in Firestore on GCP.
+10. Expose it all through a REST API and a minimal React frontend.
 
 ## What it does not do yet
 
-- Track projects or project memory (architecture decisions, coding standards, prior feedback)
 - Create branches, commits, or pull requests
 - Review pull requests
 - Run multiple planning candidates and pick the best
-- Decompose approved briefs into dev tasks and subtasks
-- Delegate execution to coding tools (OpenHands, Aider, Cline, OpenCode, Hermes Agent)
+- Delegate code execution to coding tools (OpenHands, Aider, Cline, etc.)
+- Run deterministic QA/security tools (Semgrep, Trivy, Playwright, etc.)
 - Triage incidents or analyze production failures / CI failures
 - Integrate with GitHub, Slack, or any external ticketing system
-- Authenticate users or enforce access control
 - Support multiple tenants or billing
 - Generate marketing or product-growth artifacts
 
@@ -32,7 +35,7 @@ See [Future roadmap](#future-roadmap) for which release each item belongs to.
 
 The backend is a FastAPI service running on Cloud Run. It receives tickets, orchestrates the planning agent (against a user-selectable LLM provider), and stores results in Firestore. The frontend is a static React + Vite app that calls the API directly. Infrastructure is managed with Terraform. All agent output is for **human review** — nothing is merged or deployed autonomously.
 
-The longer-term target architecture (Releases 3–6) is project-centered: Project → ProjectMemory → Tickets → multi-candidate AgentRuns → Evaluator → Approved Brief → DevTasks → ToolRunner execution → Branch / PR → AI Review → Human Review → Merge. None of that is implemented yet.
+The longer-term target architecture (Releases 4–6) extends from the Release 3 foundation: DevTasks → ToolRunner execution (OpenHands) → Branch / PR → Kodus/Kody review → Human Review → Merge. All of that is planned but not yet implemented.
 
 See [docs/architecture.md](docs/architecture.md) for full details.
 
@@ -375,40 +378,45 @@ ForgeLoop's long-term direction is a **human-supervised autonomous SDLC + STLC c
 
 Ticket creation, planning agent with mock provider, DeepSeek integration, Firestore persistence, Docker, CI, Cloud Run deployment, Terraform, minimal frontend, docs.
 
-### Release 2 — Provider + Basic Usability (Tasks 13–15) — Complete
+### Release 2 — Provider + Basic Usability (Tasks 13–16) — Complete
 
 - Kimi (Moonshot) provider integration
 - Per-request provider selection (`GET /llm/providers` + UI selector)
-- Documentation alignment with product direction
+- Auth/login (JWT, single admin user)
+- Project-aware dashboard + project context/memory
 
-### Release 3 — GitHub + Approval Foundation (Tasks 16–20)
+### Release 3 — Requirements + Task Planning Engine (Tasks 17–21) — Complete
 
-- GitHub App or webhook integration (trigger agents from GitHub events)
-- Branch creation
-- PR creation
-- Human approval gate workflow (explicit sign-off at each stage transition)
-- Audit log (history of agent runs, evaluations, and human decisions)
+- Structured requirements intake (not just free-text tickets)
+- Requirement analysis and clarification questions
+- Task/subtask decomposition from approved planning briefs
+- Task lifecycle management (status tracking, sequencing, dependencies)
+- Human approval gates at planning-to-task transitions
+- Audit event foundation (agent run history, human decisions)
 
-### Release 4 — Tool-based Coding Automation (Tasks 21–25)
+### Release 4 — Golden Path + Deterministic QA (Tasks 22–25)
 
-- Tool runner abstraction (interface for invoking external coding tools)
-- First tool runner integration (OpenHands or Aider; later Cline, OpenCode, Hermes Agent)
-- Dev task decomposition (break approved briefs into actionable dev tasks)
-- Multi-candidate orchestration (run multiple agents/prompts; evaluator selects)
-- Change request loop (human requests revision; agent reruns against feedback)
+- Repo connection + repo safety profile (branch protection awareness, no-force-push rules)
+- Deterministic QA/security bundle: Semgrep, OSV-Scanner, Trivy, Gitleaks, axe-core, native test/coverage tools
+- Playwright / browser QA lane (Playwright Test Agents as primary E2E tool)
+- Langfuse tracing: prompt versions, cost records, token usage per agent run
 
-### Release 5 — Review + CI Intelligence (Tasks 26–29)
+All deterministic checks run before any LLM review step. Results are stored as QA artifacts.
 
-- AI-assisted PR review (analyze diffs, generate structured review notes)
-- CI failure analysis
-- Test run evaluation
-- Prompt version tracking (which prompt produced which artifact)
+### Release 5 — Tool Runner + PR Workflow (Tasks 26–29)
 
-### Release 6 — IncidentOps (Tasks 30–32)
+- ToolRunner abstraction (single interface for invoking external coding tools)
+- OpenHandsRunner as the primary coding runner (first and only runner until validated)
+- PR draft workflow (task output → branch → PR draft)
+- Kodus/Kody PR review integration
 
-- Incident triage agent
-- Production failure analysis
-- Remediation brief workflow
+OpenHands is the first and primary runner. Aider and Cline are local/manual fallbacks only. Multi-candidate orchestration is deferred until the single-runner workflow is stable.
+
+### Release 6 — CI + Incident + Learning Loop (Tasks 30–32)
+
+- CI failure ingestion and analysis (connect CI events → ForgeLoop tickets)
+- Production/incident ticket workflow (failure → triage → remediation brief)
+- Project memory learning loop (outcomes, QA results, production events update project memory)
 
 ### Release 7 — LaunchPilot / Marketing (Future, parked)
 
@@ -416,4 +424,4 @@ Ticket creation, planning agent with mock provider, DeepSeek integration, Firest
 
 ### Always out of scope (for the current 32-task roadmap)
 
-Pub/Sub/Eventarc, Kubernetes, Slack integration, authentication/RBAC, multi-tenancy/billing, complex dashboard, background workers, vector DB / RAG, MCP server, LangGraph (only adopt if a real need appears), long-running agent workflows.
+Pub/Sub/Eventarc, Kubernetes, Slack integration, multi-tenancy/billing, complex dashboard, background workers, vector DB / RAG, MCP server, Temporal/Kestra/LangGraph (only adopt if a specific need appears), long-running agent workflows.

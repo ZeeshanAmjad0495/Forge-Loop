@@ -201,29 +201,38 @@ Planned items are listed with their target release. Always-out items will not be
 
 | Capability | Status |
 |------------|--------|
-| Project context / Project Memory | Planned, Release 4 |
-| GitHub App / webhook integration | Planned, Release 3 |
-| Branch / PR creation | Planned, Release 3 |
-| Approval gate workflow / audit log | Planned, Release 3 |
-| Tool runner abstraction (OpenHands, Aider, …) | Planned, Release 4 |
-| Dev task decomposition / multi-candidate orchestration | Planned, Release 4 |
-| AI-assisted PR review | Planned, Release 5 |
-| CI failure analysis / test run evaluation | Planned, Release 5 |
-| Prompt version tracking | Planned, Release 5 |
+| Project context / Project Memory | **Implemented, Release 3** |
+| Structured requirements intake | **Implemented, Release 3** |
+| Task / subtask decomposition | **Implemented, Release 3** |
+| Approval gate workflow / audit log | **Implemented, Release 3** |
+| Repo connection + repo safety profile | Planned, Release 4 |
+| Deterministic QA/security bundle (Semgrep, OSV-Scanner, Trivy, Gitleaks, axe-core) | Planned, Release 4 |
+| Playwright / browser QA lane | Planned, Release 4 |
+| Langfuse tracing (prompt versions, cost, token records) | Planned, Release 4 |
+| Tool runner abstraction (OpenHandsRunner primary) | Planned, Release 5 |
+| PR draft workflow | Planned, Release 5 |
+| Branch / PR creation | Planned, Release 5 |
+| AI-assisted PR review (Kodus/Kody) | Planned, Release 5 |
+| CI failure analysis / ingestion | Planned, Release 6 |
 | Incident triage / production failure analysis | Planned, Release 6 |
+| Project memory learning loop | Planned, Release 6 |
+| GitHub App / webhook integration | Planned, Release 4 (repo connection, narrower scope) |
+| Multi-candidate orchestration / evaluator | Deferred (after single-runner loop is stable) |
+| Vector search / RAG | Always out (current roadmap) |
 | Marketing / product-growth | Parked, Release 7 (not in active roadmap) |
 | Slack or email notifications | Always out (current roadmap) |
 | Authentication, RBAC, multi-tenancy, billing | Always out (current roadmap) |
 | Frontend deployment / hosting | Always out (current roadmap) |
 | Pub/Sub or Eventarc triggers | Always out (current roadmap) |
-| Vector search / RAG / MCP server | Always out (current roadmap) |
+| MCP server | Always out (current roadmap) |
+| Temporal, Kestra, LangGraph | Always out unless a specific need appears |
 | Multi-environment Terraform workspaces | Always out (current roadmap) |
 
 ---
 
-## Target architecture (Releases 3–6)
+## Target architecture (Releases 4–6)
 
-ForgeLoop's long-term role is **control plane**, not coding agent. This section describes the intended architecture for Releases 3–6. **Nothing here is implemented yet.** The active engineering scope is fixed at 32 tasks across 6 releases — see [README → Future roadmap](../README.md#future-roadmap) for the per-release breakdown.
+ForgeLoop's long-term role is **control plane**, not coding agent. This section describes the intended architecture for Releases 4–6. Release 3 (requirements, task decomposition, approval gates, audit events, project memory) is now implemented. The active engineering scope is fixed at 32 tasks across 6 releases — see [README → Future roadmap](../README.md#future-roadmap) for the per-release breakdown.
 
 ### Control-plane principle
 
@@ -277,11 +286,11 @@ Project
 
 The MVP implements only the leftmost path (Ticket → PlanningAgentRun → Artifact). Project, ProjectMemory, DevTasks, ToolRunner, and the Review/Merge loop are all planned future work.
 
-### Project Memory (planned, Release 4)
+### Project Memory (implemented, Release 3)
 
 Per-project storage that gives planning agents the context they need to produce a useful brief without re-explaining the codebase each time. Stores: architecture decisions, tech stack, domain rules, important files, coding standards, testing/deployment commands, previous feedback, approved/rejected approaches, known risks, common failure patterns, prompt versions, and other project-specific context. Project memory is owned by ForgeLoop, not the LLM.
 
-### Tool Runner abstraction (planned, Release 4)
+### Tool Runner abstraction (planned, Release 5)
 
 A single interface for invoking external coding tools. Conceptual shape:
 
@@ -289,9 +298,9 @@ A single interface for invoking external coding tools. Conceptual shape:
 ToolRunner.invoke(task, project_context) → ToolRunResult
 ```
 
-First targets: OpenHands, Aider. Later: Cline, OpenCode, Hermes Agent, OpenClaw (if useful). ForgeLoop tracks each tool run as an AgentRun, stores its output as an Artifact, and surfaces results to humans for approval. It does not reimplement what these tools already do.
+Primary target: OpenHands (first and only runner until the full loop is validated). Later secondary adapters: Aider (local/manual fallback), Cline (local/manual fallback), OpenCode, Hermes Agent, OpenClaw. ForgeLoop tracks each tool run as an AgentRun, stores its output as an Artifact, and surfaces results to humans for approval. It does not reimplement what these tools already do.
 
-### Orchestrator / Evaluator pattern (planned, Releases 4–5)
+### Orchestrator / Evaluator pattern (deferred — after single-runner loop is stable)
 
 Each workflow stage may run multiple agent candidates in parallel. An evaluator scores the outputs and selects the best before proceeding to the next stage. A human approves or requests changes. Applies to:
 
@@ -301,7 +310,7 @@ Each workflow stage may run multiple agent candidates in parallel. An evaluator 
 
 May be implemented later via Kimi swarm capabilities, a parallel AgentRun abstraction, or LangGraph if a real need appears.
 
-### Human approval gates (planned, Release 3)
+### Human approval gates (implemented, Release 3)
 
 Explicit human approval is required before the system proceeds at each of these transitions:
 
@@ -321,7 +330,7 @@ Two operating modes:
 
 Common to both modes: no autonomous merge or deploy, no secret exposure, full audit trail, repo safety profiles (branch protection awareness, no-force-push enforcement), blocked paths, required checks, and a dry-run / preview mode for risky operations.
 
-### Audit trail (planned, Release 3)
+### Audit trail (implemented, Release 3)
 
 Every agent run, candidate output, evaluation score, human decision, prompt version, and artifact revision is stored and queryable. This makes the system auditable and reversible.
 
@@ -404,4 +413,4 @@ These concepts are used across Studio modules. ForgeLoop owns and stores all of 
 
 ### Active build boundary
 
-The current implementation is **ForgeLoop Releases 1–2** (ticket creation, planning agent, LLM provider selection, auth, minimal frontend). Everything else in this section — including all ForgeLoop Studio modules — is future architecture only.
+The current implementation is **ForgeLoop Releases 1–3** (ticket creation, planning agent, LLM provider selection, auth, project context/memory, structured requirements, task decomposition, task lifecycle, approval gates, audit events). Everything else in this section — including all ForgeLoop Studio modules — is future architecture only.

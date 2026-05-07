@@ -69,4 +69,4 @@ These concepts are used across Studio modules. ForgeLoop owns and stores all of 
 
 ## Active Build Boundary
 
-The current implementation is **ForgeLoop Releases 1–2**. Everything else in this document is future architecture only.
+The current implementation is **ForgeLoop Releases 1–3**. Everything else in this document is future architecture only.

@@ -10,7 +10,7 @@ ForgeLoop is the control plane. It should not rebuild coding agents from scratch
 
 ## Current Build State
 
-Releases 1 and 2 are implemented.
+Releases 1, 2, and 3 are implemented.
 
 Implemented capabilities include:
 
@@ -27,8 +27,11 @@ Implemented capabilities include:
 - Terraform minimum GCP infrastructure
 - Cloud Run deploy workflow
 - Project-aware dashboard and project context/memory
+- Structured requirements intake and requirement analysis
+- Task/subtask decomposition and task lifecycle management
+- Human approval gates and audit events
 
-The current active work is moving into Release 3.
+The current active work is Release 4.
 
 ## Active Roadmap
 
@@ -36,10 +39,12 @@ The active engineering roadmap is fixed at 32 tasks across 6 releases.
 
 - Release 1: Core planning platform — complete
 - Release 2: Provider + usability + project context — complete
-- Release 3: Requirements + task planning engine
-- Release 4: QA/STLC pipeline
-- Release 5: Tool runner + code automation
-- Release 6: Production + learning loop
+- Release 3: Requirements + task planning engine — complete
+- Release 4: Golden path + deterministic QA
+- Release 5: Tool runner + PR workflow (OpenHands primary)
+- Release 6: CI + incident + learning loop
+
+See `docs/roadmap.md` for full scope and `docs/tooling-strategy.md` for tool choices.
 
 Future ForgeLoop Studio modules are parked and must not be implemented unless explicitly requested:
 
@@ -142,19 +147,22 @@ Next step:
 
 Do not implement these unless the current task explicitly asks for them:
 
-- GitHub issue/PR automation
-- approval gates
-- audit log
-- QA agents
-- tool runners
-- OpenHands/Hermes/Cline/Aider/OpenCode integration
-- evaluator/swarm orchestration
+- GitHub App / webhook integration
+- repo connection / repo safety profile
+- QA tool runners (Semgrep, Playwright, Trivy, etc.)
+- Langfuse integration
+- coding tool runners (OpenHands, Aider, Cline, etc.)
+- PR draft / branch creation
+- Kodus/Kody PR review integration
+- evaluator/multi-candidate orchestration
+- CI failure ingestion
 - production incident workflows
+- project memory learning loop
 - MCP server
-- LangGraph
+- Temporal / Kestra / LangGraph
 - vector DB/RAG
 - billing/multi-tenancy
-- ForgeLoop Studio modules
+- ForgeLoop Studio modules (ProductScout, AuditLens, LaunchPilot)
 - marketing workflows
 
 ## Detailed Docs
