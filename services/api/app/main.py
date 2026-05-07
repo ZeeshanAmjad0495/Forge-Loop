@@ -13,6 +13,7 @@ from .llm import (
     list_provider_status,
 )
 from .models import (
+    DevTaskWithSubtasksResponse,
     LoginRequest,
     LoginResponse,
     MeResponse,
@@ -30,6 +31,8 @@ from .models import (
     RequirementAnalysisRunResponse,
     RequirementCreate,
     RequirementUpdate,
+    TaskDecompositionResponse,
+    TaskDecompositionRunCreate,
     Ticket,
     TicketCreate,
 )
@@ -38,6 +41,10 @@ from .repositories import get_repositories
 from .requirement_analysis_agent import (
     run_requirement_analysis_agent,
     run_requirement_analysis_for_requirement,
+)
+from .task_decomposition_agent import (
+    run_task_decomposition_for_requirement,
+    run_task_decomposition_for_ticket,
 )
 
 app = FastAPI()
@@ -55,6 +62,8 @@ app.add_middleware(
     project_context_repo,
     analysis_repo,
     requirement_repo,
+    dev_task_repo,
+    subtask_repo,
 ) = get_repositories()
 
 
@@ -389,3 +398,95 @@ def create_requirement_analysis_for_requirement(
     return RequirementAnalysisRunResponse(
         agent_run=run, requirement_analysis=analysis, artifact=artifact
     )
+
+
+# ---------------------------------------------------------------------------
+# Task decomposition
+# ---------------------------------------------------------------------------
+
+@app.post(
+    "/requirements/{requirement_id}/task-decompositions",
+    response_model=TaskDecompositionResponse,
+    status_code=201,
+)
+def create_task_decomposition_for_requirement(
+    requirement_id: str,
+    body: TaskDecompositionRunCreate | None = Body(default=None),
+    _: str = Depends(require_auth),
+):
+    requirement = requirement_repo.get(requirement_id)
+    if requirement is None:
+        raise HTTPException(status_code=404, detail="Requirement not found")
+    provider_name = body.provider if (body and body.provider) else get_default_provider_name()
+    try:
+        provider = get_provider_by_name(provider_name)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except ProviderError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    context = project_context_repo.get(requirement.project_id)
+    latest_analysis = analysis_repo.get_latest_by_requirement(requirement_id)
+    run, artifact, dev_tasks, subtasks = run_task_decomposition_for_requirement(
+        requirement, provider, agent_run_repo, artifact_repo, dev_task_repo, subtask_repo,
+        context, latest_analysis,
+    )
+    return TaskDecompositionResponse(
+        agent_run=run, artifact=artifact, dev_tasks=dev_tasks, subtasks=subtasks
+    )
+
+
+@app.post(
+    "/tickets/{ticket_id}/task-decompositions",
+    response_model=TaskDecompositionResponse,
+    status_code=201,
+)
+def create_task_decomposition_for_ticket(
+    ticket_id: str,
+    body: TaskDecompositionRunCreate | None = Body(default=None),
+    _: str = Depends(require_auth),
+):
+    ticket = repo.get(ticket_id)
+    if ticket is None:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    provider_name = body.provider if (body and body.provider) else get_default_provider_name()
+    try:
+        provider = get_provider_by_name(provider_name)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except ProviderError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    context = None
+    if ticket.project_id:
+        context = project_context_repo.get(ticket.project_id)
+    latest_analysis = analysis_repo.get_latest_by_ticket(ticket_id)
+    run, artifact, dev_tasks, subtasks = run_task_decomposition_for_ticket(
+        ticket, provider, agent_run_repo, artifact_repo, dev_task_repo, subtask_repo,
+        context, latest_analysis,
+    )
+    return TaskDecompositionResponse(
+        agent_run=run, artifact=artifact, dev_tasks=dev_tasks, subtasks=subtasks
+    )
+
+
+@app.get("/projects/{project_id}/dev-tasks", response_model=list)
+def list_project_dev_tasks(project_id: str, _: str = Depends(require_auth)):
+    if project_repo.get(project_id) is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return dev_task_repo.list_by_project(project_id)
+
+
+@app.get("/dev-tasks/{dev_task_id}", response_model=DevTaskWithSubtasksResponse)
+def get_dev_task(dev_task_id: str, _: str = Depends(require_auth)):
+    dev_task = dev_task_repo.get(dev_task_id)
+    if dev_task is None:
+        raise HTTPException(status_code=404, detail="DevTask not found")
+    subtasks = subtask_repo.list_by_dev_task(dev_task_id)
+    return DevTaskWithSubtasksResponse(dev_task=dev_task, subtasks=subtasks)
+
+
+@app.get("/dev-tasks/{dev_task_id}/subtasks", response_model=list)
+def list_dev_task_subtasks(dev_task_id: str, _: str = Depends(require_auth)):
+    dev_task = dev_task_repo.get(dev_task_id)
+    if dev_task is None:
+        raise HTTPException(status_code=404, detail="DevTask not found")
+    return subtask_repo.list_by_dev_task(dev_task_id)

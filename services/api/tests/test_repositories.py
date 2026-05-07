@@ -8,24 +8,28 @@ from app.models import Artifact, Ticket
 from app.repositories import (
     FirestoreAgentRunRepository,
     FirestoreArtifactRepository,
+    FirestoreDevTaskRepository,
     FirestoreProjectContextRepository,
     FirestoreProjectRepository,
     FirestoreRequirementAnalysisRepository,
     FirestoreRequirementRepository,
+    FirestoreSubtaskRepository,
     FirestoreTicketRepository,
     InMemoryAgentRunRepository,
     InMemoryArtifactRepository,
+    InMemoryDevTaskRepository,
     InMemoryProjectContextRepository,
     InMemoryProjectRepository,
     InMemoryRequirementAnalysisRepository,
     InMemoryRequirementRepository,
+    InMemorySubtaskRepository,
     InMemoryTicketRepository,
     get_repositories,
 )
 
 
 def test_default_repository_is_memory():
-    tickets, runs, artifacts, projects, contexts, analyses, requirements = get_repositories()
+    tickets, runs, artifacts, projects, contexts, analyses, requirements, dev_tasks, subtasks = get_repositories()
     assert isinstance(tickets, InMemoryTicketRepository)
     assert isinstance(runs, InMemoryAgentRunRepository)
     assert isinstance(artifacts, InMemoryArtifactRepository)
@@ -33,11 +37,13 @@ def test_default_repository_is_memory():
     assert isinstance(contexts, InMemoryProjectContextRepository)
     assert isinstance(analyses, InMemoryRequirementAnalysisRepository)
     assert isinstance(requirements, InMemoryRequirementRepository)
+    assert isinstance(dev_tasks, InMemoryDevTaskRepository)
+    assert isinstance(subtasks, InMemorySubtaskRepository)
 
 
 def test_memory_repository_explicitly(monkeypatch):
     monkeypatch.setattr(config, "REPOSITORY_PROVIDER", "memory")
-    tickets, runs, artifacts, projects, contexts, analyses, requirements = get_repositories()
+    tickets, runs, artifacts, projects, contexts, analyses, requirements, dev_tasks, subtasks = get_repositories()
     assert isinstance(tickets, InMemoryTicketRepository)
     assert isinstance(runs, InMemoryAgentRunRepository)
     assert isinstance(artifacts, InMemoryArtifactRepository)
@@ -45,12 +51,14 @@ def test_memory_repository_explicitly(monkeypatch):
     assert isinstance(contexts, InMemoryProjectContextRepository)
     assert isinstance(analyses, InMemoryRequirementAnalysisRepository)
     assert isinstance(requirements, InMemoryRequirementRepository)
+    assert isinstance(dev_tasks, InMemoryDevTaskRepository)
+    assert isinstance(subtasks, InMemorySubtaskRepository)
 
 
 def test_firestore_repository_selected(monkeypatch):
     monkeypatch.setattr(config, "REPOSITORY_PROVIDER", "firestore")
     with patch("google.cloud.firestore.Client"):
-        tickets, runs, artifacts, projects, contexts, analyses, requirements = get_repositories()
+        tickets, runs, artifacts, projects, contexts, analyses, requirements, dev_tasks, subtasks = get_repositories()
     assert isinstance(tickets, FirestoreTicketRepository)
     assert isinstance(runs, FirestoreAgentRunRepository)
     assert isinstance(artifacts, FirestoreArtifactRepository)
@@ -58,6 +66,8 @@ def test_firestore_repository_selected(monkeypatch):
     assert isinstance(contexts, FirestoreProjectContextRepository)
     assert isinstance(analyses, FirestoreRequirementAnalysisRepository)
     assert isinstance(requirements, FirestoreRequirementRepository)
+    assert isinstance(dev_tasks, FirestoreDevTaskRepository)
+    assert isinstance(subtasks, FirestoreSubtaskRepository)
 
 
 def test_unknown_repository_raises(monkeypatch):

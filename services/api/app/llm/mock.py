@@ -1,5 +1,51 @@
 import json
 
+_MOCK_DECOMPOSITION_RESPONSE = json.dumps(
+    {
+        "dev_tasks": [
+            {
+                "title": "Implement backend API endpoint",
+                "description": "Add the new API endpoint with request validation and error handling.",
+                "task_type": "backend",
+                "priority": "high",
+                "acceptance_criteria": [
+                    "Endpoint returns correct status codes",
+                    "Input validation rejects malformed requests",
+                ],
+                "definition_of_done": [
+                    "Unit tests pass",
+                    "Integration test passes",
+                    "Code reviewed",
+                ],
+                "qa_required": True,
+                "suggested_agent_type": "backend_coder",
+                "depends_on": [1],
+                "subtasks": [
+                    {
+                        "title": "Write request/response models",
+                        "description": "Define Pydantic models for request and response bodies.",
+                        "acceptance_criteria": ["Models pass mypy"],
+                        "qa_required": False,
+                    }
+                ],
+            },
+            {
+                "title": "Update API documentation",
+                "description": "Document the new endpoint in the project README and OpenAPI schema.",
+                "task_type": "documentation",
+                "priority": "low",
+                "acceptance_criteria": ["README describes endpoint", "OpenAPI spec is accurate"],
+                "definition_of_done": ["Documentation merged"],
+                "qa_required": False,
+                "suggested_agent_type": None,
+                "depends_on": [],
+                "subtasks": [],
+            },
+        ]
+    },
+    indent=2,
+)
+
 _MOCK_ANALYSIS_RESPONSE = json.dumps(
     {
         "summary": "Implement the changes described in the ticket.",
@@ -29,6 +75,8 @@ class MockLLMProvider:
     model_name = "mock-planning-model"
 
     def generate_text(self, prompt: str) -> str:
+        if "TASK_DECOMPOSITION_AGENT" in prompt:
+            return _MOCK_DECOMPOSITION_RESPONSE
         if "REQUIREMENT_ANALYSIS_AGENT" in prompt:
             return _MOCK_ANALYSIS_RESPONSE
         return """\

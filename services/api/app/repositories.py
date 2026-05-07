@@ -4,10 +4,12 @@ from . import config
 from .models import (
     AgentRun,
     Artifact,
+    DevTask,
     Project,
     ProjectContext,
     Requirement,
     RequirementAnalysis,
+    Subtask,
     Ticket,
 )
 
@@ -282,6 +284,72 @@ class FirestoreRequirementRepository:
         return [Requirement(**d.to_dict()) for d in docs]
 
 
+class DevTaskRepository(Protocol):
+    def save(self, dev_task: DevTask) -> None: ...
+    def get(self, dev_task_id: str) -> DevTask | None: ...
+    def list_by_project(self, project_id: str) -> list[DevTask]: ...
+
+
+class InMemoryDevTaskRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, DevTask] = {}
+
+    def save(self, dev_task: DevTask) -> None:
+        self._store[dev_task.id] = dev_task
+
+    def get(self, dev_task_id: str) -> DevTask | None:
+        return self._store.get(dev_task_id)
+
+    def list_by_project(self, project_id: str) -> list[DevTask]:
+        return [t for t in self._store.values() if t.project_id == project_id]
+
+
+class FirestoreDevTaskRepository:
+    def __init__(self, client, collection_name: str = "dev_tasks") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, dev_task: DevTask) -> None:
+        self._collection.document(dev_task.id).set(dev_task.model_dump(mode="python"))
+
+    def get(self, dev_task_id: str) -> DevTask | None:
+        snap = self._collection.document(dev_task_id).get()
+        if not snap.exists:
+            return None
+        return DevTask(**snap.to_dict())
+
+    def list_by_project(self, project_id: str) -> list[DevTask]:
+        docs = self._collection.where("project_id", "==", project_id).stream()
+        return [DevTask(**d.to_dict()) for d in docs]
+
+
+class SubtaskRepository(Protocol):
+    def save(self, subtask: Subtask) -> None: ...
+    def list_by_dev_task(self, dev_task_id: str) -> list[Subtask]: ...
+
+
+class InMemorySubtaskRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, Subtask] = {}
+
+    def save(self, subtask: Subtask) -> None:
+        self._store[subtask.id] = subtask
+
+    def list_by_dev_task(self, dev_task_id: str) -> list[Subtask]:
+        return [s for s in self._store.values() if s.dev_task_id == dev_task_id]
+
+
+class FirestoreSubtaskRepository:
+    def __init__(self, client, collection_name: str = "subtasks") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, subtask: Subtask) -> None:
+        self._collection.document(subtask.id).set(subtask.model_dump(mode="python"))
+
+    def list_by_dev_task(self, dev_task_id: str) -> list[Subtask]:
+        docs = self._collection.where("dev_task_id", "==", dev_task_id).stream()
+        return [Subtask(**d.to_dict()) for d in docs]
+
+
 def get_repositories() -> tuple[
     TicketRepository,
     AgentRunRepository,
@@ -290,6 +358,8 @@ def get_repositories() -> tuple[
     ProjectContextRepository,
     RequirementAnalysisRepository,
     RequirementRepository,
+    DevTaskRepository,
+    SubtaskRepository,
 ]:
     if config.REPOSITORY_PROVIDER == "memory":
         return (
@@ -300,6 +370,8 @@ def get_repositories() -> tuple[
             InMemoryProjectContextRepository(),
             InMemoryRequirementAnalysisRepository(),
             InMemoryRequirementRepository(),
+            InMemoryDevTaskRepository(),
+            InMemorySubtaskRepository(),
         )
     if config.REPOSITORY_PROVIDER == "firestore":
         from google.cloud import firestore
@@ -316,6 +388,8 @@ def get_repositories() -> tuple[
             FirestoreProjectContextRepository(client),
             FirestoreRequirementAnalysisRepository(client),
             FirestoreRequirementRepository(client),
+            FirestoreDevTaskRepository(client),
+            FirestoreSubtaskRepository(client),
         )
     raise ValueError(
         f"Unknown REPOSITORY_PROVIDER: {config.REPOSITORY_PROVIDER!r}. Supported: memory, firestore"

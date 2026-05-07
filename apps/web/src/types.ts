@@ -41,7 +41,7 @@ export interface AgentRun {
   id: string
   ticket_id: string | null
   requirement_id: string | null
-  agent_type: 'planning' | 'requirement_analysis'
+  agent_type: 'planning' | 'requirement_analysis' | 'task_decomposition'
   provider: string
   model: string
   status: 'pending' | 'running' | 'completed' | 'failed'
@@ -55,7 +55,7 @@ export interface Artifact {
   ticket_id: string | null
   requirement_id: string | null
   agent_run_id: string
-  artifact_type: 'implementation_brief' | 'requirement_analysis'
+  artifact_type: 'implementation_brief' | 'requirement_analysis' | 'task_decomposition'
   content: string
   created_at: string
 }
@@ -164,4 +164,53 @@ export interface Requirement {
   status: RequirementStatus
   created_at: string
   updated_at: string
+}
+
+export type DevTaskType =
+  | 'backend' | 'frontend' | 'full_stack' | 'testing'
+  | 'documentation' | 'infrastructure' | 'refactor' | 'unknown'
+export type DevTaskStatus = 'proposed' | 'ready' | 'in_progress' | 'blocked' | 'completed'
+export type DevTaskPriority = 'low' | 'medium' | 'high'
+
+export interface DevTask {
+  id: string
+  project_id: string
+  requirement_id: string | null
+  ticket_id: string | null
+  source_analysis_id: string | null
+  agent_run_id: string
+  title: string
+  description: string
+  task_type: DevTaskType
+  status: DevTaskStatus
+  priority: DevTaskPriority
+  sequence_order: number
+  depends_on: string[]
+  acceptance_criteria: string[]
+  definition_of_done: string[]
+  qa_required: boolean
+  suggested_agent_type: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface Subtask {
+  id: string
+  dev_task_id: string
+  project_id: string
+  title: string
+  description: string
+  status: DevTaskStatus
+  sequence_order: number
+  acceptance_criteria: string[]
+  qa_required: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface TaskDecompositionResponse {
+  agent_run: AgentRun
+  artifact: Artifact
+  dev_tasks: DevTask[]
+  subtasks: Subtask[]
 }

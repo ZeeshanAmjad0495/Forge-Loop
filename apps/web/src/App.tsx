@@ -8,6 +8,7 @@ import {
   createProjectTicket,
   createRequirementAnalysis,
   createRequirementAnalysisForRequirement,
+  createTaskDecomposition,
   getProjectContext,
   listProjectRequirements,
   listProjectTickets,
@@ -18,11 +19,13 @@ import {
 } from './api'
 import './App.css'
 import type {
+  DevTask,
   Project,
   ProjectContext,
   ProviderInfo,
   Requirement,
   RequirementAnalysis,
+  Subtask,
   Ticket,
 } from './types'
 
@@ -781,6 +784,61 @@ function TicketView({
 // Requirement view — structured requirement details + analysis
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// DevTask panel
+// ---------------------------------------------------------------------------
+
+function SubtaskList({ subtasks }: { subtasks: Subtask[] }) {
+  if (subtasks.length === 0) return null
+  return (
+    <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
+      {subtasks.map(st => (
+        <li key={st.id} style={{ marginBottom: 4 }}>
+          <span>{st.title}</span>
+          {st.qa_required && (
+            <span className="status done" style={{ marginLeft: 6, fontSize: 11 }}>QA</span>
+          )}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function DevTaskCard({ task, allSubtasks }: { task: DevTask; allSubtasks: Subtask[] }) {
+  const subtasks = allSubtasks.filter(st => st.dev_task_id === task.id)
+  return (
+    <div style={{ border: '1px solid #333', borderRadius: 6, padding: '10px 14px', marginBottom: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <strong>{task.title}</strong>
+        <span className="status">{task.task_type}</span>
+        <span className="status">{task.priority}</span>
+        <span className="status">{task.status}</span>
+        {task.qa_required && <span className="status done">QA required</span>}
+      </div>
+      {task.description && <p style={{ margin: '6px 0 4px', fontSize: 13 }}>{task.description}</p>}
+      {task.depends_on.length > 0 && (
+        <p style={{ margin: '4px 0', fontSize: 12, color: '#aaa' }}>
+          Depends on: {task.depends_on.length} task(s)
+        </p>
+      )}
+      {task.acceptance_criteria.length > 0 && (
+        <>
+          <p style={{ margin: '6px 0 2px', fontSize: 12 }}><strong>Acceptance criteria</strong></p>
+          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12 }}>
+            {task.acceptance_criteria.map((c, i) => <li key={i}>{c}</li>)}
+          </ul>
+        </>
+      )}
+      {subtasks.length > 0 && (
+        <>
+          <p style={{ margin: '6px 0 2px', fontSize: 12 }}><strong>Subtasks</strong></p>
+          <SubtaskList subtasks={subtasks} />
+        </>
+      )}
+    </div>
+  )
+}
+
 function RequirementBulletList({ label, items }: { label: string; items: string[] }) {
   if (items.length === 0) return null
   return (
@@ -792,6 +850,12 @@ function RequirementBulletList({ label, items }: { label: string; items: string[
     </>
   )
 }
+
+type DecompPhase =
+  | { name: 'idle' }
+  | { name: 'decomposing' }
+  | { name: 'done'; devTasks: DevTask[]; subtasks: Subtask[] }
+  | { name: 'error'; message: string }
 
 function RequirementView({
   requirement: initialRequirement,
@@ -810,6 +874,8 @@ function RequirementView({
 }) {
   const [requirement, setRequirement] = useState(initialRequirement)
   const [phase, setPhase] = useState<AnalysisPhase>({ name: 'idle' })
+  const [decompPhase, setDecompPhase] = useState<DecompPhase>({ name: 'idle' })
+  const busy = phase.name === 'analyzing' || decompPhase.name === 'decomposing'
 
   async function handleAnalyze() {
     setPhase({ name: 'analyzing' })
@@ -822,6 +888,16 @@ function RequirementView({
       setPhase({ name: 'done', analysis: result.requirement_analysis })
     } catch (err) {
       setPhase({ name: 'error', message: (err as Error).message })
+    }
+  }
+
+  async function handleDecompose() {
+    setDecompPhase({ name: 'decomposing' })
+    try {
+      const result = await createTaskDecomposition(requirement.id, selectedProvider || undefined)
+      setDecompPhase({ name: 'done', devTasks: result.dev_tasks, subtasks: result.subtasks })
+    } catch (err) {
+      setDecompPhase({ name: 'error', message: (err as Error).message })
     }
   }
 
@@ -855,14 +931,14 @@ function RequirementView({
       <RequirementBulletList label="Non-goals" items={requirement.non_goals} />
       <RequirementBulletList label="Assumptions" items={requirement.assumptions} />
 
-      {providers.length > 0 && phase.name !== 'done' && (
+      {providers.length > 0 && (
         <div className="provider-select">
           <label htmlFor="req-provider">LLM provider</label>
           <select
             id="req-provider"
             value={selectedProvider}
             onChange={e => onProviderChange(e.target.value)}
-            disabled={phase.name === 'analyzing'}
+            disabled={busy}
           >
             {providers.map(p => (
               <option key={p.name} value={p.name} disabled={!p.configured}>
@@ -875,7 +951,7 @@ function RequirementView({
 
       {phase.name === 'error' && <div className="error">{phase.message}</div>}
       {phase.name !== 'done' && (
-        <button onClick={handleAnalyze} disabled={phase.name === 'analyzing'}>
+        <button onClick={handleAnalyze} disabled={busy} style={{ marginRight: 8 }}>
           {phase.name === 'analyzing' ? 'Analyzing…' : 'Analyze requirement'}
         </button>
       )}
@@ -883,6 +959,28 @@ function RequirementView({
         <>
           <h3>Requirement Analysis</h3>
           <RequirementAnalysisPanel analysis={phase.analysis} />
+        </>
+      )}
+
+      <hr style={{ margin: '18px 0', borderColor: '#333' }} />
+      <h3>Dev Task Decomposition</h3>
+      {decompPhase.name === 'error' && <div className="error">{decompPhase.message}</div>}
+      {decompPhase.name !== 'done' && (
+        <button onClick={handleDecompose} disabled={busy}>
+          {decompPhase.name === 'decomposing' ? 'Decomposing…' : 'Decompose into dev tasks'}
+        </button>
+      )}
+      {decompPhase.name === 'done' && (
+        <>
+          <p style={{ fontSize: 13, color: '#aaa' }}>
+            {decompPhase.devTasks.length} task(s) generated
+          </p>
+          {decompPhase.devTasks.map(task => (
+            <DevTaskCard key={task.id} task={task} allSubtasks={decompPhase.subtasks} />
+          ))}
+          <button onClick={handleDecompose} disabled={busy} style={{ marginTop: 8 }}>
+            Re-run decomposition
+          </button>
         </>
       )}
     </div>

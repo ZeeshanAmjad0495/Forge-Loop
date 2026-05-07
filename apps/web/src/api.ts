@@ -1,5 +1,6 @@
 import { clearToken, getToken } from './auth'
 import type {
+  DevTask,
   LoginResponse,
   PlanningRunResponse,
   Project,
@@ -11,6 +12,8 @@ import type {
   RequirementAnalysisRunResponse,
   RequirementCreate,
   RequirementUpdate,
+  Subtask,
+  TaskDecompositionResponse,
   Ticket,
 } from './types'
 
@@ -210,4 +213,39 @@ export async function createRequirementAnalysisForRequirement(
   }
   const res = await fetch(`${BASE}/requirements/${requirementId}/requirement-analyses`, init)
   return handleResponse<RequirementAnalysisRunResponse>(res)
+}
+
+// ---------------------------------------------------------------------------
+// Task decomposition
+// ---------------------------------------------------------------------------
+
+export async function createTaskDecomposition(
+  requirementId: string,
+  provider?: string,
+): Promise<TaskDecompositionResponse> {
+  const init: RequestInit = {
+    method: 'POST',
+    headers: { ...authHeaders() },
+  }
+  if (provider) {
+    init.headers = { 'Content-Type': 'application/json', ...authHeaders() }
+    init.body = JSON.stringify({ provider })
+  }
+  const res = await fetch(`${BASE}/requirements/${requirementId}/task-decompositions`, init)
+  return handleResponse<TaskDecompositionResponse>(res)
+}
+
+export async function listProjectDevTasks(projectId: string): Promise<DevTask[]> {
+  const res = await fetch(`${BASE}/projects/${projectId}/dev-tasks`, { headers: authHeaders() })
+  return handleResponse<DevTask[]>(res)
+}
+
+export async function getDevTask(devTaskId: string): Promise<{ dev_task: DevTask; subtasks: Subtask[] }> {
+  const res = await fetch(`${BASE}/dev-tasks/${devTaskId}`, { headers: authHeaders() })
+  return handleResponse<{ dev_task: DevTask; subtasks: Subtask[] }>(res)
+}
+
+export async function listDevTaskSubtasks(devTaskId: string): Promise<Subtask[]> {
+  const res = await fetch(`${BASE}/dev-tasks/${devTaskId}/subtasks`, { headers: authHeaders() })
+  return handleResponse<Subtask[]>(res)
 }

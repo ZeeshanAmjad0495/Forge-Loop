@@ -4,10 +4,12 @@ from app.main import (
     agent_run_repo,
     analysis_repo,
     artifact_repo,
+    dev_task_repo,
     project_context_repo,
     project_repo,
     repo,
     requirement_repo,
+    subtask_repo,
 )
 
 
@@ -21,6 +23,8 @@ def clear_repos():
         project_context_repo,
         analysis_repo,
         requirement_repo,
+        dev_task_repo,
+        subtask_repo,
     ):
         if hasattr(r, "_store"):
             r._store.clear()

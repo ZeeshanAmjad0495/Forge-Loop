@@ -55,7 +55,7 @@ class AgentRun(BaseModel):
     id: str
     ticket_id: str | None = None
     requirement_id: str | None = None
-    agent_type: Literal["planning", "requirement_analysis"]
+    agent_type: Literal["planning", "requirement_analysis", "task_decomposition"]
     provider: str
     model: str
     status: Literal["pending", "running", "completed", "failed"]
@@ -69,7 +69,7 @@ class Artifact(BaseModel):
     ticket_id: str | None = None
     requirement_id: str | None = None
     agent_run_id: str
-    artifact_type: Literal["implementation_brief", "requirement_analysis"]
+    artifact_type: Literal["implementation_brief", "requirement_analysis", "task_decomposition"]
     content: str
     created_at: datetime
 
@@ -187,3 +187,66 @@ class Requirement(BaseModel):
     status: RequirementStatus = "draft"
     created_at: datetime
     updated_at: datetime
+
+
+DevTaskType = Literal[
+    "backend", "frontend", "full_stack", "testing",
+    "documentation", "infrastructure", "refactor", "unknown",
+]
+DevTaskStatus = Literal["proposed", "ready", "in_progress", "blocked", "completed"]
+DevTaskPriority = Literal["low", "medium", "high"]
+
+
+class DevTask(BaseModel):
+    id: str
+    project_id: str
+    requirement_id: str | None = None
+    ticket_id: str | None = None
+    source_analysis_id: str | None = None
+    agent_run_id: str
+    title: str
+    description: str
+    task_type: DevTaskType = "unknown"
+    status: DevTaskStatus = "proposed"
+    priority: DevTaskPriority = "medium"
+    sequence_order: int = 0
+    depends_on: list[str] = []
+    acceptance_criteria: list[str] = []
+    definition_of_done: list[str] = []
+    qa_required: bool = False
+    suggested_agent_type: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+SubtaskStatus = Literal["proposed", "ready", "in_progress", "blocked", "completed"]
+
+
+class Subtask(BaseModel):
+    id: str
+    dev_task_id: str
+    project_id: str
+    title: str
+    description: str
+    status: SubtaskStatus = "proposed"
+    sequence_order: int = 0
+    acceptance_criteria: list[str] = []
+    qa_required: bool = False
+    created_at: datetime
+    updated_at: datetime
+
+
+class TaskDecompositionRunCreate(BaseModel):
+    provider: str | None = None
+
+
+class TaskDecompositionResponse(BaseModel):
+    agent_run: AgentRun
+    artifact: Artifact
+    dev_tasks: list[DevTask]
+    subtasks: list[Subtask]
+
+
+class DevTaskWithSubtasksResponse(BaseModel):
+    dev_task: DevTask
+    subtasks: list[Subtask]
