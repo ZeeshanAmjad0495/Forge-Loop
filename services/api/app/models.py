@@ -236,6 +236,33 @@ class Subtask(BaseModel):
     updated_at: datetime
 
 
+class DevTaskUpdate(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    status: DevTaskStatus | None = None
+    priority: DevTaskPriority | None = None
+    sequence_order: int | None = None
+    depends_on: list[str] | None = None
+    acceptance_criteria: list[str] | None = None
+    definition_of_done: list[str] | None = None
+    qa_required: bool | None = None
+    suggested_agent_type: str | None = None
+
+
+class SubtaskUpdate(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    status: SubtaskStatus | None = None
+    sequence_order: int | None = None
+    acceptance_criteria: list[str] | None = None
+    qa_required: bool | None = None
+
+
+class DevTaskWithReadiness(DevTask):
+    is_ready: bool = True
+    blocked_by: list[str] = []
+
+
 class TaskDecompositionRunCreate(BaseModel):
     provider: str | None = None
 
@@ -248,5 +275,5 @@ class TaskDecompositionResponse(BaseModel):
 
 
 class DevTaskWithSubtasksResponse(BaseModel):
-    dev_task: DevTask
+    dev_task: DevTaskWithReadiness
     subtasks: list[Subtask]

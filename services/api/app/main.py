@@ -12,7 +12,10 @@ from .llm import (
     get_provider_by_name,
     list_provider_status,
 )
+from .lifecycle import LifecycleError, compute_readiness, validate_transition
 from .models import (
+    DevTaskUpdate,
+    DevTaskWithReadiness,
     DevTaskWithSubtasksResponse,
     LoginRequest,
     LoginResponse,
@@ -31,6 +34,7 @@ from .models import (
     RequirementAnalysisRunResponse,
     RequirementCreate,
     RequirementUpdate,
+    SubtaskUpdate,
     TaskDecompositionResponse,
     TaskDecompositionRunCreate,
     Ticket,
@@ -468,11 +472,16 @@ def create_task_decomposition_for_ticket(
     )
 
 
-@app.get("/projects/{project_id}/dev-tasks", response_model=list)
+def _with_readiness(dev_task) -> DevTaskWithReadiness:
+    is_ready, blocked_by = compute_readiness(dev_task, dev_task_repo.get)
+    return DevTaskWithReadiness(**dev_task.model_dump(), is_ready=is_ready, blocked_by=blocked_by)
+
+
+@app.get("/projects/{project_id}/dev-tasks", response_model=list[DevTaskWithReadiness])
 def list_project_dev_tasks(project_id: str, _: str = Depends(require_auth)):
     if project_repo.get(project_id) is None:
         raise HTTPException(status_code=404, detail="Project not found")
-    return dev_task_repo.list_by_project(project_id)
+    return [_with_readiness(t) for t in dev_task_repo.list_by_project(project_id)]
 
 
 @app.get("/dev-tasks/{dev_task_id}", response_model=DevTaskWithSubtasksResponse)
@@ -481,7 +490,60 @@ def get_dev_task(dev_task_id: str, _: str = Depends(require_auth)):
     if dev_task is None:
         raise HTTPException(status_code=404, detail="DevTask not found")
     subtasks = subtask_repo.list_by_dev_task(dev_task_id)
-    return DevTaskWithSubtasksResponse(dev_task=dev_task, subtasks=subtasks)
+    return DevTaskWithSubtasksResponse(dev_task=_with_readiness(dev_task), subtasks=subtasks)
+
+
+@app.patch("/dev-tasks/{dev_task_id}", response_model=DevTaskWithReadiness)
+def update_dev_task(
+    dev_task_id: str,
+    body: DevTaskUpdate,
+    _: str = Depends(require_auth),
+):
+    dev_task = dev_task_repo.get(dev_task_id)
+    if dev_task is None:
+        raise HTTPException(status_code=404, detail="DevTask not found")
+    patch = body.model_dump(exclude_unset=True)
+    new_status = patch.get("status")
+    try:
+        if new_status and new_status != dev_task.status:
+            validate_transition(dev_task.status, new_status)
+            if new_status in ("ready", "in_progress"):
+                candidate = dev_task.model_copy(update=patch)
+                blockers = compute_readiness(candidate, dev_task_repo.get)[1]
+                if blockers:
+                    raise LifecycleError(
+                        f"Cannot move to {new_status}: dependencies not completed: {blockers}"
+                    )
+    except LifecycleError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    updated = dev_task.model_copy(
+        update={**patch, "updated_at": datetime.now(timezone.utc)}
+    )
+    dev_task_repo.update(updated)
+    return _with_readiness(updated)
+
+
+@app.patch("/subtasks/{subtask_id}")
+def update_subtask(
+    subtask_id: str,
+    body: SubtaskUpdate,
+    _: str = Depends(require_auth),
+):
+    subtask = subtask_repo.get(subtask_id)
+    if subtask is None:
+        raise HTTPException(status_code=404, detail="Subtask not found")
+    patch = body.model_dump(exclude_unset=True)
+    new_status = patch.get("status")
+    if new_status and new_status != subtask.status:
+        try:
+            validate_transition(subtask.status, new_status)
+        except LifecycleError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+    updated = subtask.model_copy(
+        update={**patch, "updated_at": datetime.now(timezone.utc)}
+    )
+    subtask_repo.update(updated)
+    return updated
 
 
 @app.get("/dev-tasks/{dev_task_id}/subtasks", response_model=list)

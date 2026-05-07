@@ -192,6 +192,30 @@ export interface DevTask {
   suggested_agent_type: string | null
   created_at: string
   updated_at: string
+  is_ready?: boolean
+  blocked_by?: string[]
+}
+
+export interface DevTaskUpdate {
+  title?: string
+  description?: string
+  status?: DevTaskStatus
+  priority?: DevTaskPriority
+  sequence_order?: number
+  depends_on?: string[]
+  acceptance_criteria?: string[]
+  definition_of_done?: string[]
+  qa_required?: boolean
+  suggested_agent_type?: string | null
+}
+
+export interface SubtaskUpdate {
+  title?: string
+  description?: string
+  status?: DevTaskStatus
+  sequence_order?: number
+  acceptance_criteria?: string[]
+  qa_required?: boolean
 }
 
 export interface Subtask {

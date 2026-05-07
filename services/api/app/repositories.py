@@ -287,6 +287,7 @@ class FirestoreRequirementRepository:
 class DevTaskRepository(Protocol):
     def save(self, dev_task: DevTask) -> None: ...
     def get(self, dev_task_id: str) -> DevTask | None: ...
+    def update(self, dev_task: DevTask) -> None: ...
     def list_by_project(self, project_id: str) -> list[DevTask]: ...
 
 
@@ -299,6 +300,9 @@ class InMemoryDevTaskRepository:
 
     def get(self, dev_task_id: str) -> DevTask | None:
         return self._store.get(dev_task_id)
+
+    def update(self, dev_task: DevTask) -> None:
+        self._store[dev_task.id] = dev_task
 
     def list_by_project(self, project_id: str) -> list[DevTask]:
         return [t for t in self._store.values() if t.project_id == project_id]
@@ -317,6 +321,9 @@ class FirestoreDevTaskRepository:
             return None
         return DevTask(**snap.to_dict())
 
+    def update(self, dev_task: DevTask) -> None:
+        self._collection.document(dev_task.id).set(dev_task.model_dump(mode="python"))
+
     def list_by_project(self, project_id: str) -> list[DevTask]:
         docs = self._collection.where("project_id", "==", project_id).stream()
         return [DevTask(**d.to_dict()) for d in docs]
@@ -324,6 +331,8 @@ class FirestoreDevTaskRepository:
 
 class SubtaskRepository(Protocol):
     def save(self, subtask: Subtask) -> None: ...
+    def get(self, subtask_id: str) -> Subtask | None: ...
+    def update(self, subtask: Subtask) -> None: ...
     def list_by_dev_task(self, dev_task_id: str) -> list[Subtask]: ...
 
 
@@ -332,6 +341,12 @@ class InMemorySubtaskRepository:
         self._store: dict[str, Subtask] = {}
 
     def save(self, subtask: Subtask) -> None:
+        self._store[subtask.id] = subtask
+
+    def get(self, subtask_id: str) -> Subtask | None:
+        return self._store.get(subtask_id)
+
+    def update(self, subtask: Subtask) -> None:
         self._store[subtask.id] = subtask
 
     def list_by_dev_task(self, dev_task_id: str) -> list[Subtask]:
@@ -343,6 +358,15 @@ class FirestoreSubtaskRepository:
         self._collection = client.collection(collection_name)
 
     def save(self, subtask: Subtask) -> None:
+        self._collection.document(subtask.id).set(subtask.model_dump(mode="python"))
+
+    def get(self, subtask_id: str) -> Subtask | None:
+        snap = self._collection.document(subtask_id).get()
+        if not snap.exists:
+            return None
+        return Subtask(**snap.to_dict())
+
+    def update(self, subtask: Subtask) -> None:
         self._collection.document(subtask.id).set(subtask.model_dump(mode="python"))
 
     def list_by_dev_task(self, dev_task_id: str) -> list[Subtask]:

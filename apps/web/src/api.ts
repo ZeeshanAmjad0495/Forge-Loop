@@ -1,6 +1,7 @@
 import { clearToken, getToken } from './auth'
 import type {
   DevTask,
+  DevTaskUpdate,
   LoginResponse,
   PlanningRunResponse,
   Project,
@@ -13,6 +14,7 @@ import type {
   RequirementCreate,
   RequirementUpdate,
   Subtask,
+  SubtaskUpdate,
   TaskDecompositionResponse,
   Ticket,
 } from './types'
@@ -248,4 +250,22 @@ export async function getDevTask(devTaskId: string): Promise<{ dev_task: DevTask
 export async function listDevTaskSubtasks(devTaskId: string): Promise<Subtask[]> {
   const res = await fetch(`${BASE}/dev-tasks/${devTaskId}/subtasks`, { headers: authHeaders() })
   return handleResponse<Subtask[]>(res)
+}
+
+export async function updateDevTask(devTaskId: string, patch: DevTaskUpdate): Promise<DevTask> {
+  const res = await fetch(`${BASE}/dev-tasks/${devTaskId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(patch),
+  })
+  return handleResponse<DevTask>(res)
+}
+
+export async function updateSubtask(subtaskId: string, patch: SubtaskUpdate): Promise<Subtask> {
+  const res = await fetch(`${BASE}/subtasks/${subtaskId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(patch),
+  })
+  return handleResponse<Subtask>(res)
 }

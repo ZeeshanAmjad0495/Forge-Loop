@@ -15,11 +15,14 @@ import {
   listProjects,
   listProviders,
   login,
+  updateDevTask,
   updateProjectContext,
+  updateSubtask,
 } from './api'
 import './App.css'
 import type {
   DevTask,
+  DevTaskStatus,
   Project,
   ProjectContext,
   ProviderInfo,
@@ -788,33 +791,111 @@ function TicketView({
 // DevTask panel
 // ---------------------------------------------------------------------------
 
-function SubtaskList({ subtasks }: { subtasks: Subtask[] }) {
+const ALL_STATUSES: DevTaskStatus[] = ['proposed', 'ready', 'in_progress', 'blocked', 'completed']
+
+function SubtaskList({
+  subtasks,
+  onSubtaskUpdate,
+}: {
+  subtasks: Subtask[]
+  onSubtaskUpdate: (updated: Subtask) => void
+}) {
   if (subtasks.length === 0) return null
   return (
     <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
       {subtasks.map(st => (
-        <li key={st.id} style={{ marginBottom: 4 }}>
-          <span>{st.title}</span>
-          {st.qa_required && (
-            <span className="status done" style={{ marginLeft: 6, fontSize: 11 }}>QA</span>
-          )}
-        </li>
+        <SubtaskRow key={st.id} subtask={st} onUpdate={onSubtaskUpdate} />
       ))}
     </ul>
   )
 }
 
-function DevTaskCard({ task, allSubtasks }: { task: DevTask; allSubtasks: Subtask[] }) {
+function SubtaskRow({ subtask, onUpdate }: { subtask: Subtask; onUpdate: (s: Subtask) => void }) {
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  async function handleStatusChange(next: string) {
+    setError(null)
+    setBusy(true)
+    try {
+      const updated = await updateSubtask(subtask.id, { status: next as DevTaskStatus })
+      onUpdate(updated)
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <li style={{ marginBottom: 6 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 13 }}>{subtask.title}</span>
+        <select
+          value={subtask.status}
+          onChange={e => handleStatusChange(e.target.value)}
+          disabled={busy}
+          style={{ fontSize: 11 }}
+        >
+          {ALL_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+        {subtask.qa_required && (
+          <span className="status done" style={{ fontSize: 11 }}>QA</span>
+        )}
+      </div>
+      {error && <div className="error" style={{ fontSize: 11, marginTop: 2 }}>{error}</div>}
+    </li>
+  )
+}
+
+function DevTaskCard({
+  task,
+  allSubtasks,
+  onTaskUpdate,
+  onSubtaskUpdate,
+}: {
+  task: DevTask
+  allSubtasks: Subtask[]
+  onTaskUpdate: (updated: DevTask) => void
+  onSubtaskUpdate: (updated: Subtask) => void
+}) {
   const subtasks = allSubtasks.filter(st => st.dev_task_id === task.id)
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  async function handleStatusChange(next: string) {
+    setError(null)
+    setBusy(true)
+    try {
+      const updated = await updateDevTask(task.id, { status: next as DevTaskStatus })
+      onTaskUpdate(updated)
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div style={{ border: '1px solid #333', borderRadius: 6, padding: '10px 14px', marginBottom: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <strong>{task.title}</strong>
         <span className="status">{task.task_type}</span>
         <span className="status">{task.priority}</span>
-        <span className="status">{task.status}</span>
+        <select
+          value={task.status}
+          onChange={e => handleStatusChange(e.target.value)}
+          disabled={busy}
+          style={{ fontSize: 12 }}
+        >
+          {ALL_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
         {task.qa_required && <span className="status done">QA required</span>}
+        {task.blocked_by && task.blocked_by.length > 0 && (
+          <span className="status" style={{ color: '#f87171', fontSize: 11 }}>blocked</span>
+        )}
       </div>
+      {error && <div className="error" style={{ marginTop: 4 }}>{error}</div>}
       {task.description && <p style={{ margin: '6px 0 4px', fontSize: 13 }}>{task.description}</p>}
       {task.depends_on.length > 0 && (
         <p style={{ margin: '4px 0', fontSize: 12, color: '#aaa' }}>
@@ -832,7 +913,7 @@ function DevTaskCard({ task, allSubtasks }: { task: DevTask; allSubtasks: Subtas
       {subtasks.length > 0 && (
         <>
           <p style={{ margin: '6px 0 2px', fontSize: 12 }}><strong>Subtasks</strong></p>
-          <SubtaskList subtasks={subtasks} />
+          <SubtaskList subtasks={subtasks} onSubtaskUpdate={onSubtaskUpdate} />
         </>
       )}
     </div>
@@ -854,7 +935,7 @@ function RequirementBulletList({ label, items }: { label: string; items: string[
 type DecompPhase =
   | { name: 'idle' }
   | { name: 'decomposing' }
-  | { name: 'done'; devTasks: DevTask[]; subtasks: Subtask[] }
+  | { name: 'done' }
   | { name: 'error'; message: string }
 
 function RequirementView({
@@ -875,6 +956,8 @@ function RequirementView({
   const [requirement, setRequirement] = useState(initialRequirement)
   const [phase, setPhase] = useState<AnalysisPhase>({ name: 'idle' })
   const [decompPhase, setDecompPhase] = useState<DecompPhase>({ name: 'idle' })
+  const [devTasks, setDevTasks] = useState<DevTask[]>([])
+  const [subtasks, setSubtasks] = useState<Subtask[]>([])
   const busy = phase.name === 'analyzing' || decompPhase.name === 'decomposing'
 
   async function handleAnalyze() {
@@ -895,10 +978,20 @@ function RequirementView({
     setDecompPhase({ name: 'decomposing' })
     try {
       const result = await createTaskDecomposition(requirement.id, selectedProvider || undefined)
-      setDecompPhase({ name: 'done', devTasks: result.dev_tasks, subtasks: result.subtasks })
+      setDevTasks(result.dev_tasks)
+      setSubtasks(result.subtasks)
+      setDecompPhase({ name: 'done' })
     } catch (err) {
       setDecompPhase({ name: 'error', message: (err as Error).message })
     }
+  }
+
+  function handleTaskUpdate(updated: DevTask) {
+    setDevTasks(prev => prev.map(t => t.id === updated.id ? updated : t))
+  }
+
+  function handleSubtaskUpdate(updated: Subtask) {
+    setSubtasks(prev => prev.map(s => s.id === updated.id ? updated : s))
   }
 
   return (
@@ -973,10 +1066,16 @@ function RequirementView({
       {decompPhase.name === 'done' && (
         <>
           <p style={{ fontSize: 13, color: '#aaa' }}>
-            {decompPhase.devTasks.length} task(s) generated
+            {devTasks.length} task(s) generated
           </p>
-          {decompPhase.devTasks.map(task => (
-            <DevTaskCard key={task.id} task={task} allSubtasks={decompPhase.subtasks} />
+          {devTasks.map(task => (
+            <DevTaskCard
+              key={task.id}
+              task={task}
+              allSubtasks={subtasks}
+              onTaskUpdate={handleTaskUpdate}
+              onSubtaskUpdate={handleSubtaskUpdate}
+            />
           ))}
           <button onClick={handleDecompose} disabled={busy} style={{ marginTop: 8 }}>
             Re-run decomposition
