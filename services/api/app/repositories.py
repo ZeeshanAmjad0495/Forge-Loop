@@ -3,6 +3,8 @@ from typing import Protocol
 from . import config
 from .models import (
     AgentRun,
+    Approval,
+    AuditEvent,
     Artifact,
     DevTask,
     Project,
@@ -374,6 +376,114 @@ class FirestoreSubtaskRepository:
         return [Subtask(**d.to_dict()) for d in docs]
 
 
+class ApprovalRepository(Protocol):
+    def save(self, approval: Approval) -> None: ...
+    def get(self, approval_id: str) -> Approval | None: ...
+    def update(self, approval: Approval) -> None: ...
+    def list_by_project(self, project_id: str) -> list[Approval]: ...
+    def find_approved_for_target(self, target_type: str, target_id: str) -> Approval | None: ...
+
+
+class InMemoryApprovalRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, Approval] = {}
+
+    def save(self, approval: Approval) -> None:
+        self._store[approval.id] = approval
+
+    def get(self, approval_id: str) -> Approval | None:
+        return self._store.get(approval_id)
+
+    def update(self, approval: Approval) -> None:
+        self._store[approval.id] = approval
+
+    def list_by_project(self, project_id: str) -> list[Approval]:
+        matches = [a for a in self._store.values() if a.project_id == project_id]
+        return sorted(matches, key=lambda a: a.created_at, reverse=True)
+
+    def find_approved_for_target(self, target_type: str, target_id: str) -> Approval | None:
+        for a in self._store.values():
+            if a.target_type == target_type and a.target_id == target_id and a.status == "approved":
+                return a
+        return None
+
+
+class FirestoreApprovalRepository:
+    def __init__(self, client, collection_name: str = "approvals") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, approval: Approval) -> None:
+        self._collection.document(approval.id).set(approval.model_dump(mode="python"))
+
+    def get(self, approval_id: str) -> Approval | None:
+        snap = self._collection.document(approval_id).get()
+        if not snap.exists:
+            return None
+        return Approval(**snap.to_dict())
+
+    def update(self, approval: Approval) -> None:
+        self._collection.document(approval.id).set(approval.model_dump(mode="python"))
+
+    def list_by_project(self, project_id: str) -> list[Approval]:
+        docs = self._collection.where("project_id", "==", project_id).stream()
+        matches = [Approval(**d.to_dict()) for d in docs]
+        return sorted(matches, key=lambda a: a.created_at, reverse=True)
+
+    def find_approved_for_target(self, target_type: str, target_id: str) -> Approval | None:
+        # Three-field equality query; may need a composite index in prod.
+        # Fallback: filter status in code if index not available.
+        docs = (
+            self._collection
+            .where("target_type", "==", target_type)
+            .where("target_id", "==", target_id)
+            .where("status", "==", "approved")
+            .stream()
+        )
+        for d in docs:
+            return Approval(**d.to_dict())
+        return None
+
+
+class AuditEventRepository(Protocol):
+    def save(self, event: AuditEvent) -> None: ...
+    def get(self, event_id: str) -> AuditEvent | None: ...
+    def list_by_project(self, project_id: str) -> list[AuditEvent]: ...
+
+
+class InMemoryAuditEventRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, AuditEvent] = {}
+
+    def save(self, event: AuditEvent) -> None:
+        self._store[event.id] = event
+
+    def get(self, event_id: str) -> AuditEvent | None:
+        return self._store.get(event_id)
+
+    def list_by_project(self, project_id: str) -> list[AuditEvent]:
+        matches = [e for e in self._store.values() if e.project_id == project_id]
+        return sorted(matches, key=lambda e: e.created_at, reverse=True)
+
+
+class FirestoreAuditEventRepository:
+    def __init__(self, client, collection_name: str = "audit_events") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, event: AuditEvent) -> None:
+        self._collection.document(event.id).set(event.model_dump(mode="python"))
+
+    def get(self, event_id: str) -> AuditEvent | None:
+        snap = self._collection.document(event_id).get()
+        if not snap.exists:
+            return None
+        return AuditEvent(**snap.to_dict())
+
+    def list_by_project(self, project_id: str) -> list[AuditEvent]:
+        docs = self._collection.where("project_id", "==", project_id).stream()
+        matches = [AuditEvent(**d.to_dict()) for d in docs]
+        return sorted(matches, key=lambda e: e.created_at, reverse=True)
+
+
 def get_repositories() -> tuple[
     TicketRepository,
     AgentRunRepository,
@@ -384,6 +494,8 @@ def get_repositories() -> tuple[
     RequirementRepository,
     DevTaskRepository,
     SubtaskRepository,
+    ApprovalRepository,
+    AuditEventRepository,
 ]:
     if config.REPOSITORY_PROVIDER == "memory":
         return (
@@ -396,6 +508,8 @@ def get_repositories() -> tuple[
             InMemoryRequirementRepository(),
             InMemoryDevTaskRepository(),
             InMemorySubtaskRepository(),
+            InMemoryApprovalRepository(),
+            InMemoryAuditEventRepository(),
         )
     if config.REPOSITORY_PROVIDER == "firestore":
         from google.cloud import firestore
@@ -414,6 +528,8 @@ def get_repositories() -> tuple[
             FirestoreRequirementRepository(client),
             FirestoreDevTaskRepository(client),
             FirestoreSubtaskRepository(client),
+            FirestoreApprovalRepository(client),
+            FirestoreAuditEventRepository(client),
         )
     raise ValueError(
         f"Unknown REPOSITORY_PROVIDER: {config.REPOSITORY_PROVIDER!r}. Supported: memory, firestore"

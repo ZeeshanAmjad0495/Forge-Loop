@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { clearToken, getToken, setToken } from './auth'
 import {
+  createApproval,
   createPlanningRun,
   createProject,
   createProjectRequirement,
@@ -9,7 +10,10 @@ import {
   createRequirementAnalysis,
   createRequirementAnalysisForRequirement,
   createTaskDecomposition,
+  decideApproval,
   getProjectContext,
+  listProjectApprovals,
+  listProjectAuditEvents,
   listProjectRequirements,
   listProjectTickets,
   listProjects,
@@ -21,6 +25,8 @@ import {
 } from './api'
 import './App.css'
 import type {
+  Approval,
+  AuditEvent,
   DevTask,
   DevTaskStatus,
   Project,
@@ -271,6 +277,15 @@ function ProjectView({
   const [requirements, setRequirements] = useState<Requirement[]>([])
   const [reqLoadError, setReqLoadError] = useState('')
 
+  // Governance state
+  const [approvals, setApprovals] = useState<Approval[]>([])
+  const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([])
+
+  async function loadGovernance() {
+    try { setApprovals(await listProjectApprovals(project.id)) } catch { /* non-critical */ }
+    try { setAuditEvents(await listProjectAuditEvents(project.id)) } catch { /* non-critical */ }
+  }
+
   // Create requirement form
   const [reqTitle, setReqTitle] = useState('')
   const [reqProblem, setReqProblem] = useState('')
@@ -295,6 +310,7 @@ function ProjectView({
     listProjectRequirements(project.id)
       .then(setRequirements)
       .catch(err => setReqLoadError((err as Error).message))
+    loadGovernance()
   }, [project.id])
 
   function updateCtxField(field: keyof Omit<ProjectContext, 'project_id' | 'updated_at'>, value: string) {
@@ -584,6 +600,10 @@ function ProjectView({
           </button>
         </form>
       </section>
+
+      <hr style={{ margin: '24px 0', borderColor: '#333' }} />
+      <ApprovalsPanel projectId={project.id} approvals={approvals} onApprovalChange={loadGovernance} />
+      <AuditEventsPanel events={auditEvents} />
     </div>
   )
 }
@@ -788,6 +808,122 @@ function TicketView({
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
+// Governance panels — approvals + audit events
+// ---------------------------------------------------------------------------
+
+function ApprovalsPanel({
+  projectId,
+  approvals,
+  onApprovalChange,
+}: {
+  projectId: string
+  approvals: Approval[]
+  onApprovalChange: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const pending = approvals.filter(a => a.status === 'pending')
+
+  return (
+    <div style={{ marginTop: 16 }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{ background: 'none', border: '1px solid #444', borderRadius: 4, padding: '3px 10px', cursor: 'pointer', fontSize: 13 }}
+      >
+        {open ? '▾' : '▸'} Approvals ({approvals.length}, {pending.length} pending)
+      </button>
+      {open && (
+        <div style={{ marginTop: 8 }}>
+          {approvals.length === 0 && <p style={{ fontSize: 13, color: '#888' }}>No approvals yet.</p>}
+          {approvals.map(a => (
+            <ApprovalRow key={a.id} approval={a} projectId={projectId} onChange={onApprovalChange} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ApprovalRow({
+  approval,
+  projectId: _projectId,
+  onChange,
+}: {
+  approval: Approval
+  projectId: string
+  onChange: () => void
+}) {
+  const [feedback, setFeedback] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const isFinal = approval.status !== 'pending'
+
+  async function decide(status: 'approved' | 'rejected' | 'needs_revision') {
+    setBusy(true)
+    setError(null)
+    try {
+      await decideApproval(approval.id, { status, feedback: feedback || null })
+      onChange()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div style={{ border: '1px solid #333', borderRadius: 4, padding: '8px 12px', marginBottom: 8, fontSize: 13 }}>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <span style={{ color: '#aaa' }}>{approval.target_type}</span>
+        <code style={{ fontSize: 11, color: '#888' }}>{approval.target_id.slice(0, 12)}…</code>
+        <span className={`status${approval.status === 'approved' ? ' done' : ''}`}>{approval.status}</span>
+        {approval.feedback && <span style={{ color: '#aaa' }}>{approval.feedback}</span>}
+      </div>
+      {!isFinal && (
+        <div style={{ marginTop: 6, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+          <input
+            placeholder="Feedback (optional)"
+            value={feedback}
+            onChange={e => setFeedback(e.target.value)}
+            style={{ fontSize: 12, padding: '2px 6px', background: '#1a1a1a', border: '1px solid #444', color: '#fff', borderRadius: 3 }}
+          />
+          <button onClick={() => decide('approved')} disabled={busy} style={{ fontSize: 12 }}>Approve</button>
+          <button onClick={() => decide('rejected')} disabled={busy} style={{ fontSize: 12 }}>Reject</button>
+          <button onClick={() => decide('needs_revision')} disabled={busy} style={{ fontSize: 12 }}>Needs revision</button>
+        </div>
+      )}
+      {error && <div className="error" style={{ marginTop: 4 }}>{error}</div>}
+    </div>
+  )
+}
+
+function AuditEventsPanel({ events }: { events: AuditEvent[] }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div style={{ marginTop: 8 }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{ background: 'none', border: '1px solid #444', borderRadius: 4, padding: '3px 10px', cursor: 'pointer', fontSize: 13 }}
+      >
+        {open ? '▾' : '▸'} Audit log ({events.length})
+      </button>
+      {open && (
+        <div style={{ marginTop: 8 }}>
+          {events.length === 0 && <p style={{ fontSize: 13, color: '#888' }}>No events yet.</p>}
+          {events.map(e => (
+            <div key={e.id} style={{ fontSize: 12, color: '#aaa', marginBottom: 4 }}>
+              <span style={{ color: '#888', marginRight: 6 }}>{e.created_at.slice(0, 19).replace('T', ' ')}</span>
+              <span style={{ color: '#fff', marginRight: 6 }}>{e.action}</span>
+              <span style={{ marginRight: 6 }}>{e.target_type}</span>
+              <code style={{ fontSize: 11 }}>{e.target_id.slice(0, 12)}…</code>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // DevTask panel
 // ---------------------------------------------------------------------------
 
@@ -851,17 +987,28 @@ function SubtaskRow({ subtask, onUpdate }: { subtask: Subtask; onUpdate: (s: Sub
 function DevTaskCard({
   task,
   allSubtasks,
+  taskApproval,
+  projectId,
   onTaskUpdate,
   onSubtaskUpdate,
+  onApprovalChange,
 }: {
   task: DevTask
   allSubtasks: Subtask[]
+  taskApproval: Approval | undefined
+  projectId: string
   onTaskUpdate: (updated: DevTask) => void
   onSubtaskUpdate: (updated: Subtask) => void
+  onApprovalChange: () => void
 }) {
   const subtasks = allSubtasks.filter(st => st.dev_task_id === task.id)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [approvalBusy, setApprovalBusy] = useState(false)
+  const [approvalFeedback, setApprovalFeedback] = useState('')
+  const [approvalError, setApprovalError] = useState<string | null>(null)
+
+  const needsApproval = task.status === 'proposed' && (!taskApproval || taskApproval.status !== 'approved')
 
   async function handleStatusChange(next: string) {
     setError(null)
@@ -873,6 +1020,33 @@ function DevTaskCard({
       setError((e as Error).message)
     } finally {
       setBusy(false)
+    }
+  }
+
+  async function handleRequestApproval() {
+    setApprovalError(null)
+    setApprovalBusy(true)
+    try {
+      await createApproval({ project_id: projectId, target_type: 'dev_task', target_id: task.id })
+      onApprovalChange()
+    } catch (e) {
+      setApprovalError((e as Error).message)
+    } finally {
+      setApprovalBusy(false)
+    }
+  }
+
+  async function handleDecide(status: 'approved' | 'rejected' | 'needs_revision') {
+    if (!taskApproval) return
+    setApprovalError(null)
+    setApprovalBusy(true)
+    try {
+      await decideApproval(taskApproval.id, { status, feedback: approvalFeedback || null })
+      onApprovalChange()
+    } catch (e) {
+      setApprovalError((e as Error).message)
+    } finally {
+      setApprovalBusy(false)
     }
   }
 
@@ -894,8 +1068,39 @@ function DevTaskCard({
         {task.blocked_by && task.blocked_by.length > 0 && (
           <span className="status" style={{ color: '#f87171', fontSize: 11 }}>blocked</span>
         )}
+        {needsApproval && (
+          <span className="status" style={{ color: '#facc15', fontSize: 11 }}>approval required</span>
+        )}
+        {taskApproval?.status === 'approved' && (
+          <span className="status done" style={{ fontSize: 11 }}>approved</span>
+        )}
       </div>
       {error && <div className="error" style={{ marginTop: 4 }}>{error}</div>}
+
+      {/* Approval controls */}
+      {task.status === 'proposed' && !taskApproval && (
+        <div style={{ marginTop: 6 }}>
+          <button onClick={handleRequestApproval} disabled={approvalBusy} style={{ fontSize: 12 }}>
+            Request approval
+          </button>
+          {approvalError && <div className="error" style={{ marginTop: 4 }}>{approvalError}</div>}
+        </div>
+      )}
+      {task.status === 'proposed' && taskApproval && taskApproval.status === 'pending' && (
+        <div style={{ marginTop: 6, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: 12, color: '#aaa' }}>Decision:</span>
+          <input
+            placeholder="Feedback (optional)"
+            value={approvalFeedback}
+            onChange={e => setApprovalFeedback(e.target.value)}
+            style={{ fontSize: 12, padding: '2px 6px', background: '#1a1a1a', border: '1px solid #444', color: '#fff', borderRadius: 3 }}
+          />
+          <button onClick={() => handleDecide('approved')} disabled={approvalBusy} style={{ fontSize: 12 }}>Approve</button>
+          <button onClick={() => handleDecide('rejected')} disabled={approvalBusy} style={{ fontSize: 12 }}>Reject</button>
+          <button onClick={() => handleDecide('needs_revision')} disabled={approvalBusy} style={{ fontSize: 12 }}>Needs revision</button>
+          {approvalError && <div className="error">{approvalError}</div>}
+        </div>
+      )}
       {task.description && <p style={{ margin: '6px 0 4px', fontSize: 13 }}>{task.description}</p>}
       {task.depends_on.length > 0 && (
         <p style={{ margin: '4px 0', fontSize: 12, color: '#aaa' }}>
@@ -958,7 +1163,17 @@ function RequirementView({
   const [decompPhase, setDecompPhase] = useState<DecompPhase>({ name: 'idle' })
   const [devTasks, setDevTasks] = useState<DevTask[]>([])
   const [subtasks, setSubtasks] = useState<Subtask[]>([])
+  const [approvals, setApprovals] = useState<Approval[]>([])
   const busy = phase.name === 'analyzing' || decompPhase.name === 'decomposing'
+
+  async function loadApprovals() {
+    try {
+      const list = await listProjectApprovals(project.id)
+      setApprovals(list)
+    } catch {
+      // non-critical
+    }
+  }
 
   async function handleAnalyze() {
     setPhase({ name: 'analyzing' })
@@ -981,6 +1196,7 @@ function RequirementView({
       setDevTasks(result.dev_tasks)
       setSubtasks(result.subtasks)
       setDecompPhase({ name: 'done' })
+      await loadApprovals()
     } catch (err) {
       setDecompPhase({ name: 'error', message: (err as Error).message })
     }
@@ -1073,8 +1289,11 @@ function RequirementView({
               key={task.id}
               task={task}
               allSubtasks={subtasks}
+              taskApproval={approvals.find(a => a.target_type === 'dev_task' && a.target_id === task.id)}
+              projectId={project.id}
               onTaskUpdate={handleTaskUpdate}
               onSubtaskUpdate={handleSubtaskUpdate}
+              onApprovalChange={loadApprovals}
             />
           ))}
           <button onClick={handleDecompose} disabled={busy} style={{ marginTop: 8 }}>

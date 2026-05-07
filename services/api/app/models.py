@@ -277,3 +277,62 @@ class TaskDecompositionResponse(BaseModel):
 class DevTaskWithSubtasksResponse(BaseModel):
     dev_task: DevTaskWithReadiness
     subtasks: list[Subtask]
+
+
+ApprovalTargetType = Literal[
+    "requirement_analysis", "task_decomposition", "dev_task", "subtask", "artifact"
+]
+ApprovalStatus = Literal["pending", "approved", "rejected", "needs_revision"]
+
+
+class ApprovalCreate(BaseModel):
+    project_id: str
+    target_type: ApprovalTargetType
+    target_id: str
+    feedback: str | None = None
+
+
+class ApprovalUpdate(BaseModel):
+    status: ApprovalStatus
+    feedback: str | None = None
+
+
+class Approval(BaseModel):
+    id: str
+    project_id: str
+    target_type: ApprovalTargetType
+    target_id: str
+    status: ApprovalStatus
+    requested_by: str
+    decided_by: str | None = None
+    feedback: str | None = None
+    created_at: datetime
+    updated_at: datetime
+    decided_at: datetime | None = None
+
+
+AuditActorType = Literal["user", "system", "agent"]
+AuditAction = Literal[
+    "requirement_created",
+    "requirement_analyzed",
+    "task_decomposition_created",
+    "dev_task_updated",
+    "subtask_updated",
+    "approval_requested",
+    "approval_approved",
+    "approval_rejected",
+    "approval_needs_revision",
+    "change_requested",
+]
+
+
+class AuditEvent(BaseModel):
+    id: str
+    project_id: str | None = None
+    actor_type: AuditActorType
+    actor_id: str
+    action: AuditAction
+    target_type: str
+    target_id: str
+    details: dict = {}
+    created_at: datetime

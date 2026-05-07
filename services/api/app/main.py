@@ -14,6 +14,11 @@ from .llm import (
 )
 from .lifecycle import LifecycleError, compute_readiness, validate_transition
 from .models import (
+    Approval,
+    ApprovalCreate,
+    ApprovalUpdate,
+    AuditAction,
+    AuditEvent,
     DevTaskUpdate,
     DevTaskWithReadiness,
     DevTaskWithSubtasksResponse,
@@ -68,7 +73,32 @@ app.add_middleware(
     requirement_repo,
     dev_task_repo,
     subtask_repo,
+    approval_repo,
+    audit_event_repo,
 ) = get_repositories()
+
+
+def _audit(
+    action: AuditAction,
+    target_type: str,
+    target_id: str,
+    project_id: str | None = None,
+    actor_email: str | None = None,
+    details: dict | None = None,
+) -> None:
+    actor_type = "user" if (actor_email and actor_email != "auth-disabled") else "system"
+    event = AuditEvent(
+        id=str(uuid.uuid4()),
+        project_id=project_id,
+        actor_type=actor_type,
+        actor_id=actor_email or "system",
+        action=action,
+        target_type=target_type,
+        target_id=target_id,
+        details=details or {},
+        created_at=datetime.now(timezone.utc),
+    )
+    audit_event_repo.save(event)
 
 
 # ---------------------------------------------------------------------------
@@ -300,7 +330,7 @@ def get_providers(_: str = Depends(require_auth)):
 def create_project_requirement(
     project_id: str,
     body: RequirementCreate,
-    _: str = Depends(require_auth),
+    current_user: str = Depends(require_auth),
 ):
     if project_repo.get(project_id) is None:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -324,6 +354,10 @@ def create_project_requirement(
         updated_at=now,
     )
     requirement_repo.save(requirement)
+    _audit(
+        "requirement_created", "requirement", requirement.id,
+        project_id=project_id, actor_email=current_user,
+    )
     return requirement
 
 
@@ -379,7 +413,7 @@ def update_requirement(
 def create_requirement_analysis_for_requirement(
     requirement_id: str,
     body: RequirementAnalysisRunCreate | None = Body(default=None),
-    _: str = Depends(require_auth),
+    current_user: str = Depends(require_auth),
 ):
     requirement = requirement_repo.get(requirement_id)
     if requirement is None:
@@ -399,6 +433,11 @@ def create_requirement_analysis_for_requirement(
         update={"status": "analyzed", "updated_at": datetime.now(timezone.utc)}
     )
     requirement_repo.update(updated)
+    _audit(
+        "requirement_analyzed", "requirement_analysis", analysis.id,
+        project_id=requirement.project_id, actor_email=current_user,
+        details={"requirement_id": requirement_id},
+    )
     return RequirementAnalysisRunResponse(
         agent_run=run, requirement_analysis=analysis, artifact=artifact
     )
@@ -416,7 +455,7 @@ def create_requirement_analysis_for_requirement(
 def create_task_decomposition_for_requirement(
     requirement_id: str,
     body: TaskDecompositionRunCreate | None = Body(default=None),
-    _: str = Depends(require_auth),
+    current_user: str = Depends(require_auth),
 ):
     requirement = requirement_repo.get(requirement_id)
     if requirement is None:
@@ -434,6 +473,11 @@ def create_task_decomposition_for_requirement(
         requirement, provider, agent_run_repo, artifact_repo, dev_task_repo, subtask_repo,
         context, latest_analysis,
     )
+    _audit(
+        "task_decomposition_created", "task_decomposition", run.id,
+        project_id=requirement.project_id, actor_email=current_user,
+        details={"dev_task_count": len(dev_tasks)},
+    )
     return TaskDecompositionResponse(
         agent_run=run, artifact=artifact, dev_tasks=dev_tasks, subtasks=subtasks
     )
@@ -447,7 +491,7 @@ def create_task_decomposition_for_requirement(
 def create_task_decomposition_for_ticket(
     ticket_id: str,
     body: TaskDecompositionRunCreate | None = Body(default=None),
-    _: str = Depends(require_auth),
+    current_user: str = Depends(require_auth),
 ):
     ticket = repo.get(ticket_id)
     if ticket is None:
@@ -466,6 +510,11 @@ def create_task_decomposition_for_ticket(
     run, artifact, dev_tasks, subtasks = run_task_decomposition_for_ticket(
         ticket, provider, agent_run_repo, artifact_repo, dev_task_repo, subtask_repo,
         context, latest_analysis,
+    )
+    _audit(
+        "task_decomposition_created", "task_decomposition", run.id,
+        project_id=ticket.project_id, actor_email=current_user,
+        details={"dev_task_count": len(dev_tasks)},
     )
     return TaskDecompositionResponse(
         agent_run=run, artifact=artifact, dev_tasks=dev_tasks, subtasks=subtasks
@@ -497,13 +546,14 @@ def get_dev_task(dev_task_id: str, _: str = Depends(require_auth)):
 def update_dev_task(
     dev_task_id: str,
     body: DevTaskUpdate,
-    _: str = Depends(require_auth),
+    current_user: str = Depends(require_auth),
 ):
     dev_task = dev_task_repo.get(dev_task_id)
     if dev_task is None:
         raise HTTPException(status_code=404, detail="DevTask not found")
     patch = body.model_dump(exclude_unset=True)
     new_status = patch.get("status")
+    old_status = dev_task.status
     try:
         if new_status and new_status != dev_task.status:
             validate_transition(dev_task.status, new_status)
@@ -514,12 +564,28 @@ def update_dev_task(
                     raise LifecycleError(
                         f"Cannot move to {new_status}: dependencies not completed: {blockers}"
                     )
+            if dev_task.status == "proposed" and new_status == "ready":
+                approved = (
+                    approval_repo.find_approved_for_target("dev_task", dev_task.id)
+                    or approval_repo.find_approved_for_target("task_decomposition", dev_task.agent_run_id)
+                )
+                if approved is None:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="DevTask requires an approved approval before moving to ready",
+                    )
     except LifecycleError as e:
         raise HTTPException(status_code=400, detail=str(e))
     updated = dev_task.model_copy(
         update={**patch, "updated_at": datetime.now(timezone.utc)}
     )
     dev_task_repo.update(updated)
+    if new_status and new_status != old_status:
+        _audit(
+            "dev_task_updated", "dev_task", dev_task.id,
+            project_id=dev_task.project_id, actor_email=current_user,
+            details={"from": old_status, "to": new_status},
+        )
     return _with_readiness(updated)
 
 
@@ -527,13 +593,14 @@ def update_dev_task(
 def update_subtask(
     subtask_id: str,
     body: SubtaskUpdate,
-    _: str = Depends(require_auth),
+    current_user: str = Depends(require_auth),
 ):
     subtask = subtask_repo.get(subtask_id)
     if subtask is None:
         raise HTTPException(status_code=404, detail="Subtask not found")
     patch = body.model_dump(exclude_unset=True)
     new_status = patch.get("status")
+    old_status = subtask.status
     if new_status and new_status != subtask.status:
         try:
             validate_transition(subtask.status, new_status)
@@ -543,6 +610,12 @@ def update_subtask(
         update={**patch, "updated_at": datetime.now(timezone.utc)}
     )
     subtask_repo.update(updated)
+    if new_status and new_status != old_status:
+        _audit(
+            "subtask_updated", "subtask", subtask.id,
+            project_id=subtask.project_id, actor_email=current_user,
+            details={"from": old_status, "to": new_status},
+        )
     return updated
 
 
@@ -552,3 +625,105 @@ def list_dev_task_subtasks(dev_task_id: str, _: str = Depends(require_auth)):
     if dev_task is None:
         raise HTTPException(status_code=404, detail="DevTask not found")
     return subtask_repo.list_by_dev_task(dev_task_id)
+
+
+# ---------------------------------------------------------------------------
+# Approvals
+# ---------------------------------------------------------------------------
+
+_FINAL_APPROVAL_STATUSES = {"approved", "rejected", "needs_revision"}
+
+
+@app.post("/approvals", response_model=Approval, status_code=201)
+def create_approval(
+    body: ApprovalCreate,
+    current_user: str = Depends(require_auth),
+):
+    if project_repo.get(body.project_id) is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    now = datetime.now(timezone.utc)
+    approval = Approval(
+        id=str(uuid.uuid4()),
+        project_id=body.project_id,
+        target_type=body.target_type,
+        target_id=body.target_id,
+        status="pending",
+        requested_by=current_user,
+        feedback=body.feedback,
+        created_at=now,
+        updated_at=now,
+    )
+    approval_repo.save(approval)
+    _audit(
+        "approval_requested", "approval", approval.id,
+        project_id=body.project_id, actor_email=current_user,
+        details={"target_type": body.target_type, "target_id": body.target_id},
+    )
+    return approval
+
+
+@app.get("/projects/{project_id}/approvals", response_model=list[Approval])
+def list_project_approvals(project_id: str, _: str = Depends(require_auth)):
+    if project_repo.get(project_id) is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return approval_repo.list_by_project(project_id)
+
+
+@app.get("/approvals/{approval_id}", response_model=Approval)
+def get_approval(approval_id: str, _: str = Depends(require_auth)):
+    approval = approval_repo.get(approval_id)
+    if approval is None:
+        raise HTTPException(status_code=404, detail="Approval not found")
+    return approval
+
+
+@app.patch("/approvals/{approval_id}", response_model=Approval)
+def decide_approval(
+    approval_id: str,
+    body: ApprovalUpdate,
+    current_user: str = Depends(require_auth),
+):
+    approval = approval_repo.get(approval_id)
+    if approval is None:
+        raise HTTPException(status_code=404, detail="Approval not found")
+    if body.status not in _FINAL_APPROVAL_STATUSES:
+        raise HTTPException(status_code=400, detail=f"Invalid approval status: {body.status!r}")
+    if approval.status in _FINAL_APPROVAL_STATUSES and body.status != approval.status:
+        raise HTTPException(status_code=400, detail="approval already finalized")
+    now = datetime.now(timezone.utc)
+    updated = approval.model_copy(
+        update={
+            "status": body.status,
+            "feedback": body.feedback if body.feedback is not None else approval.feedback,
+            "decided_by": current_user,
+            "decided_at": now,
+            "updated_at": now,
+        }
+    )
+    approval_repo.update(updated)
+    action: AuditAction = f"approval_{body.status}"  # type: ignore[assignment]
+    _audit(
+        action, "approval", approval.id,
+        project_id=approval.project_id, actor_email=current_user,
+        details={"feedback": body.feedback} if body.feedback else {},
+    )
+    return updated
+
+
+# ---------------------------------------------------------------------------
+# Audit events
+# ---------------------------------------------------------------------------
+
+@app.get("/projects/{project_id}/audit-events", response_model=list[AuditEvent])
+def list_project_audit_events(project_id: str, _: str = Depends(require_auth)):
+    if project_repo.get(project_id) is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return audit_event_repo.list_by_project(project_id)
+
+
+@app.get("/audit-events/{audit_event_id}", response_model=AuditEvent)
+def get_audit_event(audit_event_id: str, _: str = Depends(require_auth)):
+    event = audit_event_repo.get(audit_event_id)
+    if event is None:
+        raise HTTPException(status_code=404, detail="AuditEvent not found")
+    return event

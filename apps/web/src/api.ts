@@ -1,5 +1,9 @@
 import { clearToken, getToken } from './auth'
 import type {
+  Approval,
+  ApprovalCreate,
+  ApprovalDecision,
+  AuditEvent,
   DevTask,
   DevTaskUpdate,
   LoginResponse,
@@ -268,4 +272,50 @@ export async function updateSubtask(subtaskId: string, patch: SubtaskUpdate): Pr
     body: JSON.stringify(patch),
   })
   return handleResponse<Subtask>(res)
+}
+
+// ---------------------------------------------------------------------------
+// Approvals
+// ---------------------------------------------------------------------------
+
+export async function createApproval(data: ApprovalCreate): Promise<Approval> {
+  const res = await fetch(`${BASE}/approvals`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(data),
+  })
+  return handleResponse<Approval>(res)
+}
+
+export async function listProjectApprovals(projectId: string): Promise<Approval[]> {
+  const res = await fetch(`${BASE}/projects/${projectId}/approvals`, { headers: authHeaders() })
+  return handleResponse<Approval[]>(res)
+}
+
+export async function getApproval(approvalId: string): Promise<Approval> {
+  const res = await fetch(`${BASE}/approvals/${approvalId}`, { headers: authHeaders() })
+  return handleResponse<Approval>(res)
+}
+
+export async function decideApproval(approvalId: string, decision: ApprovalDecision): Promise<Approval> {
+  const res = await fetch(`${BASE}/approvals/${approvalId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(decision),
+  })
+  return handleResponse<Approval>(res)
+}
+
+// ---------------------------------------------------------------------------
+// Audit events
+// ---------------------------------------------------------------------------
+
+export async function listProjectAuditEvents(projectId: string): Promise<AuditEvent[]> {
+  const res = await fetch(`${BASE}/projects/${projectId}/audit-events`, { headers: authHeaders() })
+  return handleResponse<AuditEvent[]>(res)
+}
+
+export async function getAuditEvent(auditEventId: string): Promise<AuditEvent> {
+  const res = await fetch(`${BASE}/audit-events/${auditEventId}`, { headers: authHeaders() })
+  return handleResponse<AuditEvent>(res)
 }

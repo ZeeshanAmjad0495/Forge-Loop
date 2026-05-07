@@ -3,7 +3,9 @@ from app import config
 from app.main import (
     agent_run_repo,
     analysis_repo,
+    approval_repo,
     artifact_repo,
+    audit_event_repo,
     dev_task_repo,
     project_context_repo,
     project_repo,
@@ -25,6 +27,8 @@ def clear_repos():
         requirement_repo,
         dev_task_repo,
         subtask_repo,
+        approval_repo,
+        audit_event_repo,
     ):
         if hasattr(r, "_store"):
             r._store.clear()

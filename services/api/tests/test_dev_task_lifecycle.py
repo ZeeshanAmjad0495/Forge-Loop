@@ -40,8 +40,28 @@ def _first_task(requirement_id: str) -> dict:
     return tasks[0]
 
 
-def _patch_task(task_id: str, payload: dict) -> dict:
+def _patch_task(task_id: str, payload: dict):
     return client.patch(f"/dev-tasks/{task_id}", json=payload)
+
+
+def _approve_task(project_id: str, task_id: str) -> None:
+    resp = client.post("/approvals", json={
+        "project_id": project_id,
+        "target_type": "dev_task",
+        "target_id": task_id,
+    })
+    approval_id = resp.json()["id"]
+    client.patch(f"/approvals/{approval_id}", json={"status": "approved"})
+
+
+def _approve_decomposition(project_id: str, agent_run_id: str) -> None:
+    resp = client.post("/approvals", json={
+        "project_id": project_id,
+        "target_type": "task_decomposition",
+        "target_id": agent_run_id,
+    })
+    approval_id = resp.json()["id"]
+    client.patch(f"/approvals/{approval_id}", json={"status": "approved"})
 
 
 # ---------------------------------------------------------------------------
@@ -69,15 +89,15 @@ def test_patch_dev_task_updates_priority():
 
 
 # ---------------------------------------------------------------------------
-# Status transitions
+# Status transitions (approval required for proposed -> ready)
 # ---------------------------------------------------------------------------
 
 def test_patch_dev_task_proposed_to_ready():
     project = _create_project()
     req = _create_requirement(project["id"])
     data = _decompose(req["id"])
-    # pick a task with no depends_on
     task = next(t for t in data["dev_tasks"] if not t["depends_on"])
+    _approve_task(project["id"], task["id"])
     resp = _patch_task(task["id"], {"status": "ready"})
     assert resp.status_code == 200
     assert resp.json()["status"] == "ready"
@@ -88,6 +108,7 @@ def test_patch_dev_task_ready_to_in_progress():
     req = _create_requirement(project["id"])
     data = _decompose(req["id"])
     task = next(t for t in data["dev_tasks"] if not t["depends_on"])
+    _approve_task(project["id"], task["id"])
     _patch_task(task["id"], {"status": "ready"})
     resp = _patch_task(task["id"], {"status": "in_progress"})
     assert resp.status_code == 200
@@ -99,6 +120,7 @@ def test_patch_dev_task_in_progress_to_completed():
     req = _create_requirement(project["id"])
     data = _decompose(req["id"])
     task = next(t for t in data["dev_tasks"] if not t["depends_on"])
+    _approve_task(project["id"], task["id"])
     _patch_task(task["id"], {"status": "ready"})
     _patch_task(task["id"], {"status": "in_progress"})
     resp = _patch_task(task["id"], {"status": "completed"})
@@ -111,6 +133,7 @@ def test_patch_dev_task_completed_to_in_progress_reopen():
     req = _create_requirement(project["id"])
     data = _decompose(req["id"])
     task = next(t for t in data["dev_tasks"] if not t["depends_on"])
+    _approve_task(project["id"], task["id"])
     _patch_task(task["id"], {"status": "ready"})
     _patch_task(task["id"], {"status": "in_progress"})
     _patch_task(task["id"], {"status": "completed"})
@@ -141,6 +164,43 @@ def test_patch_dev_task_invalid_transition_returns_400():
 
 
 # ---------------------------------------------------------------------------
+# Approval gate
+# ---------------------------------------------------------------------------
+
+def test_proposed_to_ready_without_approval_returns_400():
+    project = _create_project()
+    req = _create_requirement(project["id"])
+    data = _decompose(req["id"])
+    task = next(t for t in data["dev_tasks"] if not t["depends_on"])
+    resp = _patch_task(task["id"], {"status": "ready"})
+    assert resp.status_code == 400
+    assert "approval" in resp.json()["detail"].lower()
+
+
+def test_proposed_to_ready_with_approved_dev_task_approval():
+    project = _create_project()
+    req = _create_requirement(project["id"])
+    data = _decompose(req["id"])
+    task = next(t for t in data["dev_tasks"] if not t["depends_on"])
+    _approve_task(project["id"], task["id"])
+    resp = _patch_task(task["id"], {"status": "ready"})
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "ready"
+
+
+def test_proposed_to_ready_with_approved_decomposition_approval():
+    project = _create_project()
+    req = _create_requirement(project["id"])
+    data = _decompose(req["id"])
+    agent_run_id = data["agent_run"]["id"]
+    task = next(t for t in data["dev_tasks"] if not t["depends_on"])
+    _approve_decomposition(project["id"], agent_run_id)
+    resp = _patch_task(task["id"], {"status": "ready"})
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "ready"
+
+
+# ---------------------------------------------------------------------------
 # Dependency readiness
 # ---------------------------------------------------------------------------
 
@@ -151,6 +211,8 @@ def test_patch_dev_task_blocked_by_uncompleted_dependency():
     task_a = next(t for t in data["dev_tasks"] if not t["depends_on"])
     task_b = next(t for t in data["dev_tasks"] if t["id"] != task_a["id"])
 
+    # Give task_b an approval so the gate passes, but dependency blocks it
+    _approve_task(project["id"], task_b["id"])
     # Set task_b to depend on task_a (which is still 'proposed')
     _patch_task(task_b["id"], {"depends_on": [task_a["id"]]})
 
@@ -166,13 +228,15 @@ def test_patch_dev_task_ready_when_dependency_completed():
     task_a = next(t for t in data["dev_tasks"] if not t["depends_on"])
     task_b = next(t for t in data["dev_tasks"] if t["id"] != task_a["id"])
 
-    # Complete task_a
+    # Approve and complete task_a
+    _approve_task(project["id"], task_a["id"])
     _patch_task(task_a["id"], {"status": "ready"})
     _patch_task(task_a["id"], {"status": "in_progress"})
     _patch_task(task_a["id"], {"status": "completed"})
 
-    # Set task_b to depend on completed task_a
+    # Set task_b to depend on completed task_a, then approve and move ready
     _patch_task(task_b["id"], {"depends_on": [task_a["id"]]})
+    _approve_task(project["id"], task_b["id"])
 
     resp = _patch_task(task_b["id"], {"status": "ready"})
     assert resp.status_code == 200
@@ -188,6 +252,7 @@ def test_patch_dev_task_in_progress_blocked_by_uncompleted_dep():
 
     # task_b may already have deps; clear them so we can reach 'ready'
     _patch_task(task_b["id"], {"depends_on": []})
+    _approve_task(project["id"], task_b["id"])
     assert _patch_task(task_b["id"], {"status": "ready"}).status_code == 200
 
     # Now add a dep on task_a which is still 'proposed' (not completed)
