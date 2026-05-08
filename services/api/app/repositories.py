@@ -6,11 +6,13 @@ from .models import (
     Approval,
     AuditEvent,
     Artifact,
+    CodeRepository,
     DevTask,
     Project,
     ProjectContext,
     Requirement,
     RequirementAnalysis,
+    RepoSafetyProfile,
     Subtask,
     Ticket,
 )
@@ -484,6 +486,84 @@ class FirestoreAuditEventRepository:
         return sorted(matches, key=lambda e: e.created_at, reverse=True)
 
 
+class CodeRepositoryRepository(Protocol):
+    def save(self, repo: CodeRepository) -> None: ...
+    def get(self, repo_id: str) -> CodeRepository | None: ...
+    def update(self, repo: CodeRepository) -> None: ...
+    def list_by_project(self, project_id: str) -> list[CodeRepository]: ...
+
+
+class InMemoryCodeRepositoryRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, CodeRepository] = {}
+
+    def save(self, repo: CodeRepository) -> None:
+        self._store[repo.id] = repo
+
+    def get(self, repo_id: str) -> CodeRepository | None:
+        return self._store.get(repo_id)
+
+    def update(self, repo: CodeRepository) -> None:
+        self._store[repo.id] = repo
+
+    def list_by_project(self, project_id: str) -> list[CodeRepository]:
+        return [r for r in self._store.values() if r.project_id == project_id]
+
+
+class FirestoreCodeRepositoryRepository:
+    def __init__(self, client, collection_name: str = "code_repositories") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, repo: CodeRepository) -> None:
+        self._collection.document(repo.id).set(repo.model_dump(mode="python"))
+
+    def get(self, repo_id: str) -> CodeRepository | None:
+        snap = self._collection.document(repo_id).get()
+        if not snap.exists:
+            return None
+        return CodeRepository(**snap.to_dict())
+
+    def update(self, repo: CodeRepository) -> None:
+        self._collection.document(repo.id).set(repo.model_dump(mode="python"))
+
+    def list_by_project(self, project_id: str) -> list[CodeRepository]:
+        docs = self._collection.where("project_id", "==", project_id).stream()
+        return [CodeRepository(**d.to_dict()) for d in docs]
+
+
+class RepoSafetyProfileRepository(Protocol):
+    def save(self, profile: RepoSafetyProfile) -> None: ...
+    def get_by_repo(self, code_repository_id: str) -> RepoSafetyProfile | None: ...
+
+
+class InMemoryRepoSafetyProfileRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, RepoSafetyProfile] = {}
+
+    def save(self, profile: RepoSafetyProfile) -> None:
+        self._store[profile.id] = profile
+
+    def get_by_repo(self, code_repository_id: str) -> RepoSafetyProfile | None:
+        for p in self._store.values():
+            if p.code_repository_id == code_repository_id:
+                return p
+        return None
+
+
+class FirestoreRepoSafetyProfileRepository:
+    def __init__(self, client, collection_name: str = "repo_safety_profiles") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, profile: RepoSafetyProfile) -> None:
+        self._collection.document(profile.id).set(profile.model_dump(mode="python"))
+
+    def get_by_repo(self, code_repository_id: str) -> RepoSafetyProfile | None:
+        docs = self._collection.where("code_repository_id", "==", code_repository_id).stream()
+        for d in docs:
+            return RepoSafetyProfile(**d.to_dict())
+        return None
+
+
 def get_repositories() -> tuple[
     TicketRepository,
     AgentRunRepository,
@@ -496,6 +576,8 @@ def get_repositories() -> tuple[
     SubtaskRepository,
     ApprovalRepository,
     AuditEventRepository,
+    CodeRepositoryRepository,
+    RepoSafetyProfileRepository,
 ]:
     if config.REPOSITORY_PROVIDER == "memory":
         return (
@@ -510,6 +592,8 @@ def get_repositories() -> tuple[
             InMemorySubtaskRepository(),
             InMemoryApprovalRepository(),
             InMemoryAuditEventRepository(),
+            InMemoryCodeRepositoryRepository(),
+            InMemoryRepoSafetyProfileRepository(),
         )
     if config.REPOSITORY_PROVIDER == "firestore":
         from google.cloud import firestore
@@ -530,6 +614,8 @@ def get_repositories() -> tuple[
             FirestoreSubtaskRepository(client),
             FirestoreApprovalRepository(client),
             FirestoreAuditEventRepository(client),
+            FirestoreCodeRepositoryRepository(client),
+            FirestoreRepoSafetyProfileRepository(client),
         )
     raise ValueError(
         f"Unknown REPOSITORY_PROVIDER: {config.REPOSITORY_PROVIDER!r}. Supported: memory, firestore"

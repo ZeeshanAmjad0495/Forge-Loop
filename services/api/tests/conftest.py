@@ -6,10 +6,12 @@ from app.main import (
     approval_repo,
     artifact_repo,
     audit_event_repo,
+    code_repo_repo,
     dev_task_repo,
     project_context_repo,
     project_repo,
     repo,
+    repo_safety_profile_repo,
     requirement_repo,
     subtask_repo,
 )
@@ -29,6 +31,8 @@ def clear_repos():
         subtask_repo,
         approval_repo,
         audit_event_repo,
+        code_repo_repo,
+        repo_safety_profile_repo,
     ):
         if hasattr(r, "_store"):
             r._store.clear()

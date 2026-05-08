@@ -4,6 +4,9 @@ import type {
   ApprovalCreate,
   ApprovalDecision,
   AuditEvent,
+  CodeRepository,
+  CodeRepositoryCreate,
+  CodeRepositoryUpdate,
   DevTask,
   DevTaskUpdate,
   LoginResponse,
@@ -17,6 +20,8 @@ import type {
   RequirementAnalysisRunResponse,
   RequirementCreate,
   RequirementUpdate,
+  RepoSafetyProfile,
+  RepoSafetyProfileUpsert,
   Subtask,
   SubtaskUpdate,
   TaskDecompositionResponse,
@@ -318,4 +323,63 @@ export async function listProjectAuditEvents(projectId: string): Promise<AuditEv
 export async function getAuditEvent(auditEventId: string): Promise<AuditEvent> {
   const res = await fetch(`${BASE}/audit-events/${auditEventId}`, { headers: authHeaders() })
   return handleResponse<AuditEvent>(res)
+}
+
+// ---------------------------------------------------------------------------
+// Code repositories
+// ---------------------------------------------------------------------------
+
+export async function listProjectCodeRepositories(projectId: string): Promise<CodeRepository[]> {
+  const res = await fetch(`${BASE}/projects/${projectId}/code-repositories`, { headers: authHeaders() })
+  return handleResponse<CodeRepository[]>(res)
+}
+
+export async function createCodeRepository(projectId: string, body: CodeRepositoryCreate): Promise<CodeRepository> {
+  const res = await fetch(`${BASE}/projects/${projectId}/code-repositories`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(body),
+  })
+  return handleResponse<CodeRepository>(res)
+}
+
+export async function getCodeRepository(repoId: string): Promise<CodeRepository> {
+  const res = await fetch(`${BASE}/code-repositories/${repoId}`, { headers: authHeaders() })
+  return handleResponse<CodeRepository>(res)
+}
+
+export async function updateCodeRepository(repoId: string, body: CodeRepositoryUpdate): Promise<CodeRepository> {
+  const res = await fetch(`${BASE}/code-repositories/${repoId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(body),
+  })
+  return handleResponse<CodeRepository>(res)
+}
+
+// ---------------------------------------------------------------------------
+// Repo safety profiles
+// ---------------------------------------------------------------------------
+
+export async function getRepoSafetyProfile(repoId: string): Promise<RepoSafetyProfile> {
+  const res = await fetch(`${BASE}/code-repositories/${repoId}/safety-profile`, { headers: authHeaders() })
+  return handleResponse<RepoSafetyProfile>(res)
+}
+
+export async function upsertRepoSafetyProfile(repoId: string, body: RepoSafetyProfileUpsert): Promise<RepoSafetyProfile> {
+  const res = await fetch(`${BASE}/code-repositories/${repoId}/safety-profile`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(body),
+  })
+  return handleResponse<RepoSafetyProfile>(res)
+}
+
+export async function updateRepoSafetyProfile(repoId: string, body: RepoSafetyProfileUpsert): Promise<RepoSafetyProfile> {
+  const res = await fetch(`${BASE}/code-repositories/${repoId}/safety-profile`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(body),
+  })
+  return handleResponse<RepoSafetyProfile>(res)
 }

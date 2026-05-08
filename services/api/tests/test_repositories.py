@@ -10,22 +10,26 @@ from app.repositories import (
     FirestoreApprovalRepository,
     FirestoreArtifactRepository,
     FirestoreAuditEventRepository,
+    FirestoreCodeRepositoryRepository,
     FirestoreDevTaskRepository,
     FirestoreProjectContextRepository,
     FirestoreProjectRepository,
     FirestoreRequirementAnalysisRepository,
     FirestoreRequirementRepository,
+    FirestoreRepoSafetyProfileRepository,
     FirestoreSubtaskRepository,
     FirestoreTicketRepository,
     InMemoryAgentRunRepository,
     InMemoryApprovalRepository,
     InMemoryArtifactRepository,
     InMemoryAuditEventRepository,
+    InMemoryCodeRepositoryRepository,
     InMemoryDevTaskRepository,
     InMemoryProjectContextRepository,
     InMemoryProjectRepository,
     InMemoryRequirementAnalysisRepository,
     InMemoryRequirementRepository,
+    InMemoryRepoSafetyProfileRepository,
     InMemorySubtaskRepository,
     InMemoryTicketRepository,
     get_repositories,
@@ -33,7 +37,7 @@ from app.repositories import (
 
 
 def test_default_repository_is_memory():
-    tickets, runs, artifacts, projects, contexts, analyses, requirements, dev_tasks, subtasks, approvals, audit_events = get_repositories()
+    tickets, runs, artifacts, projects, contexts, analyses, requirements, dev_tasks, subtasks, approvals, audit_events, code_repos, safety_profiles = get_repositories()
     assert isinstance(tickets, InMemoryTicketRepository)
     assert isinstance(runs, InMemoryAgentRunRepository)
     assert isinstance(artifacts, InMemoryArtifactRepository)
@@ -45,11 +49,13 @@ def test_default_repository_is_memory():
     assert isinstance(subtasks, InMemorySubtaskRepository)
     assert isinstance(approvals, InMemoryApprovalRepository)
     assert isinstance(audit_events, InMemoryAuditEventRepository)
+    assert isinstance(code_repos, InMemoryCodeRepositoryRepository)
+    assert isinstance(safety_profiles, InMemoryRepoSafetyProfileRepository)
 
 
 def test_memory_repository_explicitly(monkeypatch):
     monkeypatch.setattr(config, "REPOSITORY_PROVIDER", "memory")
-    tickets, runs, artifacts, projects, contexts, analyses, requirements, dev_tasks, subtasks, approvals, audit_events = get_repositories()
+    tickets, runs, artifacts, projects, contexts, analyses, requirements, dev_tasks, subtasks, approvals, audit_events, code_repos, safety_profiles = get_repositories()
     assert isinstance(tickets, InMemoryTicketRepository)
     assert isinstance(runs, InMemoryAgentRunRepository)
     assert isinstance(artifacts, InMemoryArtifactRepository)
@@ -61,12 +67,14 @@ def test_memory_repository_explicitly(monkeypatch):
     assert isinstance(subtasks, InMemorySubtaskRepository)
     assert isinstance(approvals, InMemoryApprovalRepository)
     assert isinstance(audit_events, InMemoryAuditEventRepository)
+    assert isinstance(code_repos, InMemoryCodeRepositoryRepository)
+    assert isinstance(safety_profiles, InMemoryRepoSafetyProfileRepository)
 
 
 def test_firestore_repository_selected(monkeypatch):
     monkeypatch.setattr(config, "REPOSITORY_PROVIDER", "firestore")
     with patch("google.cloud.firestore.Client"):
-        tickets, runs, artifacts, projects, contexts, analyses, requirements, dev_tasks, subtasks, approvals, audit_events = get_repositories()
+        tickets, runs, artifacts, projects, contexts, analyses, requirements, dev_tasks, subtasks, approvals, audit_events, code_repos, safety_profiles = get_repositories()
     assert isinstance(tickets, FirestoreTicketRepository)
     assert isinstance(runs, FirestoreAgentRunRepository)
     assert isinstance(artifacts, FirestoreArtifactRepository)
@@ -78,6 +86,8 @@ def test_firestore_repository_selected(monkeypatch):
     assert isinstance(subtasks, FirestoreSubtaskRepository)
     assert isinstance(approvals, FirestoreApprovalRepository)
     assert isinstance(audit_events, FirestoreAuditEventRepository)
+    assert isinstance(code_repos, FirestoreCodeRepositoryRepository)
+    assert isinstance(safety_profiles, FirestoreRepoSafetyProfileRepository)
 
 
 def test_unknown_repository_raises(monkeypatch):
