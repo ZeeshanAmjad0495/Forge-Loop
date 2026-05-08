@@ -8,6 +8,7 @@ from .models import (
     Artifact,
     CodeRepository,
     DevTask,
+    Epic,
     Project,
     ProjectContext,
     Requirement,
@@ -564,6 +565,59 @@ class FirestoreRepoSafetyProfileRepository:
         return None
 
 
+class EpicRepository(Protocol):
+    def save(self, epic: Epic) -> None: ...
+    def get(self, epic_id: str) -> Epic | None: ...
+    def update(self, epic: Epic) -> None: ...
+    def list_by_project(self, project_id: str) -> list[Epic]: ...
+    def list_by_requirement(self, requirement_id: str) -> list[Epic]: ...
+
+
+class InMemoryEpicRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, Epic] = {}
+
+    def save(self, epic: Epic) -> None:
+        self._store[epic.id] = epic
+
+    def get(self, epic_id: str) -> Epic | None:
+        return self._store.get(epic_id)
+
+    def update(self, epic: Epic) -> None:
+        self._store[epic.id] = epic
+
+    def list_by_project(self, project_id: str) -> list[Epic]:
+        return [e for e in self._store.values() if e.project_id == project_id]
+
+    def list_by_requirement(self, requirement_id: str) -> list[Epic]:
+        return [e for e in self._store.values() if e.requirement_id == requirement_id]
+
+
+class FirestoreEpicRepository:
+    def __init__(self, client, collection_name: str = "epics") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, epic: Epic) -> None:
+        self._collection.document(epic.id).set(epic.model_dump(mode="python"))
+
+    def get(self, epic_id: str) -> Epic | None:
+        snap = self._collection.document(epic_id).get()
+        if not snap.exists:
+            return None
+        return Epic(**snap.to_dict())
+
+    def update(self, epic: Epic) -> None:
+        self._collection.document(epic.id).set(epic.model_dump(mode="python"))
+
+    def list_by_project(self, project_id: str) -> list[Epic]:
+        docs = self._collection.where("project_id", "==", project_id).stream()
+        return [Epic(**d.to_dict()) for d in docs]
+
+    def list_by_requirement(self, requirement_id: str) -> list[Epic]:
+        docs = self._collection.where("requirement_id", "==", requirement_id).stream()
+        return [Epic(**d.to_dict()) for d in docs]
+
+
 def get_repositories() -> tuple[
     TicketRepository,
     AgentRunRepository,
@@ -578,6 +632,7 @@ def get_repositories() -> tuple[
     AuditEventRepository,
     CodeRepositoryRepository,
     RepoSafetyProfileRepository,
+    EpicRepository,
 ]:
     if config.REPOSITORY_PROVIDER == "memory":
         return (
@@ -594,6 +649,7 @@ def get_repositories() -> tuple[
             InMemoryAuditEventRepository(),
             InMemoryCodeRepositoryRepository(),
             InMemoryRepoSafetyProfileRepository(),
+            InMemoryEpicRepository(),
         )
     if config.REPOSITORY_PROVIDER == "firestore":
         from google.cloud import firestore
@@ -616,6 +672,7 @@ def get_repositories() -> tuple[
             FirestoreAuditEventRepository(client),
             FirestoreCodeRepositoryRepository(client),
             FirestoreRepoSafetyProfileRepository(client),
+            FirestoreEpicRepository(client),
         )
     raise ValueError(
         f"Unknown REPOSITORY_PROVIDER: {config.REPOSITORY_PROVIDER!r}. Supported: memory, firestore"

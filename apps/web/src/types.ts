@@ -166,6 +166,54 @@ export interface Requirement {
   updated_at: string
 }
 
+export type AssigneeType = 'human' | 'agent' | 'unassigned'
+export type EpicStatus = 'proposed' | 'ready' | 'in_progress' | 'blocked' | 'completed'
+export type EpicPriority = 'low' | 'medium' | 'high'
+
+export interface EpicCreate {
+  title: string
+  requirement_id?: string | null
+  description?: string
+  priority?: EpicPriority
+  sequence_order?: number
+  acceptance_criteria?: string[]
+  business_goal?: string
+  assignee_type?: AssigneeType
+  assignee_id?: string | null
+  assignee_name?: string | null
+}
+
+export interface EpicUpdate {
+  title?: string
+  description?: string
+  status?: EpicStatus
+  priority?: EpicPriority
+  sequence_order?: number
+  acceptance_criteria?: string[]
+  business_goal?: string
+  assignee_type?: AssigneeType
+  assignee_id?: string | null
+  assignee_name?: string | null
+}
+
+export interface Epic {
+  id: string
+  project_id: string
+  requirement_id: string | null
+  title: string
+  description: string
+  status: EpicStatus
+  priority: EpicPriority
+  sequence_order: number
+  acceptance_criteria: string[]
+  business_goal: string
+  assignee_type: AssigneeType
+  assignee_id: string | null
+  assignee_name: string | null
+  created_at: string
+  updated_at: string
+}
+
 export type DevTaskType =
   | 'backend' | 'frontend' | 'full_stack' | 'testing'
   | 'documentation' | 'infrastructure' | 'refactor' | 'unknown'
@@ -179,6 +227,7 @@ export interface DevTask {
   ticket_id: string | null
   source_analysis_id: string | null
   agent_run_id: string
+  epic_id: string | null
   title: string
   description: string
   task_type: DevTaskType
@@ -190,6 +239,9 @@ export interface DevTask {
   definition_of_done: string[]
   qa_required: boolean
   suggested_agent_type: string | null
+  assignee_type: AssigneeType
+  assignee_id: string | null
+  assignee_name: string | null
   created_at: string
   updated_at: string
   is_ready?: boolean
@@ -207,6 +259,10 @@ export interface DevTaskUpdate {
   definition_of_done?: string[]
   qa_required?: boolean
   suggested_agent_type?: string | null
+  epic_id?: string | null
+  assignee_type?: AssigneeType
+  assignee_id?: string | null
+  assignee_name?: string | null
 }
 
 export interface SubtaskUpdate {
@@ -216,6 +272,9 @@ export interface SubtaskUpdate {
   sequence_order?: number
   acceptance_criteria?: string[]
   qa_required?: boolean
+  assignee_type?: AssigneeType
+  assignee_id?: string | null
+  assignee_name?: string | null
 }
 
 export interface Subtask {
@@ -228,6 +287,9 @@ export interface Subtask {
   sequence_order: number
   acceptance_criteria: string[]
   qa_required: boolean
+  assignee_type: AssigneeType
+  assignee_id: string | null
+  assignee_name: string | null
   created_at: string
   updated_at: string
 }

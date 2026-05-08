@@ -8,6 +8,7 @@ from app.main import (
     audit_event_repo,
     code_repo_repo,
     dev_task_repo,
+    epic_repo,
     project_context_repo,
     project_repo,
     repo,
@@ -33,6 +34,7 @@ def clear_repos():
         audit_event_repo,
         code_repo_repo,
         repo_safety_profile_repo,
+        epic_repo,
     ):
         if hasattr(r, "_store"):
             r._store.clear()

@@ -9,6 +9,9 @@ import type {
   CodeRepositoryUpdate,
   DevTask,
   DevTaskUpdate,
+  Epic,
+  EpicCreate,
+  EpicUpdate,
   LoginResponse,
   PlanningRunResponse,
   Project,
@@ -399,4 +402,41 @@ export async function updateRepoSafetyProfile(repoId: string, body: RepoSafetyPr
     body: JSON.stringify(body),
   })
   return handleResponse<RepoSafetyProfile>(res)
+}
+
+// ---------------------------------------------------------------------------
+// Epics
+// ---------------------------------------------------------------------------
+
+export async function listProjectEpics(projectId: string): Promise<Epic[]> {
+  const res = await fetch(`${BASE}/projects/${projectId}/epics`, { headers: authHeaders() })
+  return handleResponse<Epic[]>(res)
+}
+
+export async function listRequirementEpics(requirementId: string): Promise<Epic[]> {
+  const res = await fetch(`${BASE}/requirements/${requirementId}/epics`, { headers: authHeaders() })
+  return handleResponse<Epic[]>(res)
+}
+
+export async function getEpic(epicId: string): Promise<Epic> {
+  const res = await fetch(`${BASE}/epics/${epicId}`, { headers: authHeaders() })
+  return handleResponse<Epic>(res)
+}
+
+export async function createProjectEpic(projectId: string, body: EpicCreate): Promise<Epic> {
+  const res = await fetch(`${BASE}/projects/${projectId}/epics`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(body),
+  })
+  return handleResponse<Epic>(res)
+}
+
+export async function updateEpic(epicId: string, patch: EpicUpdate): Promise<Epic> {
+  const res = await fetch(`${BASE}/epics/${epicId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(patch),
+  })
+  return handleResponse<Epic>(res)
 }

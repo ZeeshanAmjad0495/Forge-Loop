@@ -2,6 +2,8 @@ from datetime import datetime
 from typing import Literal
 from pydantic import BaseModel
 
+AssigneeType = Literal["human", "agent", "unassigned"]
+
 
 class TicketCreate(BaseModel):
     title: str
@@ -209,6 +211,54 @@ class RequirementGenerationResponse(BaseModel):
     requirements: list[Requirement]
 
 
+EpicStatus = Literal["proposed", "ready", "in_progress", "blocked", "completed"]
+EpicPriority = Literal["low", "medium", "high"]
+
+
+class EpicCreate(BaseModel):
+    requirement_id: str | None = None
+    title: str
+    description: str = ""
+    priority: EpicPriority = "medium"
+    sequence_order: int = 0
+    acceptance_criteria: list[str] = []
+    business_goal: str = ""
+    assignee_type: AssigneeType = "unassigned"
+    assignee_id: str | None = None
+    assignee_name: str | None = None
+
+
+class Epic(BaseModel):
+    id: str
+    project_id: str
+    requirement_id: str | None = None
+    title: str
+    description: str = ""
+    status: EpicStatus = "proposed"
+    priority: EpicPriority = "medium"
+    sequence_order: int = 0
+    acceptance_criteria: list[str] = []
+    business_goal: str = ""
+    assignee_type: AssigneeType = "unassigned"
+    assignee_id: str | None = None
+    assignee_name: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class EpicUpdate(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    status: EpicStatus | None = None
+    priority: EpicPriority | None = None
+    sequence_order: int | None = None
+    acceptance_criteria: list[str] | None = None
+    business_goal: str | None = None
+    assignee_type: AssigneeType | None = None
+    assignee_id: str | None = None
+    assignee_name: str | None = None
+
+
 DevTaskType = Literal[
     "backend", "frontend", "full_stack", "testing",
     "documentation", "infrastructure", "refactor", "unknown",
@@ -224,6 +274,7 @@ class DevTask(BaseModel):
     ticket_id: str | None = None
     source_analysis_id: str | None = None
     agent_run_id: str
+    epic_id: str | None = None
     title: str
     description: str
     task_type: DevTaskType = "unknown"
@@ -235,6 +286,9 @@ class DevTask(BaseModel):
     definition_of_done: list[str] = []
     qa_required: bool = False
     suggested_agent_type: str | None = None
+    assignee_type: AssigneeType = "unassigned"
+    assignee_id: str | None = None
+    assignee_name: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -252,6 +306,9 @@ class Subtask(BaseModel):
     sequence_order: int = 0
     acceptance_criteria: list[str] = []
     qa_required: bool = False
+    assignee_type: AssigneeType = "unassigned"
+    assignee_id: str | None = None
+    assignee_name: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -267,6 +324,10 @@ class DevTaskUpdate(BaseModel):
     definition_of_done: list[str] | None = None
     qa_required: bool | None = None
     suggested_agent_type: str | None = None
+    epic_id: str | None = None
+    assignee_type: AssigneeType | None = None
+    assignee_id: str | None = None
+    assignee_name: str | None = None
 
 
 class SubtaskUpdate(BaseModel):
@@ -276,6 +337,9 @@ class SubtaskUpdate(BaseModel):
     sequence_order: int | None = None
     acceptance_criteria: list[str] | None = None
     qa_required: bool | None = None
+    assignee_type: AssigneeType | None = None
+    assignee_id: str | None = None
+    assignee_name: str | None = None
 
 
 class DevTaskWithReadiness(DevTask):
@@ -337,7 +401,9 @@ AuditAction = Literal[
     "requirement_analyzed",
     "task_decomposition_created",
     "dev_task_updated",
+    "dev_task_assigned",
     "subtask_updated",
+    "subtask_assigned",
     "approval_requested",
     "approval_approved",
     "approval_rejected",
@@ -347,6 +413,8 @@ AuditAction = Literal[
     "code_repository_updated",
     "repo_safety_profile_updated",
     "requirement_generation_created",
+    "epic_created",
+    "epic_updated",
 ]
 
 

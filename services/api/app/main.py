@@ -25,6 +25,9 @@ from .models import (
     DevTaskUpdate,
     DevTaskWithReadiness,
     DevTaskWithSubtasksResponse,
+    Epic,
+    EpicCreate,
+    EpicUpdate,
     LoginRequest,
     LoginResponse,
     MeResponse,
@@ -85,6 +88,7 @@ app.add_middleware(
     audit_event_repo,
     code_repo_repo,
     repo_safety_profile_repo,
+    epic_repo,
 ) = get_repositories()
 
 # ---------------------------------------------------------------------------
@@ -696,6 +700,14 @@ def update_dev_task(
             project_id=dev_task.project_id, actor_email=current_user,
             details={"from": old_status, "to": new_status},
         )
+    assignment_fields = {"epic_id", "assignee_type", "assignee_id", "assignee_name"}
+    changed_assignment = [f for f in assignment_fields if f in patch and getattr(dev_task, f) != patch[f]]
+    if changed_assignment:
+        _audit(
+            "dev_task_assigned", "dev_task", dev_task.id,
+            project_id=dev_task.project_id, actor_email=current_user,
+            details={"changed_fields": changed_assignment},
+        )
     return _with_readiness(updated)
 
 
@@ -725,6 +737,14 @@ def update_subtask(
             "subtask_updated", "subtask", subtask.id,
             project_id=subtask.project_id, actor_email=current_user,
             details={"from": old_status, "to": new_status},
+        )
+    subtask_assignment_fields = {"assignee_type", "assignee_id", "assignee_name"}
+    changed_subtask_assignment = [f for f in subtask_assignment_fields if f in patch and getattr(subtask, f) != patch[f]]
+    if changed_subtask_assignment:
+        _audit(
+            "subtask_assigned", "subtask", subtask.id,
+            project_id=subtask.project_id, actor_email=current_user,
+            details={"changed_fields": changed_subtask_assignment},
         )
     return updated
 
@@ -995,5 +1015,93 @@ def patch_repo_safety_profile(
         project_id=repo_obj.project_id,
         actor_email=current_user,
         details={"code_repository_id": repo_id},
+    )
+    return updated
+
+
+# ---------------------------------------------------------------------------
+# Epics
+# ---------------------------------------------------------------------------
+
+@app.post("/projects/{project_id}/epics", response_model=Epic, status_code=201)
+def create_epic(
+    project_id: str,
+    body: EpicCreate,
+    current_user: str = Depends(require_auth),
+):
+    if project_repo.get(project_id) is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if body.requirement_id is not None:
+        req = requirement_repo.get(body.requirement_id)
+        if req is None:
+            raise HTTPException(status_code=404, detail="Requirement not found")
+        if req.project_id != project_id:
+            raise HTTPException(status_code=404, detail="Requirement not found")
+    now = datetime.now(timezone.utc)
+    epic = Epic(
+        id=str(uuid.uuid4()),
+        project_id=project_id,
+        requirement_id=body.requirement_id,
+        title=body.title,
+        description=body.description,
+        status="proposed",
+        priority=body.priority,
+        sequence_order=body.sequence_order,
+        acceptance_criteria=body.acceptance_criteria,
+        business_goal=body.business_goal,
+        assignee_type=body.assignee_type,
+        assignee_id=body.assignee_id,
+        assignee_name=body.assignee_name,
+        created_at=now,
+        updated_at=now,
+    )
+    epic_repo.save(epic)
+    _audit(
+        "epic_created", "epic", epic.id,
+        project_id=project_id, actor_email=current_user,
+    )
+    return epic
+
+
+@app.get("/projects/{project_id}/epics", response_model=list[Epic])
+def list_project_epics(project_id: str, _: str = Depends(require_auth)):
+    if project_repo.get(project_id) is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return epic_repo.list_by_project(project_id)
+
+
+@app.get("/requirements/{requirement_id}/epics", response_model=list[Epic])
+def list_requirement_epics(requirement_id: str, _: str = Depends(require_auth)):
+    if requirement_repo.get(requirement_id) is None:
+        raise HTTPException(status_code=404, detail="Requirement not found")
+    return epic_repo.list_by_requirement(requirement_id)
+
+
+@app.get("/epics/{epic_id}", response_model=Epic)
+def get_epic(epic_id: str, _: str = Depends(require_auth)):
+    epic = epic_repo.get(epic_id)
+    if epic is None:
+        raise HTTPException(status_code=404, detail="Epic not found")
+    return epic
+
+
+@app.patch("/epics/{epic_id}", response_model=Epic)
+def update_epic(
+    epic_id: str,
+    body: EpicUpdate,
+    current_user: str = Depends(require_auth),
+):
+    epic = epic_repo.get(epic_id)
+    if epic is None:
+        raise HTTPException(status_code=404, detail="Epic not found")
+    patch = body.model_dump(exclude_unset=True)
+    if not patch:
+        return epic
+    updated = epic.model_copy(update={**patch, "updated_at": datetime.now(timezone.utc)})
+    epic_repo.update(updated)
+    _audit(
+        "epic_updated", "epic", epic.id,
+        project_id=epic.project_id, actor_email=current_user,
+        details={"changed_fields": list(patch.keys())},
     )
     return updated
