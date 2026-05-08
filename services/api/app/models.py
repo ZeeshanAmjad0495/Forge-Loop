@@ -55,7 +55,12 @@ class AgentRun(BaseModel):
     id: str
     ticket_id: str | None = None
     requirement_id: str | None = None
-    agent_type: Literal["planning", "requirement_analysis", "task_decomposition"]
+    agent_type: Literal[
+        "planning",
+        "requirement_analysis",
+        "task_decomposition",
+        "requirement_generation",
+    ]
     provider: str
     model: str
     status: Literal["pending", "running", "completed", "failed"]
@@ -69,7 +74,12 @@ class Artifact(BaseModel):
     ticket_id: str | None = None
     requirement_id: str | None = None
     agent_run_id: str
-    artifact_type: Literal["implementation_brief", "requirement_analysis", "task_decomposition"]
+    artifact_type: Literal[
+        "implementation_brief",
+        "requirement_analysis",
+        "task_decomposition",
+        "requirement_generation",
+    ]
     content: str
     created_at: datetime
 
@@ -187,6 +197,16 @@ class Requirement(BaseModel):
     status: RequirementStatus = "draft"
     created_at: datetime
     updated_at: datetime
+
+
+class RequirementGenerationRunCreate(BaseModel):
+    provider: str | None = None
+
+
+class RequirementGenerationResponse(BaseModel):
+    agent_run: AgentRun
+    artifact: Artifact
+    requirements: list[Requirement]
 
 
 DevTaskType = Literal[
@@ -326,6 +346,7 @@ AuditAction = Literal[
     "code_repository_created",
     "code_repository_updated",
     "repo_safety_profile_updated",
+    "requirement_generation_created",
 ]
 
 

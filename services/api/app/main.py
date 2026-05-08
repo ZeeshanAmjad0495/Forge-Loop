@@ -41,6 +41,8 @@ from .models import (
     RequirementAnalysisRunCreate,
     RequirementAnalysisRunResponse,
     RequirementCreate,
+    RequirementGenerationResponse,
+    RequirementGenerationRunCreate,
     RequirementUpdate,
     RepoSafetyProfile,
     RepoSafetyProfileUpsert,
@@ -56,6 +58,7 @@ from .requirement_analysis_agent import (
     run_requirement_analysis_agent,
     run_requirement_analysis_for_requirement,
 )
+from .requirement_generation_agent import run_requirement_generation_agent
 from .task_decomposition_agent import (
     run_task_decomposition_for_requirement,
     run_task_decomposition_for_ticket,
@@ -453,6 +456,63 @@ def update_requirement(
     )
     requirement_repo.update(updated)
     return updated
+
+
+@app.post(
+    "/projects/{project_id}/requirement-generations",
+    response_model=RequirementGenerationResponse,
+    status_code=201,
+)
+def create_project_requirement_generation(
+    project_id: str,
+    body: RequirementGenerationRunCreate | None = Body(default=None),
+    current_user: str = Depends(require_auth),
+):
+    project = project_repo.get(project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    provider_name = body.provider if (body and body.provider) else get_default_provider_name()
+    try:
+        provider = get_provider_by_name(provider_name)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except ProviderError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    context = project_context_repo.get(project_id)
+    code_repos = code_repo_repo.list_by_project(project_id)
+    code_repository = code_repos[0] if code_repos else None
+    safety_profile = (
+        repo_safety_profile_repo.get_by_repo(code_repository.id)
+        if code_repository is not None
+        else None
+    )
+    run, requirements, artifact = run_requirement_generation_agent(
+        project,
+        provider,
+        agent_run_repo,
+        artifact_repo,
+        requirement_repo,
+        context,
+        code_repository,
+        safety_profile,
+    )
+    _audit(
+        "requirement_generation_created", "agent_run", run.id,
+        project_id=project_id, actor_email=current_user,
+        details={
+            "requirement_count": len(requirements),
+            "provider": provider.provider_name,
+        },
+    )
+    for requirement in requirements:
+        _audit(
+            "requirement_created", "requirement", requirement.id,
+            project_id=project_id, actor_email=current_user,
+            details={"source": "agent_generated"},
+        )
+    return RequirementGenerationResponse(
+        agent_run=run, artifact=artifact, requirements=requirements,
+    )
 
 
 @app.post(

@@ -19,6 +19,7 @@ import type {
   RequirementAnalysis,
   RequirementAnalysisRunResponse,
   RequirementCreate,
+  RequirementGenerationResponse,
   RequirementUpdate,
   RepoSafetyProfile,
   RepoSafetyProfileUpsert,
@@ -208,6 +209,22 @@ export async function updateRequirement(
     body: JSON.stringify(data),
   })
   return handleResponse<Requirement>(res)
+}
+
+export async function createProjectRequirementGeneration(
+  projectId: string,
+  provider?: string,
+): Promise<RequirementGenerationResponse> {
+  const init: RequestInit = {
+    method: 'POST',
+    headers: { ...authHeaders() },
+  }
+  if (provider) {
+    init.headers = { 'Content-Type': 'application/json', ...authHeaders() }
+    init.body = JSON.stringify({ provider })
+  }
+  const res = await fetch(`${BASE}/projects/${projectId}/requirement-generations`, init)
+  return handleResponse<RequirementGenerationResponse>(res)
 }
 
 export async function createRequirementAnalysisForRequirement(

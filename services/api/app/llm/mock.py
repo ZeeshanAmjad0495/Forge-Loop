@@ -46,6 +46,90 @@ _MOCK_DECOMPOSITION_RESPONSE = json.dumps(
     indent=2,
 )
 
+_MOCK_REQUIREMENT_GENERATION_RESPONSE = json.dumps(
+    {
+        "requirements": [
+            {
+                "title": "CSV upload validation",
+                "problem_statement": "Users need confidence that uploaded CSV files match the expected schema before downstream processing.",
+                "business_goal": "Reduce data-quality incidents and support handling time caused by malformed input files.",
+                "target_users": ["Operations analyst", "Data steward"],
+                "functional_requirements": [
+                    "Accept CSV file uploads up to a configurable size limit.",
+                    "Validate header row against the expected schema.",
+                    "Validate each row against type and required-field rules.",
+                ],
+                "non_functional_requirements": [
+                    "Validation result must return within 5 seconds for files up to 10 MB.",
+                ],
+                "acceptance_criteria": [
+                    "A file with a missing required column is rejected with a clear error.",
+                    "A file with all valid rows is accepted and queued for processing.",
+                ],
+                "constraints": [
+                    "Validation runs synchronously inside the upload request.",
+                ],
+                "non_goals": [
+                    "Automatically correcting malformed rows.",
+                ],
+                "assumptions": [
+                    "Schema definition is provided per project and does not change per upload.",
+                ],
+            },
+            {
+                "title": "Validation error reporting",
+                "problem_statement": "When uploads fail validation, users do not have enough information to fix the file and retry.",
+                "business_goal": "Decrease retry friction and improve self-service correction of upload errors.",
+                "target_users": ["Operations analyst"],
+                "functional_requirements": [
+                    "Return a structured list of validation errors per failed row.",
+                    "Include the row number, column, and reason for each error.",
+                ],
+                "non_functional_requirements": [
+                    "Error payload must remain readable for files with up to 1000 errors.",
+                ],
+                "acceptance_criteria": [
+                    "A failed upload returns at least one error entry per failing row.",
+                    "Each error entry includes row, column, and reason fields.",
+                ],
+                "constraints": [],
+                "non_goals": [
+                    "Surfacing internal stack traces to end users.",
+                ],
+                "assumptions": [
+                    "Error UI is rendered by the existing frontend error panel.",
+                ],
+            },
+            {
+                "title": "Configurable validation rules",
+                "problem_statement": "Different projects need slightly different validation rules but currently rules are hardcoded.",
+                "business_goal": "Allow operations to onboard new file formats without code changes.",
+                "target_users": ["Operations admin"],
+                "functional_requirements": [
+                    "Allow admins to define required columns per project.",
+                    "Allow admins to define type checks per column.",
+                ],
+                "non_functional_requirements": [
+                    "Rule changes must take effect on the next upload without service restart.",
+                ],
+                "acceptance_criteria": [
+                    "An admin can mark a column as required and the next upload enforces it.",
+                ],
+                "constraints": [
+                    "Rules are scoped to a single project.",
+                ],
+                "non_goals": [
+                    "Cross-project rule inheritance.",
+                ],
+                "assumptions": [
+                    "Admin authentication is handled by the existing auth flow.",
+                ],
+            },
+        ]
+    },
+    indent=2,
+)
+
 _MOCK_ANALYSIS_RESPONSE = json.dumps(
     {
         "summary": "Implement the changes described in the ticket.",
@@ -77,6 +161,8 @@ class MockLLMProvider:
     def generate_text(self, prompt: str) -> str:
         if "TASK_DECOMPOSITION_AGENT" in prompt:
             return _MOCK_DECOMPOSITION_RESPONSE
+        if "REQUIREMENT_GENERATION_AGENT" in prompt:
+            return _MOCK_REQUIREMENT_GENERATION_RESPONSE
         if "REQUIREMENT_ANALYSIS_AGENT" in prompt:
             return _MOCK_ANALYSIS_RESPONSE
         return """\

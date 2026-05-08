@@ -41,7 +41,7 @@ export interface AgentRun {
   id: string
   ticket_id: string | null
   requirement_id: string | null
-  agent_type: 'planning' | 'requirement_analysis' | 'task_decomposition'
+  agent_type: 'planning' | 'requirement_analysis' | 'task_decomposition' | 'requirement_generation'
   provider: string
   model: string
   status: 'pending' | 'running' | 'completed' | 'failed'
@@ -55,7 +55,7 @@ export interface Artifact {
   ticket_id: string | null
   requirement_id: string | null
   agent_run_id: string
-  artifact_type: 'implementation_brief' | 'requirement_analysis' | 'task_decomposition'
+  artifact_type: 'implementation_brief' | 'requirement_analysis' | 'task_decomposition' | 'requirement_generation'
   content: string
   created_at: string
 }
@@ -230,6 +230,12 @@ export interface Subtask {
   qa_required: boolean
   created_at: string
   updated_at: string
+}
+
+export interface RequirementGenerationResponse {
+  agent_run: AgentRun
+  artifact: Artifact
+  requirements: Requirement[]
 }
 
 export interface TaskDecompositionResponse {

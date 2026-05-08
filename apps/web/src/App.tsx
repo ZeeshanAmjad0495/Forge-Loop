@@ -7,6 +7,7 @@ import {
   createPlanningRun,
   createProject,
   createProjectRequirement,
+  createProjectRequirementGeneration,
   createProjectTicket,
   createRequirementAnalysis,
   createRequirementAnalysisForRequirement,
@@ -311,6 +312,11 @@ function ProjectView({
   const [reqCreating, setReqCreating] = useState(false)
   const [reqCreateError, setReqCreateError] = useState('')
 
+  // Generate requirements (agent)
+  const [genBusy, setGenBusy] = useState(false)
+  const [genError, setGenError] = useState('')
+  const [genStatus, setGenStatus] = useState('')
+
   useEffect(() => {
     getProjectContext(project.id)
       .then(setCtx)
@@ -402,6 +408,28 @@ function ProjectView({
       setReqCreateError((err as Error).message)
     } finally {
       setReqCreating(false)
+    }
+  }
+
+  async function handleGenerateRequirements() {
+    setGenBusy(true)
+    setGenError('')
+    setGenStatus('')
+    try {
+      const result = await createProjectRequirementGeneration(
+        project.id,
+        selectedProvider || undefined,
+      )
+      const refreshed = await listProjectRequirements(project.id)
+      setRequirements(refreshed)
+      setGenStatus(
+        `Generated ${result.requirements.length} requirement(s) using ${result.agent_run.provider}.`,
+      )
+      loadGovernance()
+    } catch (err) {
+      setGenError((err as Error).message)
+    } finally {
+      setGenBusy(false)
     }
   }
 
@@ -559,6 +587,36 @@ function ProjectView({
             ))}
           </div>
         )}
+
+        <div className="generate-requirements" style={{ margin: '12px 0' }}>
+          <h4>Generate requirements from project details</h4>
+          <p className="section-hint">
+            The requirement generator uses the project's name, description, and context to draft requirements.
+            Generated requirements are saved as drafts so you can review and edit them before analysis.
+          </p>
+          {providers.length > 0 && (
+            <div className="provider-select">
+              <label htmlFor="gen-provider">LLM provider</label>
+              <select
+                id="gen-provider"
+                value={selectedProvider}
+                onChange={e => onProviderChange(e.target.value)}
+                disabled={genBusy}
+              >
+                {providers.map(p => (
+                  <option key={p.name} value={p.name} disabled={!p.configured}>
+                    {p.name} ({p.default_model}){p.configured ? '' : ' — not configured'}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          {genError && <div className="error">{genError}</div>}
+          {genStatus && <div className="ctx-saved">{genStatus}</div>}
+          <button type="button" onClick={handleGenerateRequirements} disabled={genBusy}>
+            {genBusy ? 'Generating…' : 'Generate requirements'}
+          </button>
+        </div>
 
         <h4>New requirement</h4>
         <form onSubmit={handleCreateRequirement}>
