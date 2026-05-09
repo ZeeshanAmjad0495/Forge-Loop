@@ -57,6 +57,7 @@ The original broad plan for Releases 4–6 has been narrowed based on deep resea
 - **Langfuse** is added earlier (Release 4) for prompt tracing, cost tracking, and token records.
 - **No typed project memory upgrade to RAG/vector DB yet.** Structured typed memory first.
 - **Avoid Temporal, Kestra, LangGraph, MCP** unless a clear, specific need appears.
+- **Local-first, cloud-optional.** Every Release 4–6 feature must work without GCP. Cloud services are provider implementations, not hard dependencies. New features that require persistence, secrets, artifacts, or observability must go through provider abstractions — not call GCP APIs directly from route handlers or business logic.
 
 ---
 

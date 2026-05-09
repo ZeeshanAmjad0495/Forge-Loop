@@ -6,21 +6,36 @@ ForgeLoop is a human-supervised autonomous SDLC + STLC control plane. The curren
 
 Releases 3–6 (planned, not implemented) extend this to a project-centered model with project memory, tool-runner-driven code execution, AI-assisted PR review, and incident triage. See [Target architecture](#target-architecture-releases-36) below.
 
-## System diagram
+## System diagrams
+
+ForgeLoop is **cloud-supported, not cloud-dependent**. Profile is selected by environment variables.
+
+### Local profile (no GCP required)
 
 ```
 Browser (React + Vite)
-       │
+       │  HTTP (fetch)
+       ▼
+localhost — FastAPI
+       │               │
+       ▼               ▼
+  InMemory repos   Mock / Ollama /
+  (or SQLite,      DeepSeek / Kimi
+   future)         as configured
+```
+
+### Cloud profile
+
+```
+Browser (React + Vite)
        │  HTTP (fetch)
        ▼
 Cloud Run — FastAPI
        │               │
        ▼               ▼
-  Firestore       DeepSeek API
-  (persistence)   (LLM provider)
+  Firestore       DeepSeek / Kimi /
+  (persistence)   hosted LLM provider
 ```
-
-Local development replaces Firestore with in-memory repositories and DeepSeek with the mock provider — no GCP credentials required.
 
 ---
 
@@ -148,11 +163,23 @@ The frontend makes no assumptions about the backend's LLM provider or storage ba
 
 | Context | Repository | Firestore |
 |---------|-----------|-----------|
-| Local dev | InMemory (default) | Not used |
+| Local dev / local profile | InMemory (default); SQLite/local Postgres planned | Not used |
 | Automated tests | InMemory (always) | Never called |
-| Cloud Run | Firestore | `tickets`, `agent_runs`, `artifacts` collections |
+| Cloud profile | Firestore | `tickets`, `agent_runs`, `artifacts` collections |
 
 Switching is controlled by `REPOSITORY_PROVIDER=memory|firestore`. The InMemory repository holds state in a plain dict — it resets on process restart and is not suitable for production.
+
+---
+
+## Runtime profiles
+
+| Profile | Backend | Storage | LLM | Secrets | GCP |
+|---------|---------|---------|-----|---------|-----|
+| local | FastAPI on localhost | InMemory → SQLite/local Postgres (future) | Mock / Ollama / DeepSeek / Kimi | env vars | Not required |
+| hybrid | FastAPI on localhost | Local storage | Hosted LLM if configured | env vars | Not required (GitHub optional) |
+| cloud | Cloud Run | Firestore | Any configured provider | Secret Manager | Required |
+
+No profile is hard-coded. Local is the default for personal and product work. Cloud is optional for remote/demo/work deployment.
 
 ---
 
@@ -186,6 +213,23 @@ All resources are defined in `infra/terraform/`. Terraform manages infrastructur
 | `google_secret_manager_secret_iam_member` | `roles/secretmanager.secretAccessor` on the secret only |
 
 The Cloud Run resource uses `lifecycle { ignore_changes = [image] }` so the deploy workflow can update the image without Terraform reverting it.
+
+---
+
+## Provider abstraction rule
+
+New features must use provider abstractions. Route handlers and business logic must not call GCP or any cloud service directly.
+
+| Abstraction | Current implementations | Planned |
+|-------------|------------------------|---------|
+| `RepositoryProvider` | InMemory, Firestore | SQLite (local profile, future) |
+| `LLMProvider` | Mock, DeepSeek, Kimi | Ollama (local), others |
+| `ArtifactStore` | — | Filesystem (local), GCS (cloud) |
+| `SecretProvider` | env vars | Secret Manager (cloud) |
+| `ToolRunner` | — | OpenHandsRunner (Release 5) |
+| `ObservabilityProvider` | — | Langfuse, Cloud Logging |
+
+This rule applies to Release 4–6 features. Task 25 check definitions and check runs must use the repository abstraction and must not assume Firestore.
 
 ---
 

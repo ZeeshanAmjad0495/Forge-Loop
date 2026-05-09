@@ -55,7 +55,7 @@ export interface Artifact {
   ticket_id: string | null
   requirement_id: string | null
   agent_run_id: string
-  artifact_type: 'implementation_brief' | 'requirement_analysis' | 'task_decomposition' | 'requirement_generation'
+  artifact_type: 'implementation_brief' | 'requirement_analysis' | 'task_decomposition' | 'requirement_generation' | 'check_result' | 'tool_run_result'
   content: string
   created_at: string
 }
@@ -409,6 +409,8 @@ export interface RepoSafetyProfile {
 // Check definitions and check runs (Task 25)
 // ---------------------------------------------------------------------------
 
+
+
 export type CheckType =
   | 'tests' | 'build' | 'lint' | 'typecheck' | 'coverage'
   | 'security_sast' | 'dependency_scan' | 'secret_scan' | 'container_scan'
@@ -487,6 +489,97 @@ export interface CheckRun {
   target_id: string
   status: CheckRunStatus
   conclusion: CheckRunConclusion | null
+  summary: string
+  output: string | null
+  artifact_id: string | null
+  started_at: string
+  completed_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+// ---------------------------------------------------------------------------
+// Tool runner definitions and tool runs (Task 26)
+// ---------------------------------------------------------------------------
+
+export type RunnerType =
+  | 'openhands' | 'aider' | 'cline' | 'opencode' | 'hermes' | 'openclaw' | 'manual' | 'custom'
+
+export type ToolRunnerMode = 'local' | 'api' | 'manual' | 'dry_run'
+
+export type ToolRunTargetType =
+  | 'requirement' | 'epic' | 'dev_task' | 'subtask' | 'check_run' | 'manual'
+
+export type ToolRunStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
+
+export type ToolRunConclusion =
+  | 'success' | 'failure' | 'neutral' | 'skipped' | 'requires_human_action'
+
+export interface ToolRunnerDefinitionCreate {
+  code_repository_id?: string | null
+  name: string
+  runner_type: RunnerType
+  enabled?: boolean
+  mode?: ToolRunnerMode
+  description?: string
+  config?: Record<string, unknown>
+}
+
+export interface ToolRunnerDefinitionUpdate {
+  name?: string
+  runner_type?: RunnerType
+  enabled?: boolean
+  mode?: ToolRunnerMode
+  description?: string
+  config?: Record<string, unknown>
+}
+
+export interface ToolRunnerDefinition {
+  id: string
+  project_id: string
+  code_repository_id: string | null
+  name: string
+  runner_type: RunnerType
+  enabled: boolean
+  mode: ToolRunnerMode
+  description: string
+  config: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
+export interface ToolRunnerDefinitionsDefaultsResponse {
+  created: ToolRunnerDefinition[]
+  existing: ToolRunnerDefinition[]
+}
+
+export interface ToolRunCreate {
+  project_id: string
+  code_repository_id?: string | null
+  tool_runner_definition_id?: string | null
+  target_type: ToolRunTargetType
+  target_id: string
+  runner_type: RunnerType
+  mode: ToolRunnerMode
+  status?: ToolRunStatus
+  conclusion?: ToolRunConclusion | null
+  summary?: string
+  output?: string | null
+  started_at?: string | null
+  completed_at?: string | null
+}
+
+export interface ToolRun {
+  id: string
+  project_id: string
+  code_repository_id: string | null
+  tool_runner_definition_id: string | null
+  target_type: ToolRunTargetType
+  target_id: string
+  runner_type: RunnerType
+  mode: ToolRunnerMode
+  status: ToolRunStatus
+  conclusion: ToolRunConclusion | null
   summary: string
   output: string | null
   artifact_id: string | null

@@ -106,6 +106,12 @@ QARunArtifact {
 
 ---
 
+## Repository abstraction rule
+
+QA check definitions and check run records must be persisted via the repository abstraction (`RepositoryProvider`). QA pipeline logic must not call Firestore or GCP APIs directly — this ensures the QA pipeline works in local profile without cloud credentials.
+
+---
+
 ## Current State
 
 QA pipeline is not yet implemented. It is planned for Release 4 (Golden Path + Deterministic QA).

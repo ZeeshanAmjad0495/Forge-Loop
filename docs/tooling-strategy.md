@@ -4,6 +4,8 @@
 
 ForgeLoop is a **control plane**, not a coding agent. It does not reimplement tools that already exist. When code execution, testing, scanning, or review is needed, ForgeLoop invokes existing open-source tools, stores their output as artifacts, and enforces human approval before any result advances to the next stage.
 
+Tool runners must not assume a cloud runtime. Invocation, result storage, and observability must go through ForgeLoop's provider abstractions so the local profile works without GCP.
+
 ---
 
 ## Delegation Model

@@ -36,6 +36,12 @@ import type {
   SubtaskUpdate,
   TaskDecompositionResponse,
   Ticket,
+  ToolRun,
+  ToolRunCreate,
+  ToolRunnerDefinition,
+  ToolRunnerDefinitionCreate,
+  ToolRunnerDefinitionUpdate,
+  ToolRunnerDefinitionsDefaultsResponse,
 } from './types'
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
@@ -523,4 +529,72 @@ export async function recordCheckRun(body: CheckRunCreate): Promise<CheckRun> {
     body: JSON.stringify(body),
   })
   return handleResponse<CheckRun>(res)
+}
+
+// ---------------------------------------------------------------------------
+// Tool runner definitions
+// ---------------------------------------------------------------------------
+
+export async function listProjectToolRunnerDefinitions(projectId: string): Promise<ToolRunnerDefinition[]> {
+  const res = await fetch(`${BASE}/projects/${projectId}/tool-runner-definitions`, { headers: authHeaders() })
+  return handleResponse<ToolRunnerDefinition[]>(res)
+}
+
+export async function createToolRunnerDefinition(
+  projectId: string,
+  body: ToolRunnerDefinitionCreate,
+): Promise<ToolRunnerDefinition> {
+  const res = await fetch(`${BASE}/projects/${projectId}/tool-runner-definitions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(body),
+  })
+  return handleResponse<ToolRunnerDefinition>(res)
+}
+
+export async function updateToolRunnerDefinition(
+  definitionId: string,
+  patch: ToolRunnerDefinitionUpdate,
+): Promise<ToolRunnerDefinition> {
+  const res = await fetch(`${BASE}/tool-runner-definitions/${definitionId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(patch),
+  })
+  return handleResponse<ToolRunnerDefinition>(res)
+}
+
+export async function generateDefaultToolRunnerDefinitions(
+  projectId: string,
+  codeRepositoryId?: string | null,
+): Promise<ToolRunnerDefinitionsDefaultsResponse> {
+  const res = await fetch(`${BASE}/projects/${projectId}/tool-runner-definitions/defaults`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ code_repository_id: codeRepositoryId ?? null }),
+  })
+  return handleResponse<ToolRunnerDefinitionsDefaultsResponse>(res)
+}
+
+// ---------------------------------------------------------------------------
+// Tool runs
+// ---------------------------------------------------------------------------
+
+export async function listProjectToolRuns(projectId: string): Promise<ToolRun[]> {
+  const res = await fetch(`${BASE}/projects/${projectId}/tool-runs`, { headers: authHeaders() })
+  return handleResponse<ToolRun[]>(res)
+}
+
+export async function listDevTaskToolRuns(devTaskId: string): Promise<ToolRun[]> {
+  const res = await fetch(`${BASE}/dev-tasks/${devTaskId}/tool-runs`, { headers: authHeaders() })
+  return handleResponse<ToolRun[]>(res)
+}
+
+export async function recordToolRun(body: ToolRunCreate): Promise<ToolRun> {
+  const res = await fetch(`${BASE}/tool-runs`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(body),
+  })
+  return handleResponse<ToolRun>(res)
 }

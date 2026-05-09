@@ -67,6 +67,36 @@ Marketing/product-growth workflows are future scope only.
 9. Tests must not call real LLMs, real GCP services, or network services unless explicitly requested.
 10. Mock external providers in automated tests.
 
+## Runtime Profiles
+
+ForgeLoop is cloud-supported, not cloud-dependent. The same codebase runs in three profiles:
+
+| Profile | Storage | LLM | Secrets | Cloud |
+|---------|---------|-----|---------|-------|
+| local | InMemory (dev) → SQLite/local Postgres (future) | Mock / Ollama / DeepSeek / Kimi | env vars | Not required |
+| hybrid | Local storage | Hosted LLM if configured | env vars | GitHub optional |
+| cloud | Firestore | Any configured provider | Secret Manager | Cloud Run |
+
+Profile is selected by environment variables (`REPOSITORY_PROVIDER`, `LLM_PROVIDER`, etc.). No profile is hard-coded.
+
+## Provider Abstraction Rule
+
+New features must use provider abstractions. Route handlers and business logic must not call GCP or any cloud service directly.
+
+Required provider abstractions:
+- `RepositoryProvider` — tickets, agent runs, artifacts, tasks, requirements
+- `ArtifactStore` — file/blob output storage
+- `SecretProvider` — API keys and credentials
+- `LLMProvider` — text generation (already implemented)
+- `ToolRunner` — external tool invocation (planned, Release 5)
+- `ObservabilityProvider` — logging, tracing, cost records
+
+Current Firestore and Cloud Run support is the cloud-profile implementation of `RepositoryProvider`. It is optional, not required.
+
+Memory repository is acceptable for tests and local dev. Real local mode should eventually use durable local storage (SQLite or local Postgres) — not in scope for current tasks.
+
+Task 25 check definitions and check runs must use the repository abstraction and must not assume Firestore.
+
 ## Work-Safe Rules
 
 Always preserve:
@@ -164,6 +194,8 @@ Do not implement these unless the current task explicitly asks for them:
 - billing/multi-tenancy
 - ForgeLoop Studio modules (ProductScout, AuditLens, LaunchPilot)
 - marketing workflows
+- Hardcoding cloud services in route handlers or business logic
+- Adding GCP dependencies to new features without a provider abstraction
 
 ## Detailed Docs
 

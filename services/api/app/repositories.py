@@ -18,6 +18,8 @@ from .models import (
     RepoSafetyProfile,
     Subtask,
     Ticket,
+    ToolRun,
+    ToolRunnerDefinition,
 )
 
 
@@ -720,6 +722,106 @@ class FirestoreCheckRunRepository:
         return [CheckRun(**d.to_dict()) for d in docs]
 
 
+class ToolRunnerDefinitionRepository(Protocol):
+    def save(self, definition: ToolRunnerDefinition) -> None: ...
+    def get(self, definition_id: str) -> ToolRunnerDefinition | None: ...
+    def update(self, definition: ToolRunnerDefinition) -> None: ...
+    def list_by_project(self, project_id: str) -> list[ToolRunnerDefinition]: ...
+
+
+class InMemoryToolRunnerDefinitionRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, ToolRunnerDefinition] = {}
+
+    def save(self, definition: ToolRunnerDefinition) -> None:
+        self._store[definition.id] = definition
+
+    def get(self, definition_id: str) -> ToolRunnerDefinition | None:
+        return self._store.get(definition_id)
+
+    def update(self, definition: ToolRunnerDefinition) -> None:
+        self._store[definition.id] = definition
+
+    def list_by_project(self, project_id: str) -> list[ToolRunnerDefinition]:
+        return [d for d in self._store.values() if d.project_id == project_id]
+
+
+class FirestoreToolRunnerDefinitionRepository:
+    def __init__(self, client, collection_name: str = "tool_runner_definitions") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, definition: ToolRunnerDefinition) -> None:
+        self._collection.document(definition.id).set(definition.model_dump(mode="python"))
+
+    def get(self, definition_id: str) -> ToolRunnerDefinition | None:
+        snap = self._collection.document(definition_id).get()
+        if not snap.exists:
+            return None
+        return ToolRunnerDefinition(**snap.to_dict())
+
+    def update(self, definition: ToolRunnerDefinition) -> None:
+        self._collection.document(definition.id).set(definition.model_dump(mode="python"))
+
+    def list_by_project(self, project_id: str) -> list[ToolRunnerDefinition]:
+        docs = self._collection.where("project_id", "==", project_id).stream()
+        return [ToolRunnerDefinition(**d.to_dict()) for d in docs]
+
+
+class ToolRunRepository(Protocol):
+    def save(self, run: ToolRun) -> None: ...
+    def get(self, run_id: str) -> ToolRun | None: ...
+    def list_by_project(self, project_id: str) -> list[ToolRun]: ...
+    def list_by_target(self, target_type: str, target_id: str) -> list[ToolRun]: ...
+
+
+class InMemoryToolRunRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, ToolRun] = {}
+
+    def save(self, run: ToolRun) -> None:
+        self._store[run.id] = run
+
+    def get(self, run_id: str) -> ToolRun | None:
+        return self._store.get(run_id)
+
+    def list_by_project(self, project_id: str) -> list[ToolRun]:
+        return [r for r in self._store.values() if r.project_id == project_id]
+
+    def list_by_target(self, target_type: str, target_id: str) -> list[ToolRun]:
+        return [
+            r for r in self._store.values()
+            if r.target_type == target_type and r.target_id == target_id
+        ]
+
+
+class FirestoreToolRunRepository:
+    def __init__(self, client, collection_name: str = "tool_runs") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, run: ToolRun) -> None:
+        self._collection.document(run.id).set(run.model_dump(mode="python"))
+
+    def get(self, run_id: str) -> ToolRun | None:
+        snap = self._collection.document(run_id).get()
+        if not snap.exists:
+            return None
+        return ToolRun(**snap.to_dict())
+
+    def list_by_project(self, project_id: str) -> list[ToolRun]:
+        docs = self._collection.where("project_id", "==", project_id).stream()
+        return [ToolRun(**d.to_dict()) for d in docs]
+
+    def list_by_target(self, target_type: str, target_id: str) -> list[ToolRun]:
+        # Compound equality query; may need a composite index in Firestore prod.
+        docs = (
+            self._collection
+            .where("target_type", "==", target_type)
+            .where("target_id", "==", target_id)
+            .stream()
+        )
+        return [ToolRun(**d.to_dict()) for d in docs]
+
+
 def get_repositories() -> tuple[
     TicketRepository,
     AgentRunRepository,
@@ -737,6 +839,8 @@ def get_repositories() -> tuple[
     EpicRepository,
     CheckDefinitionRepository,
     CheckRunRepository,
+    ToolRunnerDefinitionRepository,
+    ToolRunRepository,
 ]:
     if config.REPOSITORY_PROVIDER == "memory":
         return (
@@ -756,6 +860,8 @@ def get_repositories() -> tuple[
             InMemoryEpicRepository(),
             InMemoryCheckDefinitionRepository(),
             InMemoryCheckRunRepository(),
+            InMemoryToolRunnerDefinitionRepository(),
+            InMemoryToolRunRepository(),
         )
     if config.REPOSITORY_PROVIDER == "firestore":
         from google.cloud import firestore
@@ -781,6 +887,8 @@ def get_repositories() -> tuple[
             FirestoreEpicRepository(client),
             FirestoreCheckDefinitionRepository(client),
             FirestoreCheckRunRepository(client),
+            FirestoreToolRunnerDefinitionRepository(client),
+            FirestoreToolRunRepository(client),
         )
     raise ValueError(
         f"Unknown REPOSITORY_PROVIDER: {config.REPOSITORY_PROVIDER!r}. Supported: memory, firestore"

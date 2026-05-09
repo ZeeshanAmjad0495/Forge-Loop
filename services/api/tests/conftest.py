@@ -17,6 +17,8 @@ from app.main import (
     repo_safety_profile_repo,
     requirement_repo,
     subtask_repo,
+    tool_run_repo,
+    tool_runner_definition_repo,
 )
 
 
@@ -39,6 +41,8 @@ def clear_repos():
         epic_repo,
         check_definition_repo,
         check_run_repo,
+        tool_runner_definition_repo,
+        tool_run_repo,
     ):
         if hasattr(r, "_store"):
             r._store.clear()
