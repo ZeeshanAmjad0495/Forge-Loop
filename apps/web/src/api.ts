@@ -4,6 +4,12 @@ import type {
   ApprovalCreate,
   ApprovalDecision,
   AuditEvent,
+  CheckDefinition,
+  CheckDefinitionCreate,
+  CheckDefinitionUpdate,
+  CheckDefinitionsFromSafetyProfileResponse,
+  CheckRun,
+  CheckRunCreate,
   CodeRepository,
   CodeRepositoryCreate,
   CodeRepositoryUpdate,
@@ -439,4 +445,82 @@ export async function updateEpic(epicId: string, patch: EpicUpdate): Promise<Epi
     body: JSON.stringify(patch),
   })
   return handleResponse<Epic>(res)
+}
+
+// ---------------------------------------------------------------------------
+// Check definitions
+// ---------------------------------------------------------------------------
+
+export async function listProjectCheckDefinitions(projectId: string): Promise<CheckDefinition[]> {
+  const res = await fetch(`${BASE}/projects/${projectId}/check-definitions`, { headers: authHeaders() })
+  return handleResponse<CheckDefinition[]>(res)
+}
+
+export async function createCheckDefinition(
+  projectId: string,
+  body: CheckDefinitionCreate,
+): Promise<CheckDefinition> {
+  const res = await fetch(`${BASE}/projects/${projectId}/check-definitions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(body),
+  })
+  return handleResponse<CheckDefinition>(res)
+}
+
+export async function getCheckDefinition(definitionId: string): Promise<CheckDefinition> {
+  const res = await fetch(`${BASE}/check-definitions/${definitionId}`, { headers: authHeaders() })
+  return handleResponse<CheckDefinition>(res)
+}
+
+export async function updateCheckDefinition(
+  definitionId: string,
+  patch: CheckDefinitionUpdate,
+): Promise<CheckDefinition> {
+  const res = await fetch(`${BASE}/check-definitions/${definitionId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(patch),
+  })
+  return handleResponse<CheckDefinition>(res)
+}
+
+export async function generateCheckDefinitionsFromSafetyProfile(
+  projectId: string,
+  codeRepositoryId?: string | null,
+): Promise<CheckDefinitionsFromSafetyProfileResponse> {
+  const res = await fetch(`${BASE}/projects/${projectId}/check-definitions/from-safety-profile`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ code_repository_id: codeRepositoryId ?? null }),
+  })
+  return handleResponse<CheckDefinitionsFromSafetyProfileResponse>(res)
+}
+
+// ---------------------------------------------------------------------------
+// Check runs
+// ---------------------------------------------------------------------------
+
+export async function listProjectCheckRuns(projectId: string): Promise<CheckRun[]> {
+  const res = await fetch(`${BASE}/projects/${projectId}/check-runs`, { headers: authHeaders() })
+  return handleResponse<CheckRun[]>(res)
+}
+
+export async function getCheckRun(checkRunId: string): Promise<CheckRun> {
+  const res = await fetch(`${BASE}/check-runs/${checkRunId}`, { headers: authHeaders() })
+  return handleResponse<CheckRun>(res)
+}
+
+export async function listDevTaskCheckRuns(devTaskId: string): Promise<CheckRun[]> {
+  const res = await fetch(`${BASE}/dev-tasks/${devTaskId}/check-runs`, { headers: authHeaders() })
+  return handleResponse<CheckRun[]>(res)
+}
+
+export async function recordCheckRun(body: CheckRunCreate): Promise<CheckRun> {
+  const res = await fetch(`${BASE}/check-runs`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(body),
+  })
+  return handleResponse<CheckRun>(res)
 }

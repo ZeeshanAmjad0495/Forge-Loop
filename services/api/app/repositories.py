@@ -6,6 +6,8 @@ from .models import (
     Approval,
     AuditEvent,
     Artifact,
+    CheckDefinition,
+    CheckRun,
     CodeRepository,
     DevTask,
     Epic,
@@ -618,6 +620,106 @@ class FirestoreEpicRepository:
         return [Epic(**d.to_dict()) for d in docs]
 
 
+class CheckDefinitionRepository(Protocol):
+    def save(self, definition: CheckDefinition) -> None: ...
+    def get(self, definition_id: str) -> CheckDefinition | None: ...
+    def update(self, definition: CheckDefinition) -> None: ...
+    def list_by_project(self, project_id: str) -> list[CheckDefinition]: ...
+
+
+class InMemoryCheckDefinitionRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, CheckDefinition] = {}
+
+    def save(self, definition: CheckDefinition) -> None:
+        self._store[definition.id] = definition
+
+    def get(self, definition_id: str) -> CheckDefinition | None:
+        return self._store.get(definition_id)
+
+    def update(self, definition: CheckDefinition) -> None:
+        self._store[definition.id] = definition
+
+    def list_by_project(self, project_id: str) -> list[CheckDefinition]:
+        return [d for d in self._store.values() if d.project_id == project_id]
+
+
+class FirestoreCheckDefinitionRepository:
+    def __init__(self, client, collection_name: str = "check_definitions") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, definition: CheckDefinition) -> None:
+        self._collection.document(definition.id).set(definition.model_dump(mode="python"))
+
+    def get(self, definition_id: str) -> CheckDefinition | None:
+        snap = self._collection.document(definition_id).get()
+        if not snap.exists:
+            return None
+        return CheckDefinition(**snap.to_dict())
+
+    def update(self, definition: CheckDefinition) -> None:
+        self._collection.document(definition.id).set(definition.model_dump(mode="python"))
+
+    def list_by_project(self, project_id: str) -> list[CheckDefinition]:
+        docs = self._collection.where("project_id", "==", project_id).stream()
+        return [CheckDefinition(**d.to_dict()) for d in docs]
+
+
+class CheckRunRepository(Protocol):
+    def save(self, run: CheckRun) -> None: ...
+    def get(self, run_id: str) -> CheckRun | None: ...
+    def list_by_project(self, project_id: str) -> list[CheckRun]: ...
+    def list_by_target(self, target_type: str, target_id: str) -> list[CheckRun]: ...
+
+
+class InMemoryCheckRunRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, CheckRun] = {}
+
+    def save(self, run: CheckRun) -> None:
+        self._store[run.id] = run
+
+    def get(self, run_id: str) -> CheckRun | None:
+        return self._store.get(run_id)
+
+    def list_by_project(self, project_id: str) -> list[CheckRun]:
+        return [r for r in self._store.values() if r.project_id == project_id]
+
+    def list_by_target(self, target_type: str, target_id: str) -> list[CheckRun]:
+        return [
+            r for r in self._store.values()
+            if r.target_type == target_type and r.target_id == target_id
+        ]
+
+
+class FirestoreCheckRunRepository:
+    def __init__(self, client, collection_name: str = "check_runs") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, run: CheckRun) -> None:
+        self._collection.document(run.id).set(run.model_dump(mode="python"))
+
+    def get(self, run_id: str) -> CheckRun | None:
+        snap = self._collection.document(run_id).get()
+        if not snap.exists:
+            return None
+        return CheckRun(**snap.to_dict())
+
+    def list_by_project(self, project_id: str) -> list[CheckRun]:
+        docs = self._collection.where("project_id", "==", project_id).stream()
+        return [CheckRun(**d.to_dict()) for d in docs]
+
+    def list_by_target(self, target_type: str, target_id: str) -> list[CheckRun]:
+        # Compound equality query; may need a composite index in Firestore prod.
+        docs = (
+            self._collection
+            .where("target_type", "==", target_type)
+            .where("target_id", "==", target_id)
+            .stream()
+        )
+        return [CheckRun(**d.to_dict()) for d in docs]
+
+
 def get_repositories() -> tuple[
     TicketRepository,
     AgentRunRepository,
@@ -633,6 +735,8 @@ def get_repositories() -> tuple[
     CodeRepositoryRepository,
     RepoSafetyProfileRepository,
     EpicRepository,
+    CheckDefinitionRepository,
+    CheckRunRepository,
 ]:
     if config.REPOSITORY_PROVIDER == "memory":
         return (
@@ -650,6 +754,8 @@ def get_repositories() -> tuple[
             InMemoryCodeRepositoryRepository(),
             InMemoryRepoSafetyProfileRepository(),
             InMemoryEpicRepository(),
+            InMemoryCheckDefinitionRepository(),
+            InMemoryCheckRunRepository(),
         )
     if config.REPOSITORY_PROVIDER == "firestore":
         from google.cloud import firestore
@@ -673,6 +779,8 @@ def get_repositories() -> tuple[
             FirestoreCodeRepositoryRepository(client),
             FirestoreRepoSafetyProfileRepository(client),
             FirestoreEpicRepository(client),
+            FirestoreCheckDefinitionRepository(client),
+            FirestoreCheckRunRepository(client),
         )
     raise ValueError(
         f"Unknown REPOSITORY_PROVIDER: {config.REPOSITORY_PROVIDER!r}. Supported: memory, firestore"
