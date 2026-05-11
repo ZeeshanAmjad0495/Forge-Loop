@@ -129,3 +129,9 @@ Production incidents and operational issues can be recorded into ForgeLoop as `I
 QA pipeline is not yet implemented. It is planned for Release 4 (Golden Path + Deterministic QA).
 
 See `docs/roadmap.md` for release schedule and `docs/tooling-strategy.md` for the tool runner model and preferred tool choices.
+
+---
+
+## Deferred: Frontend unit tests (S6)
+
+Frontend helper modules (`apps/web/src/lib/status.ts`, `formatting.ts`, `apps/web/src/api/client.ts`) contain pure functions that are candidates for Vitest unit tests. Adding Vitest was deferred in S6 to avoid devDependency churn and CI script changes. Revisit when frontend test coverage is explicitly requested.

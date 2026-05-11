@@ -96,7 +96,8 @@ def test_prepare_package_for_dev_task_returns_201_and_shape():
 
     from app.main import artifact_repo
     assert run["artifact_id"] is not None
-    artifact = artifact_repo._store[run["artifact_id"]]
+    artifact = artifact_repo.get(run["artifact_id"])
+    assert artifact is not None
     assert artifact.artifact_type == "openhands_instruction_package"
     assert artifact.content == run["output"]
 

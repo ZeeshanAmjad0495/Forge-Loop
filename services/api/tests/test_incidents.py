@@ -245,6 +245,15 @@ def test_patch_incident_missing_returns_404():
     assert resp.status_code == 404
 
 
+def test_patch_incident_invalid_status_returns_422():
+    project = _create_project()
+    inc = client.post(
+        f"/projects/{project['id']}/incidents", json=INCIDENT_PAYLOAD
+    ).json()
+    resp = client.patch(f"/incidents/{inc['id']}", json={"status": "definitely_not_a_real_status"})
+    assert resp.status_code == 422
+
+
 def test_patch_incident_writes_audit_event():
     project = _create_project()
     inc = client.post(

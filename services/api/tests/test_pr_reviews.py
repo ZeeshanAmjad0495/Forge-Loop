@@ -103,7 +103,8 @@ def test_prepare_pr_review_returns_201_pending_with_package():
     assert r["raw_output"]
     from app.main import artifact_repo
     assert r["artifact_id"] is not None
-    artifact = artifact_repo._store[r["artifact_id"]]
+    artifact = artifact_repo.get(r["artifact_id"])
+    assert artifact is not None
     assert artifact.artifact_type == "pr_review"
     assert artifact.content == r["raw_output"]
     package = json.loads(r["raw_output"])
@@ -369,6 +370,14 @@ def test_complete_pr_review_twice_returns_400():
         json={"conclusion": "approved"},
     )
     assert again.status_code == 400
+
+
+def test_complete_pr_review_missing_returns_404():
+    resp = client.post(
+        "/pr-reviews/does-not-exist/complete",
+        json={"conclusion": "approved"},
+    )
+    assert resp.status_code == 404
 
 
 # ---------------------------------------------------------------------------

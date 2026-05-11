@@ -350,7 +350,8 @@ def test_record_check_run_links_artifact_when_output_present():
     assert resp.status_code == 201
     data = resp.json()
     assert data["artifact_id"] is not None
-    artifact = artifact_repo._store[data["artifact_id"]]
+    artifact = artifact_repo.get(data["artifact_id"])
+    assert artifact is not None
     assert artifact.artifact_type == "check_result"
     assert artifact.content == "pytest: 42 passed"
 

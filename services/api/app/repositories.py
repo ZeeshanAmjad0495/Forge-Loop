@@ -1,3 +1,4 @@
+import dataclasses
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -51,6 +52,9 @@ class InMemoryTicketRepository:
     def list_by_project(self, project_id: str) -> list[Ticket]:
         return [t for t in self._store.values() if t.project_id == project_id]
 
+    def clear(self) -> None:
+        self._store.clear()
+
 
 class AgentRunRepository(Protocol):
     def save(self, run: AgentRun) -> None: ...
@@ -67,9 +71,13 @@ class InMemoryAgentRunRepository:
     def get(self, run_id: str) -> AgentRun | None:
         return self._store.get(run_id)
 
+    def clear(self) -> None:
+        self._store.clear()
+
 
 class ArtifactRepository(Protocol):
     def save(self, artifact: Artifact) -> None: ...
+    def get(self, artifact_id: str) -> Artifact | None: ...
     def list_by_ticket(self, ticket_id: str) -> list[Artifact]: ...
 
 
@@ -80,8 +88,14 @@ class InMemoryArtifactRepository:
     def save(self, artifact: Artifact) -> None:
         self._store[artifact.id] = artifact
 
+    def get(self, artifact_id: str) -> Artifact | None:
+        return self._store.get(artifact_id)
+
     def list_by_ticket(self, ticket_id: str) -> list[Artifact]:
         return [a for a in self._store.values() if a.ticket_id == ticket_id]
+
+    def clear(self) -> None:
+        self._store.clear()
 
 
 class ProjectRepository(Protocol):
@@ -103,6 +117,9 @@ class InMemoryProjectRepository:
     def list_all(self) -> list[Project]:
         return list(self._store.values())
 
+    def clear(self) -> None:
+        self._store.clear()
+
 
 class ProjectContextRepository(Protocol):
     def save(self, ctx: ProjectContext) -> None: ...
@@ -118,6 +135,9 @@ class InMemoryProjectContextRepository:
 
     def get(self, project_id: str) -> ProjectContext | None:
         return self._store.get(project_id)
+
+    def clear(self) -> None:
+        self._store.clear()
 
 
 class FirestoreTicketRepository:
@@ -158,6 +178,12 @@ class FirestoreArtifactRepository:
 
     def save(self, artifact: Artifact) -> None:
         self._collection.document(artifact.id).set(artifact.model_dump(mode="python"))
+
+    def get(self, artifact_id: str) -> Artifact | None:
+        snap = self._collection.document(artifact_id).get()
+        if not snap.exists:
+            return None
+        return Artifact(**snap.to_dict())
 
     def list_by_ticket(self, ticket_id: str) -> list[Artifact]:
         docs = self._collection.where("ticket_id", "==", ticket_id).stream()
@@ -228,6 +254,9 @@ class InMemoryRequirementAnalysisRepository:
             return None
         return max(matches, key=lambda a: a.created_at)
 
+    def clear(self) -> None:
+        self._store.clear()
+
 
 class FirestoreRequirementAnalysisRepository:
     def __init__(self, client, collection_name: str = "requirement_analyses") -> None:
@@ -280,6 +309,9 @@ class InMemoryRequirementRepository:
     def list_by_project(self, project_id: str) -> list[Requirement]:
         return [r for r in self._store.values() if r.project_id == project_id]
 
+    def clear(self) -> None:
+        self._store.clear()
+
 
 class FirestoreRequirementRepository:
     def __init__(self, client, collection_name: str = "requirements") -> None:
@@ -325,6 +357,9 @@ class InMemoryDevTaskRepository:
     def list_by_project(self, project_id: str) -> list[DevTask]:
         return [t for t in self._store.values() if t.project_id == project_id]
 
+    def clear(self) -> None:
+        self._store.clear()
+
 
 class FirestoreDevTaskRepository:
     def __init__(self, client, collection_name: str = "dev_tasks") -> None:
@@ -369,6 +404,9 @@ class InMemorySubtaskRepository:
 
     def list_by_dev_task(self, dev_task_id: str) -> list[Subtask]:
         return [s for s in self._store.values() if s.dev_task_id == dev_task_id]
+
+    def clear(self) -> None:
+        self._store.clear()
 
 
 class FirestoreSubtaskRepository:
@@ -422,6 +460,9 @@ class InMemoryApprovalRepository:
             if a.target_type == target_type and a.target_id == target_id and a.status == "approved":
                 return a
         return None
+
+    def clear(self) -> None:
+        self._store.clear()
 
 
 class FirestoreApprovalRepository:
@@ -480,6 +521,9 @@ class InMemoryAuditEventRepository:
         matches = [e for e in self._store.values() if e.project_id == project_id]
         return sorted(matches, key=lambda e: e.created_at, reverse=True)
 
+    def clear(self) -> None:
+        self._store.clear()
+
 
 class FirestoreAuditEventRepository:
     def __init__(self, client, collection_name: str = "audit_events") -> None:
@@ -523,6 +567,9 @@ class InMemoryCodeRepositoryRepository:
     def list_by_project(self, project_id: str) -> list[CodeRepository]:
         return [r for r in self._store.values() if r.project_id == project_id]
 
+    def clear(self) -> None:
+        self._store.clear()
+
 
 class FirestoreCodeRepositoryRepository:
     def __init__(self, client, collection_name: str = "code_repositories") -> None:
@@ -562,6 +609,9 @@ class InMemoryRepoSafetyProfileRepository:
             if p.code_repository_id == code_repository_id:
                 return p
         return None
+
+    def clear(self) -> None:
+        self._store.clear()
 
 
 class FirestoreRepoSafetyProfileRepository:
@@ -604,6 +654,9 @@ class InMemoryEpicRepository:
 
     def list_by_requirement(self, requirement_id: str) -> list[Epic]:
         return [e for e in self._store.values() if e.requirement_id == requirement_id]
+
+    def clear(self) -> None:
+        self._store.clear()
 
 
 class FirestoreEpicRepository:
@@ -654,6 +707,9 @@ class InMemoryCheckDefinitionRepository:
     def list_by_project(self, project_id: str) -> list[CheckDefinition]:
         return [d for d in self._store.values() if d.project_id == project_id]
 
+    def clear(self) -> None:
+        self._store.clear()
+
 
 class FirestoreCheckDefinitionRepository:
     def __init__(self, client, collection_name: str = "check_definitions") -> None:
@@ -701,6 +757,9 @@ class InMemoryCheckRunRepository:
             r for r in self._store.values()
             if r.target_type == target_type and r.target_id == target_id
         ]
+
+    def clear(self) -> None:
+        self._store.clear()
 
 
 class FirestoreCheckRunRepository:
@@ -754,6 +813,9 @@ class InMemoryToolRunnerDefinitionRepository:
     def list_by_project(self, project_id: str) -> list[ToolRunnerDefinition]:
         return [d for d in self._store.values() if d.project_id == project_id]
 
+    def clear(self) -> None:
+        self._store.clear()
+
 
 class FirestoreToolRunnerDefinitionRepository:
     def __init__(self, client, collection_name: str = "tool_runner_definitions") -> None:
@@ -801,6 +863,9 @@ class InMemoryToolRunRepository:
             r for r in self._store.values()
             if r.target_type == target_type and r.target_id == target_id
         ]
+
+    def clear(self) -> None:
+        self._store.clear()
 
 
 class FirestoreToolRunRepository:
@@ -859,6 +924,9 @@ class InMemoryPullRequestDraftRepository:
     def list_by_dev_task(self, dev_task_id: str) -> list[PullRequestDraft]:
         return [d for d in self._store.values() if d.dev_task_id == dev_task_id]
 
+    def clear(self) -> None:
+        self._store.clear()
+
 
 class FirestorePullRequestDraftRepository:
     def __init__(self, client, collection_name: str = "pull_request_drafts") -> None:
@@ -909,6 +977,9 @@ class InMemoryPullRequestReviewRepository:
     def list_by_pr_draft(self, pr_draft_id: str) -> list[PullRequestReview]:
         matches = [r for r in self._store.values() if r.pr_draft_id == pr_draft_id]
         return sorted(matches, key=lambda r: r.created_at, reverse=True)
+
+    def clear(self) -> None:
+        self._store.clear()
 
 
 class FirestorePullRequestReviewRepository:
@@ -963,6 +1034,9 @@ class InMemoryCIEventRepository:
         matches = [e for e in self._store.values() if e.dev_task_id == dev_task_id]
         return sorted(matches, key=lambda e: e.created_at, reverse=True)
 
+    def clear(self) -> None:
+        self._store.clear()
+
 
 class FirestoreCIEventRepository:
     def __init__(self, client, collection_name: str = "ci_events") -> None:
@@ -1013,6 +1087,9 @@ class InMemoryCIAnalysisRepository:
         matches = [a for a in self._store.values() if a.ci_event_id == ci_event_id]
         return sorted(matches, key=lambda a: a.created_at, reverse=True)
 
+    def clear(self) -> None:
+        self._store.clear()
+
 
 class FirestoreCIAnalysisRepository:
     def __init__(self, client, collection_name: str = "ci_analyses") -> None:
@@ -1052,6 +1129,9 @@ class InMemoryIncidentRepository:
     def list_by_project(self, project_id: str) -> list[Incident]:
         matches = [i for i in self._store.values() if i.project_id == project_id]
         return sorted(matches, key=lambda i: i.created_at, reverse=True)
+
+    def clear(self) -> None:
+        self._store.clear()
 
 
 class FirestoreIncidentRepository:
@@ -1093,6 +1173,9 @@ class InMemoryIncidentAnalysisRepository:
         matches = [a for a in self._store.values() if a.incident_id == incident_id]
         return sorted(matches, key=lambda a: a.created_at, reverse=True)
 
+    def clear(self) -> None:
+        self._store.clear()
+
 
 class FirestoreIncidentAnalysisRepository:
     def __init__(self, client, collection_name: str = "incident_analyses") -> None:
@@ -1132,6 +1215,9 @@ class InMemoryMemoryLearningRunRepository:
     def list_by_project(self, project_id: str) -> list[MemoryLearningRun]:
         matches = [r for r in self._store.values() if r.project_id == project_id]
         return sorted(matches, key=lambda r: r.created_at, reverse=True)
+
+    def clear(self) -> None:
+        self._store.clear()
 
 
 class FirestoreMemoryLearningRunRepository:
@@ -1178,6 +1264,9 @@ class InMemoryProjectMemoryCandidateRepository:
         matches = [c for c in self._store.values() if c.learning_run_id == learning_run_id]
         return sorted(matches, key=lambda c: c.created_at, reverse=True)
 
+    def clear(self) -> None:
+        self._store.clear()
+
 
 class FirestoreProjectMemoryCandidateRepository:
     def __init__(self, client, collection_name: str = "project_memory_candidates") -> None:
@@ -1211,6 +1300,13 @@ class Repositories:
     ``get_repositories()``. Field names mirror the singleton names used in
     ``repositories_state.py`` with the ``_repo`` suffix stripped.
     """
+
+    def reset_all(self) -> None:
+        """Clear every in-memory repository. Only intended for test isolation."""
+        for f in dataclasses.fields(self):
+            r = getattr(self, f.name)
+            if callable(getattr(r, "clear", None)):
+                r.clear()
 
     ticket: TicketRepository
     agent_run: AgentRunRepository

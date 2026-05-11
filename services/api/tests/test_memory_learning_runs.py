@@ -88,7 +88,8 @@ def test_learning_run_from_ci_analysis_creates_candidates():
 
     from app.main import artifact_repo
     assert run["artifact_id"] is not None
-    run_artifact = artifact_repo._store[run["artifact_id"]]
+    run_artifact = artifact_repo.get(run["artifact_id"])
+    assert run_artifact is not None
     assert run_artifact.artifact_type == "memory_learning_summary"
     assert run_artifact.content == run["raw_output"]
 
@@ -100,7 +101,8 @@ def test_learning_run_from_ci_analysis_creates_candidates():
     assert all(c["source_type"] == "ci_analysis" for c in cands)
     for c in cands:
         assert c["artifact_id"] is not None
-        cand_artifact = artifact_repo._store[c["artifact_id"]]
+        cand_artifact = artifact_repo.get(c["artifact_id"])
+        assert cand_artifact is not None
         assert cand_artifact.artifact_type == "memory_candidate_batch"
 
 
@@ -154,6 +156,15 @@ def test_learning_run_missing_incident_analysis_source_returns_404():
     resp = client.post(
         f"/projects/{project['id']}/memory-learning-runs",
         json={"source_type": "incident_analysis", "source_id": "missing"},
+    )
+    assert resp.status_code == 404
+
+
+def test_learning_run_missing_check_run_source_returns_404():
+    project = _create_project()
+    resp = client.post(
+        f"/projects/{project['id']}/memory-learning-runs",
+        json={"source_type": "check_run", "source_id": "missing"},
     )
     assert resp.status_code == 404
 
