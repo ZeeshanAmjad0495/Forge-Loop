@@ -48,6 +48,10 @@ import type {
   PullRequestDraft,
   PullRequestDraftCreate,
   PullRequestDraftUpdate,
+  PullRequestReview,
+  PullRequestReviewComplete,
+  PullRequestReviewCreate,
+  PullRequestReviewUpdate,
 } from './types'
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
@@ -687,4 +691,62 @@ export async function approvePullRequestDraft(
     headers: authHeaders(),
   })
   return handleResponse<PullRequestDraft>(res)
+}
+
+// ---------------------------------------------------------------------------
+// PR review integration foundation (Task 29)
+// ---------------------------------------------------------------------------
+
+export async function createPullRequestReview(
+  prDraftId: string,
+  body: PullRequestReviewCreate,
+): Promise<PullRequestReview> {
+  const res = await fetch(`${BASE}/pr-drafts/${prDraftId}/reviews`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(body),
+  })
+  return handleResponse<PullRequestReview>(res)
+}
+
+export async function listPullRequestReviews(
+  prDraftId: string,
+): Promise<PullRequestReview[]> {
+  const res = await fetch(`${BASE}/pr-drafts/${prDraftId}/reviews`, {
+    headers: authHeaders(),
+  })
+  return handleResponse<PullRequestReview[]>(res)
+}
+
+export async function getPullRequestReview(
+  reviewId: string,
+): Promise<PullRequestReview> {
+  const res = await fetch(`${BASE}/pr-reviews/${reviewId}`, {
+    headers: authHeaders(),
+  })
+  return handleResponse<PullRequestReview>(res)
+}
+
+export async function updatePullRequestReview(
+  reviewId: string,
+  body: PullRequestReviewUpdate,
+): Promise<PullRequestReview> {
+  const res = await fetch(`${BASE}/pr-reviews/${reviewId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(body),
+  })
+  return handleResponse<PullRequestReview>(res)
+}
+
+export async function completePullRequestReview(
+  reviewId: string,
+  body: PullRequestReviewComplete,
+): Promise<PullRequestReview> {
+  const res = await fetch(`${BASE}/pr-reviews/${reviewId}/complete`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(body),
+  })
+  return handleResponse<PullRequestReview>(res)
 }

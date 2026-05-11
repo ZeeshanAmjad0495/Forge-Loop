@@ -256,7 +256,7 @@ Planned items are listed with their target release. Always-out items will not be
 | Tool runner abstraction (OpenHandsRunner primary) | Planned, Release 5 |
 | PR draft workflow | Planned, Release 5 |
 | Branch / PR creation | Planned, Release 5 |
-| AI-assisted PR review (Kodus/Kody) | Planned, Release 5 |
+| AI-assisted PR review (Kodus/Kody) | Tracking foundation landed (Task 29); external Kody execution still planned |
 | CI failure analysis / ingestion | Planned, Release 6 |
 | Incident triage / production failure analysis | Planned, Release 6 |
 | Project memory learning loop | Planned, Release 6 |

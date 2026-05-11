@@ -25,6 +25,7 @@ from app.repositories import (
     FirestoreToolRunnerDefinitionRepository,
     FirestoreToolRunRepository,
     FirestorePullRequestDraftRepository,
+    FirestorePullRequestReviewRepository,
     InMemoryAgentRunRepository,
     InMemoryApprovalRepository,
     InMemoryArtifactRepository,
@@ -44,12 +45,13 @@ from app.repositories import (
     InMemoryToolRunnerDefinitionRepository,
     InMemoryToolRunRepository,
     InMemoryPullRequestDraftRepository,
+    InMemoryPullRequestReviewRepository,
     get_repositories,
 )
 
 
 def test_default_repository_is_memory():
-    tickets, runs, artifacts, projects, contexts, analyses, requirements, dev_tasks, subtasks, approvals, audit_events, code_repos, safety_profiles, epics, check_defs, check_runs, tool_runner_defs, tool_runs, pr_drafts = get_repositories()
+    tickets, runs, artifacts, projects, contexts, analyses, requirements, dev_tasks, subtasks, approvals, audit_events, code_repos, safety_profiles, epics, check_defs, check_runs, tool_runner_defs, tool_runs, pr_drafts, pr_reviews = get_repositories()
     assert isinstance(tickets, InMemoryTicketRepository)
     assert isinstance(runs, InMemoryAgentRunRepository)
     assert isinstance(artifacts, InMemoryArtifactRepository)
@@ -69,11 +71,12 @@ def test_default_repository_is_memory():
     assert isinstance(tool_runner_defs, InMemoryToolRunnerDefinitionRepository)
     assert isinstance(tool_runs, InMemoryToolRunRepository)
     assert isinstance(pr_drafts, InMemoryPullRequestDraftRepository)
+    assert isinstance(pr_reviews, InMemoryPullRequestReviewRepository)
 
 
 def test_memory_repository_explicitly(monkeypatch):
     monkeypatch.setattr(config, "REPOSITORY_PROVIDER", "memory")
-    tickets, runs, artifacts, projects, contexts, analyses, requirements, dev_tasks, subtasks, approvals, audit_events, code_repos, safety_profiles, epics, check_defs, check_runs, tool_runner_defs, tool_runs, pr_drafts = get_repositories()
+    tickets, runs, artifacts, projects, contexts, analyses, requirements, dev_tasks, subtasks, approvals, audit_events, code_repos, safety_profiles, epics, check_defs, check_runs, tool_runner_defs, tool_runs, pr_drafts, pr_reviews = get_repositories()
     assert isinstance(tickets, InMemoryTicketRepository)
     assert isinstance(runs, InMemoryAgentRunRepository)
     assert isinstance(artifacts, InMemoryArtifactRepository)
@@ -93,12 +96,13 @@ def test_memory_repository_explicitly(monkeypatch):
     assert isinstance(tool_runner_defs, InMemoryToolRunnerDefinitionRepository)
     assert isinstance(tool_runs, InMemoryToolRunRepository)
     assert isinstance(pr_drafts, InMemoryPullRequestDraftRepository)
+    assert isinstance(pr_reviews, InMemoryPullRequestReviewRepository)
 
 
 def test_firestore_repository_selected(monkeypatch):
     monkeypatch.setattr(config, "REPOSITORY_PROVIDER", "firestore")
     with patch("google.cloud.firestore.Client"):
-        tickets, runs, artifacts, projects, contexts, analyses, requirements, dev_tasks, subtasks, approvals, audit_events, code_repos, safety_profiles, epics, check_defs, check_runs, tool_runner_defs, tool_runs, pr_drafts = get_repositories()
+        tickets, runs, artifacts, projects, contexts, analyses, requirements, dev_tasks, subtasks, approvals, audit_events, code_repos, safety_profiles, epics, check_defs, check_runs, tool_runner_defs, tool_runs, pr_drafts, pr_reviews = get_repositories()
     assert isinstance(tickets, FirestoreTicketRepository)
     assert isinstance(runs, FirestoreAgentRunRepository)
     assert isinstance(artifacts, FirestoreArtifactRepository)
@@ -118,6 +122,7 @@ def test_firestore_repository_selected(monkeypatch):
     assert isinstance(tool_runner_defs, FirestoreToolRunnerDefinitionRepository)
     assert isinstance(tool_runs, FirestoreToolRunRepository)
     assert isinstance(pr_drafts, FirestorePullRequestDraftRepository)
+    assert isinstance(pr_reviews, FirestorePullRequestReviewRepository)
 
 
 def test_unknown_repository_raises(monkeypatch):

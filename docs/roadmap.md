@@ -83,7 +83,7 @@ Scope:
 - ToolRunner abstraction (single interface for invoking external coding tools)
 - OpenHandsRunner as the primary coding runner (first and only runner until validated)
 - PR draft workflow (task output → branch → PR draft)
-- Kodus/Kody PR review integration
+- Kodus/Kody PR review integration — Task 29 lands the tracking + adapter foundation only. ForgeLoop records review request packages and externally-supplied review results as `PullRequestReview`s with structured findings and audit events; it does not call Kody/Kodus APIs.
 
 ForgeLoop does not integrate multiple coding runners at once. OpenHands is the first and primary runner. Aider and Cline are local/manual fallbacks only. OpenCode, Hermes Agent, and OpenClaw remain secondary adapters for later. Multi-candidate orchestration is deferred until the single-runner workflow is stable.
 

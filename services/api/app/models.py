@@ -428,6 +428,9 @@ AuditAction = Literal[
     "pr_draft_prepared",
     "pr_draft_updated",
     "pr_draft_approved",
+    "pr_review_requested",
+    "pr_review_recorded",
+    "pr_review_completed",
 ]
 
 
@@ -811,3 +814,95 @@ class PullRequestDraft(BaseModel):
     created_at: datetime
     updated_at: datetime
     approved_at: datetime | None = None
+
+
+# ---------------------------------------------------------------------------
+# PR review integration foundation (Task 29)
+# ---------------------------------------------------------------------------
+
+PullRequestReviewProvider = Literal["kody", "manual", "custom"]
+PullRequestReviewStatus = Literal[
+    "pending",
+    "running",
+    "completed",
+    "failed",
+    "cancelled",
+]
+PullRequestReviewConclusion = Literal[
+    "approved",
+    "changes_requested",
+    "comment_only",
+    "failed",
+    "skipped",
+    "requires_human_review",
+]
+PullRequestReviewFindingSeverity = Literal["blocking", "warning", "info"]
+PullRequestReviewFindingCategory = Literal[
+    "security",
+    "tests",
+    "correctness",
+    "maintainability",
+    "performance",
+    "scope",
+    "style",
+]
+
+
+class PullRequestReviewFinding(BaseModel):
+    severity: PullRequestReviewFindingSeverity | None = None
+    category: PullRequestReviewFindingCategory | None = None
+    message: str
+    file_path: str | None = None
+    line: int | None = None
+    recommendation: str | None = None
+
+
+class PullRequestReviewCreate(BaseModel):
+    provider: PullRequestReviewProvider = "kody"
+    mode: Literal["manual", "prepare"] = "prepare"
+    summary: str | None = None
+    findings: list[PullRequestReviewFinding] = []
+    recommendations: str | None = None
+    raw_output: str | None = None
+    conclusion: PullRequestReviewConclusion | None = None
+    external_review_url: str | None = None
+
+
+class PullRequestReviewUpdate(BaseModel):
+    status: PullRequestReviewStatus | None = None
+    conclusion: PullRequestReviewConclusion | None = None
+    summary: str | None = None
+    findings: list[PullRequestReviewFinding] | None = None
+    recommendations: str | None = None
+    raw_output: str | None = None
+    external_review_url: str | None = None
+    error_message: str | None = None
+
+
+class PullRequestReviewComplete(BaseModel):
+    conclusion: PullRequestReviewConclusion
+    summary: str | None = None
+    findings: list[PullRequestReviewFinding] = []
+    recommendations: str | None = None
+    raw_output: str | None = None
+
+
+class PullRequestReview(BaseModel):
+    id: str
+    project_id: str
+    code_repository_id: str
+    pr_draft_id: str
+    provider: PullRequestReviewProvider
+    status: PullRequestReviewStatus
+    conclusion: PullRequestReviewConclusion | None = None
+    summary: str = ""
+    findings: list[PullRequestReviewFinding] = []
+    recommendations: str | None = None
+    raw_output: str | None = None
+    artifact_id: str | None = None
+    external_review_url: str | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+    error_message: str | None = None

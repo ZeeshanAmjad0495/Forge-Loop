@@ -14,6 +14,7 @@ from .models import (
     Project,
     ProjectContext,
     PullRequestDraft,
+    PullRequestReview,
     Requirement,
     RequirementAnalysis,
     RepoSafetyProfile,
@@ -878,6 +879,53 @@ class FirestorePullRequestDraftRepository:
         return [PullRequestDraft(**d.to_dict()) for d in docs]
 
 
+class PullRequestReviewRepository(Protocol):
+    def save(self, review: PullRequestReview) -> None: ...
+    def get(self, review_id: str) -> PullRequestReview | None: ...
+    def update(self, review: PullRequestReview) -> None: ...
+    def list_by_pr_draft(self, pr_draft_id: str) -> list[PullRequestReview]: ...
+
+
+class InMemoryPullRequestReviewRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, PullRequestReview] = {}
+
+    def save(self, review: PullRequestReview) -> None:
+        self._store[review.id] = review
+
+    def get(self, review_id: str) -> PullRequestReview | None:
+        return self._store.get(review_id)
+
+    def update(self, review: PullRequestReview) -> None:
+        self._store[review.id] = review
+
+    def list_by_pr_draft(self, pr_draft_id: str) -> list[PullRequestReview]:
+        matches = [r for r in self._store.values() if r.pr_draft_id == pr_draft_id]
+        return sorted(matches, key=lambda r: r.created_at, reverse=True)
+
+
+class FirestorePullRequestReviewRepository:
+    def __init__(self, client, collection_name: str = "pull_request_reviews") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, review: PullRequestReview) -> None:
+        self._collection.document(review.id).set(review.model_dump(mode="python"))
+
+    def get(self, review_id: str) -> PullRequestReview | None:
+        snap = self._collection.document(review_id).get()
+        if not snap.exists:
+            return None
+        return PullRequestReview(**snap.to_dict())
+
+    def update(self, review: PullRequestReview) -> None:
+        self._collection.document(review.id).set(review.model_dump(mode="python"))
+
+    def list_by_pr_draft(self, pr_draft_id: str) -> list[PullRequestReview]:
+        docs = self._collection.where("pr_draft_id", "==", pr_draft_id).stream()
+        matches = [PullRequestReview(**d.to_dict()) for d in docs]
+        return sorted(matches, key=lambda r: r.created_at, reverse=True)
+
+
 def get_repositories() -> tuple[
     TicketRepository,
     AgentRunRepository,
@@ -898,6 +946,7 @@ def get_repositories() -> tuple[
     ToolRunnerDefinitionRepository,
     ToolRunRepository,
     PullRequestDraftRepository,
+    PullRequestReviewRepository,
 ]:
     if config.REPOSITORY_PROVIDER == "memory":
         return (
@@ -920,6 +969,7 @@ def get_repositories() -> tuple[
             InMemoryToolRunnerDefinitionRepository(),
             InMemoryToolRunRepository(),
             InMemoryPullRequestDraftRepository(),
+            InMemoryPullRequestReviewRepository(),
         )
     if config.REPOSITORY_PROVIDER == "firestore":
         from google.cloud import firestore
@@ -948,6 +998,7 @@ def get_repositories() -> tuple[
             FirestoreToolRunnerDefinitionRepository(client),
             FirestoreToolRunRepository(client),
             FirestorePullRequestDraftRepository(client),
+            FirestorePullRequestReviewRepository(client),
         )
     raise ValueError(
         f"Unknown REPOSITORY_PROVIDER: {config.REPOSITORY_PROVIDER!r}. Supported: memory, firestore"

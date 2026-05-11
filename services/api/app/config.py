@@ -19,3 +19,6 @@ OPENHANDS_EXECUTION_ENABLED = os.getenv("OPENHANDS_EXECUTION_ENABLED", "false").
 OPENHANDS_MODE = os.getenv("OPENHANDS_MODE", "dry_run")
 OPENHANDS_COMMAND = os.getenv("OPENHANDS_COMMAND", "")
 OPENHANDS_BASE_URL = os.getenv("OPENHANDS_BASE_URL", "")
+KODY_REVIEW_ENABLED = os.getenv("KODY_REVIEW_ENABLED", "false").lower() == "true"
+KODY_BASE_URL = os.getenv("KODY_BASE_URL", "")
+KODY_API_KEY = os.getenv("KODY_API_KEY", "")
