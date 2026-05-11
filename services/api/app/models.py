@@ -423,6 +423,11 @@ AuditAction = Literal[
     "tool_runner_definition_created",
     "tool_runner_definition_updated",
     "tool_run_recorded",
+    "openhands_package_prepared",
+    "openhands_result_recorded",
+    "pr_draft_prepared",
+    "pr_draft_updated",
+    "pr_draft_approved",
 ]
 
 
@@ -712,3 +717,97 @@ class ToolRun(BaseModel):
     completed_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
+
+
+# ---------------------------------------------------------------------------
+# OpenHandsRunner integration foundation (Task 27)
+# ---------------------------------------------------------------------------
+
+class OpenHandsPreparePackageRequest(BaseModel):
+    tool_runner_definition_id: str | None = None
+    code_repository_id: str | None = None
+
+
+class OpenHandsInstructionPackage(BaseModel):
+    schema_version: str = "1"
+    runner: Literal["openhands"] = "openhands"
+    mode: Literal["dry_run"] = "dry_run"
+    project: dict
+    repository: dict | None = None
+    dev_task: dict
+    context: dict
+    safety: dict | None = None
+    instructions: list[str]
+
+
+class OpenHandsPrepareResponse(BaseModel):
+    tool_run: ToolRun
+    instruction_package: OpenHandsInstructionPackage
+
+
+class OpenHandsRecordResultRequest(BaseModel):
+    summary: str = ""
+    output: str = ""
+    conclusion: ToolRunConclusion = "neutral"
+
+
+# ---------------------------------------------------------------------------
+# PR draft workflow (Task 28)
+# ---------------------------------------------------------------------------
+
+PullRequestDraftStatus = Literal[
+    "draft_prepared",
+    "awaiting_approval",
+    "approved_for_creation",
+    "created",
+    "failed",
+    "closed",
+    "cancelled",
+]
+# 'github' is reserved for forward compatibility; current build rejects it.
+PullRequestDraftProvider = Literal["manual", "local", "github"]
+
+
+class PullRequestDraftCreate(BaseModel):
+    code_repository_id: str
+    dev_task_id: str | None = None
+    subtask_id: str | None = None
+    tool_run_id: str | None = None
+    title: str | None = None
+    body: str | None = None
+    source_branch: str | None = None
+    target_branch: str = "main"
+    provider: PullRequestDraftProvider = "manual"
+
+
+class PullRequestDraftUpdate(BaseModel):
+    title: str | None = None
+    body: str | None = None
+    source_branch: str | None = None
+    target_branch: str | None = None
+    status: PullRequestDraftStatus | None = None
+    external_pr_url: str | None = None
+    external_pr_number: int | None = None
+    error_message: str | None = None
+
+
+class PullRequestDraft(BaseModel):
+    id: str
+    project_id: str
+    code_repository_id: str
+    dev_task_id: str | None = None
+    subtask_id: str | None = None
+    tool_run_id: str | None = None
+    title: str
+    body: str
+    source_branch: str
+    target_branch: str = "main"
+    status: PullRequestDraftStatus = "draft_prepared"
+    provider: PullRequestDraftProvider = "manual"
+    external_pr_url: str | None = None
+    external_pr_number: int | None = None
+    created_by: str
+    error_message: str | None = None
+    created_at: datetime
+    updated_at: datetime
+    approved_at: datetime | None = None

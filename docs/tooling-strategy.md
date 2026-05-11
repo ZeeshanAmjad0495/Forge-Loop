@@ -121,6 +121,8 @@ OpenHands is the designated first runner. The single-runner workflow must be val
 
 ## Current State
 
-No tool runners are integrated yet. Tool runner abstraction (OpenHandsRunner as primary) is planned for Release 5.
+The ToolRunner abstraction (Task 26) is implemented. The OpenHandsRunner integration foundation (instruction-package dry-run) is implemented (Task 27): ForgeLoop can prepare a deterministic OpenHands instruction package from a dev task, store it on a `ToolRun`, and record a manually-pasted result. Actual OpenHands execution remains disabled by default (`OPENHANDS_EXECUTION_ENABLED=false`).
+
+The PR draft workflow foundation (Task 28) is implemented as metadata tracking only: ForgeLoop generates a deterministic PR title/body from a dev task or subtask (plus optional `ToolRun`, check runs, requirement, epic, and repo safety profile), tracks human approval via a status machine, and lets a user paste the eventual external PR URL/number back into the record. **No GitHub API call is made** — ForgeLoop does not create branches or open PRs in this build. GitHub draft-PR creation is a future task.
 
 See `docs/roadmap.md` for release schedule.

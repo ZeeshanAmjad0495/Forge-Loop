@@ -42,6 +42,12 @@ import type {
   ToolRunnerDefinitionCreate,
   ToolRunnerDefinitionUpdate,
   ToolRunnerDefinitionsDefaultsResponse,
+  OpenHandsPreparePackageRequest,
+  OpenHandsPrepareResponse,
+  OpenHandsRecordResultRequest,
+  PullRequestDraft,
+  PullRequestDraftCreate,
+  PullRequestDraftUpdate,
 } from './types'
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
@@ -597,4 +603,88 @@ export async function recordToolRun(body: ToolRunCreate): Promise<ToolRun> {
     body: JSON.stringify(body),
   })
   return handleResponse<ToolRun>(res)
+}
+
+// ---------------------------------------------------------------------------
+// OpenHandsRunner (Task 27)
+// ---------------------------------------------------------------------------
+
+export async function prepareOpenHandsPackage(
+  devTaskId: string,
+  body: OpenHandsPreparePackageRequest = {},
+): Promise<OpenHandsPrepareResponse> {
+  const res = await fetch(`${BASE}/dev-tasks/${devTaskId}/openhands/prepare`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(body),
+  })
+  return handleResponse<OpenHandsPrepareResponse>(res)
+}
+
+export async function recordOpenHandsResult(
+  toolRunId: string,
+  body: OpenHandsRecordResultRequest,
+): Promise<ToolRun> {
+  const res = await fetch(`${BASE}/tool-runs/${toolRunId}/openhands/record-result`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(body),
+  })
+  return handleResponse<ToolRun>(res)
+}
+
+// ---------------------------------------------------------------------------
+// PR draft workflow (Task 28)
+// ---------------------------------------------------------------------------
+
+export async function preparePullRequestDraft(
+  projectId: string,
+  body: PullRequestDraftCreate,
+): Promise<PullRequestDraft> {
+  const res = await fetch(`${BASE}/projects/${projectId}/pr-drafts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(body),
+  })
+  return handleResponse<PullRequestDraft>(res)
+}
+
+export async function listProjectPullRequestDrafts(
+  projectId: string,
+): Promise<PullRequestDraft[]> {
+  const res = await fetch(`${BASE}/projects/${projectId}/pr-drafts`, {
+    headers: authHeaders(),
+  })
+  return handleResponse<PullRequestDraft[]>(res)
+}
+
+export async function getPullRequestDraft(
+  prDraftId: string,
+): Promise<PullRequestDraft> {
+  const res = await fetch(`${BASE}/pr-drafts/${prDraftId}`, {
+    headers: authHeaders(),
+  })
+  return handleResponse<PullRequestDraft>(res)
+}
+
+export async function updatePullRequestDraft(
+  prDraftId: string,
+  body: PullRequestDraftUpdate,
+): Promise<PullRequestDraft> {
+  const res = await fetch(`${BASE}/pr-drafts/${prDraftId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(body),
+  })
+  return handleResponse<PullRequestDraft>(res)
+}
+
+export async function approvePullRequestDraft(
+  prDraftId: string,
+): Promise<PullRequestDraft> {
+  const res = await fetch(`${BASE}/pr-drafts/${prDraftId}/approve`, {
+    method: 'POST',
+    headers: authHeaders(),
+  })
+  return handleResponse<PullRequestDraft>(res)
 }

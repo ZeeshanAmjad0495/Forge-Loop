@@ -588,3 +588,120 @@ export interface ToolRun {
   created_at: string
   updated_at: string
 }
+
+// ---------------------------------------------------------------------------
+// OpenHandsRunner (Task 27)
+// ---------------------------------------------------------------------------
+
+export interface OpenHandsInstructionPackage {
+  schema_version: string
+  runner: 'openhands'
+  mode: 'dry_run'
+  project: { id: string; name: string; tech_stack: string[] }
+  repository: {
+    id: string
+    repo_url: string
+    default_branch: string
+    provider: string
+  } | null
+  dev_task: {
+    id: string
+    title: string
+    description: string
+    task_type: string
+    acceptance_criteria: string[]
+    definition_of_done: string[]
+    requirement_id: string | null
+    epic_id: string | null
+  }
+  context: {
+    requirement_summary: string | null
+    epic_title: string | null
+    project_memory_summary: string | null
+  }
+  safety: {
+    work_safe_mode: boolean
+    allowed_actions: string[]
+    blocked_paths: string[]
+    required_checks: string[]
+    requires_approval_for: string[]
+    protected_branches: string[]
+  } | null
+  instructions: string[]
+}
+
+export interface OpenHandsPreparePackageRequest {
+  tool_runner_definition_id?: string | null
+  code_repository_id?: string | null
+}
+
+export interface OpenHandsPrepareResponse {
+  tool_run: ToolRun
+  instruction_package: OpenHandsInstructionPackage
+}
+
+export interface OpenHandsRecordResultRequest {
+  summary: string
+  output: string
+  conclusion: ToolRunConclusion
+}
+
+// ---------------------------------------------------------------------------
+// PR draft workflow (Task 28)
+// ---------------------------------------------------------------------------
+
+export type PullRequestDraftStatus =
+  | 'draft_prepared'
+  | 'awaiting_approval'
+  | 'approved_for_creation'
+  | 'created'
+  | 'failed'
+  | 'closed'
+  | 'cancelled'
+
+export type PullRequestDraftProvider = 'manual' | 'local' | 'github'
+
+export interface PullRequestDraftCreate {
+  code_repository_id: string
+  dev_task_id?: string | null
+  subtask_id?: string | null
+  tool_run_id?: string | null
+  title?: string | null
+  body?: string | null
+  source_branch?: string | null
+  target_branch?: string
+  provider?: PullRequestDraftProvider
+}
+
+export interface PullRequestDraftUpdate {
+  title?: string
+  body?: string
+  source_branch?: string
+  target_branch?: string
+  status?: PullRequestDraftStatus
+  external_pr_url?: string | null
+  external_pr_number?: number | null
+  error_message?: string | null
+}
+
+export interface PullRequestDraft {
+  id: string
+  project_id: string
+  code_repository_id: string
+  dev_task_id: string | null
+  subtask_id: string | null
+  tool_run_id: string | null
+  title: string
+  body: string
+  source_branch: string
+  target_branch: string
+  status: PullRequestDraftStatus
+  provider: PullRequestDraftProvider
+  external_pr_url: string | null
+  external_pr_number: number | null
+  created_by: string
+  error_message: string | null
+  created_at: string
+  updated_at: string
+  approved_at: string | null
+}

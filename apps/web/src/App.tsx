@@ -35,7 +35,13 @@ import {
   listProjects,
   listProviders,
   login,
+  prepareOpenHandsPackage,
+  preparePullRequestDraft,
+  listProjectPullRequestDrafts,
+  updatePullRequestDraft,
+  approvePullRequestDraft,
   recordCheckRun,
+  recordOpenHandsResult,
   recordToolRun,
   updateCheckDefinition,
   updateCodeRepository,
@@ -80,6 +86,8 @@ import type {
   ToolRunnerMode,
   ToolRunStatus,
   ToolRunTargetType,
+  OpenHandsInstructionPackage,
+  PullRequestDraft,
 } from './types'
 
 // ---------------------------------------------------------------------------
@@ -723,6 +731,9 @@ function ProjectView({
 
       <hr style={{ margin: '24px 0', borderColor: '#333' }} />
       <ToolRunnersPanel projectId={project.id} codeRepos={codeRepos} />
+
+      <hr style={{ margin: '24px 0', borderColor: '#333' }} />
+      <PullRequestDraftsPanel projectId={project.id} codeRepos={codeRepos} />
 
       <hr style={{ margin: '24px 0', borderColor: '#333' }} />
       <ApprovalsPanel projectId={project.id} approvals={approvals} onApprovalChange={loadGovernance} />
@@ -1905,6 +1916,197 @@ function ToolRunnersPanel({ projectId, codeRepos }: { projectId: string; codeRep
 }
 
 // ---------------------------------------------------------------------------
+// PR draft workflow panel (Task 28)
+// ---------------------------------------------------------------------------
+
+function PullRequestDraftsPanel({
+  projectId,
+  codeRepos,
+}: {
+  projectId: string
+  codeRepos: CodeRepository[]
+}) {
+  const [open, setOpen] = useState(false)
+  const [drafts, setDrafts] = useState<PullRequestDraft[]>([])
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!open) return
+    listProjectPullRequestDrafts(projectId).then(setDrafts).catch(() => {})
+  }, [open, projectId])
+
+  async function refresh() {
+    try {
+      setDrafts(await listProjectPullRequestDrafts(projectId))
+    } catch { /* non-critical */ }
+  }
+
+  async function handleApprove(draft: PullRequestDraft) {
+    setBusy(true)
+    setError('')
+    try {
+      const updated = await approvePullRequestDraft(draft.id)
+      setDrafts(prev => prev.map(d => d.id === updated.id ? updated : d))
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleSaveUrl(draft: PullRequestDraft, url: string, num: string) {
+    setBusy(true)
+    setError('')
+    try {
+      const updated = await updatePullRequestDraft(draft.id, {
+        external_pr_url: url || null,
+        external_pr_number: num ? Number(num) : null,
+      })
+      setDrafts(prev => prev.map(d => d.id === updated.id ? updated : d))
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleMarkCreated(draft: PullRequestDraft) {
+    setBusy(true)
+    setError('')
+    try {
+      const updated = await updatePullRequestDraft(draft.id, { status: 'created' })
+      setDrafts(prev => prev.map(d => d.id === updated.id ? updated : d))
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section style={{ marginTop: 24 }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{ background: 'none', border: '1px solid #444', borderRadius: 4, padding: '3px 10px', cursor: 'pointer', fontSize: 13 }}
+      >
+        {open ? '▾' : '▸'} PR drafts ({drafts.length})
+      </button>
+      {open && (
+        <div style={{ marginTop: 12 }}>
+          <p style={{ fontSize: 12, color: '#888', margin: '0 0 8px' }}>
+            ForgeLoop tracks PR drafts as metadata only — no GitHub API is called.
+            Use the generated title/body when opening the PR manually. Codebase has {codeRepos.length} repo(s) registered.
+          </p>
+          {error && <div className="error" style={{ marginBottom: 6, fontSize: 12 }}>{error}</div>}
+          {drafts.length === 0
+            ? <p style={{ fontSize: 12, color: '#666' }}>No PR drafts yet. Use the "Prepare PR draft" button on a dev task.</p>
+            : drafts.map(d => (
+                <PullRequestDraftCard
+                  key={d.id}
+                  draft={d}
+                  busy={busy}
+                  onApprove={() => handleApprove(d)}
+                  onSaveUrl={(url, num) => handleSaveUrl(d, url, num)}
+                  onMarkCreated={() => handleMarkCreated(d)}
+                  onRefresh={refresh}
+                />
+              ))
+          }
+        </div>
+      )}
+    </section>
+  )
+}
+
+function PullRequestDraftCard({
+  draft,
+  busy,
+  onApprove,
+  onSaveUrl,
+  onMarkCreated,
+  onRefresh,
+}: {
+  draft: PullRequestDraft
+  busy: boolean
+  onApprove: () => void
+  onSaveUrl: (url: string, num: string) => void
+  onMarkCreated: () => void
+  onRefresh: () => void
+}) {
+  const [showBody, setShowBody] = useState(false)
+  const [url, setUrl] = useState(draft.external_pr_url ?? '')
+  const [num, setNum] = useState(draft.external_pr_number ? String(draft.external_pr_number) : '')
+
+  return (
+    <div style={{ border: '1px solid #333', borderRadius: 4, padding: '8px 12px', marginBottom: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <strong style={{ fontSize: 13 }}>{draft.title}</strong>
+        <span className="status" style={{ fontSize: 11 }}>{draft.status}</span>
+        <span className="status" style={{ fontSize: 11 }}>{draft.provider}</span>
+        <span style={{ fontSize: 11, color: '#888' }}>
+          {draft.source_branch} → {draft.target_branch}
+        </span>
+      </div>
+      <div style={{ marginTop: 6 }}>
+        <button
+          onClick={() => setShowBody(s => !s)}
+          style={{ fontSize: 11, padding: '2px 6px' }}
+        >
+          {showBody ? 'Hide body' : 'Show body'}
+        </button>
+        {draft.status === 'draft_prepared' && (
+          <button onClick={onApprove} disabled={busy} style={{ fontSize: 11, marginLeft: 6 }}>
+            Approve for creation
+          </button>
+        )}
+        {draft.status === 'approved_for_creation' && (
+          <button onClick={onMarkCreated} disabled={busy} style={{ fontSize: 11, marginLeft: 6 }}>
+            Mark created
+          </button>
+        )}
+        <button onClick={onRefresh} disabled={busy} style={{ fontSize: 11, marginLeft: 6 }}>
+          Refresh
+        </button>
+      </div>
+      {showBody && (
+        <pre style={{
+          marginTop: 6,
+          maxHeight: 260,
+          overflow: 'auto',
+          background: '#0e0e0e',
+          border: '1px solid #222',
+          borderRadius: 3,
+          padding: 6,
+          fontSize: 11,
+        }}>{draft.body}</pre>
+      )}
+      <div style={{ marginTop: 6, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+        <label style={{ fontSize: 11 }}>External PR URL:
+          <input
+            value={url}
+            onChange={e => setUrl(e.target.value)}
+            placeholder="https://github.com/org/repo/pull/123"
+            style={{ marginLeft: 4, fontSize: 11, padding: '2px 4px', background: '#1a1a1a', border: '1px solid #444', color: '#fff', borderRadius: 3, width: 280 }}
+          />
+        </label>
+        <label style={{ fontSize: 11 }}>#:
+          <input
+            value={num}
+            onChange={e => setNum(e.target.value)}
+            placeholder="123"
+            style={{ marginLeft: 4, fontSize: 11, padding: '2px 4px', background: '#1a1a1a', border: '1px solid #444', color: '#fff', borderRadius: 3, width: 60 }}
+          />
+        </label>
+        <button onClick={() => onSaveUrl(url, num)} disabled={busy} style={{ fontSize: 11 }}>
+          Save URL
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Governance panels — approvals + audit events
 // ---------------------------------------------------------------------------
 
@@ -2311,6 +2513,81 @@ function DevTaskCard({
     }
   }
 
+  // OpenHands package
+  const [ohBusy, setOhBusy] = useState(false)
+  const [ohError, setOhError] = useState<string | null>(null)
+  const [ohPackage, setOhPackage] = useState<OpenHandsInstructionPackage | null>(null)
+  const [ohRun, setOhRun] = useState<ToolRun | null>(null)
+  const [ohResultText, setOhResultText] = useState('')
+  const [ohResultConclusion, setOhResultConclusion] = useState<ToolRunConclusion>('success')
+  const [ohRecording, setOhRecording] = useState(false)
+
+  // PR draft
+  const [prBusy, setPrBusy] = useState(false)
+  const [prError, setPrError] = useState<string | null>(null)
+  const [prDraft, setPrDraft] = useState<PullRequestDraft | null>(null)
+
+  async function handlePreparePrDraft() {
+    setPrError(null)
+    setPrBusy(true)
+    try {
+      const repos = await listProjectCodeRepositories(projectId)
+      if (repos.length === 0) {
+        throw new Error('No code repository registered for project. Add a repo first.')
+      }
+      const draft = await preparePullRequestDraft(projectId, {
+        code_repository_id: repos[0].id,
+        dev_task_id: task.id,
+        tool_run_id: ohRun?.id ?? null,
+      })
+      setPrDraft(draft)
+    } catch (e) {
+      setPrError((e as Error).message)
+    } finally {
+      setPrBusy(false)
+    }
+  }
+
+  async function handlePrepareOpenHands() {
+    setOhError(null)
+    setOhBusy(true)
+    try {
+      const resp = await prepareOpenHandsPackage(task.id, {})
+      setOhPackage(resp.instruction_package)
+      setOhRun(resp.tool_run)
+      // Refresh tool runs list if currently open
+      if (toolRunsLoaded) {
+        try {
+          const runs = await listDevTaskToolRuns(task.id)
+          setTaskToolRuns(runs)
+        } catch { /* non-critical */ }
+      }
+    } catch (e) {
+      setOhError((e as Error).message)
+    } finally {
+      setOhBusy(false)
+    }
+  }
+
+  async function handleRecordOpenHandsResult() {
+    if (!ohRun) return
+    setOhError(null)
+    setOhRecording(true)
+    try {
+      const updated = await recordOpenHandsResult(ohRun.id, {
+        summary: ohResultText.split('\n')[0]?.slice(0, 200) || 'Recorded result',
+        output: ohResultText,
+        conclusion: ohResultConclusion,
+      })
+      setOhRun(updated)
+      setOhResultText('')
+    } catch (e) {
+      setOhError((e as Error).message)
+    } finally {
+      setOhRecording(false)
+    }
+  }
+
   const needsApproval = task.status === 'proposed' && (!taskApproval || taskApproval.status !== 'approved')
 
   async function handleStatusChange(next: string) {
@@ -2519,6 +2796,118 @@ function DevTaskCard({
                 ))
             }
           </div>
+        )}
+      </div>
+
+      {/* OpenHands package (Task 27 — dry-run only) */}
+      <div style={{ marginTop: 6, padding: '6px 8px', border: '1px dashed #2c2c2c', borderRadius: 4 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <strong style={{ fontSize: 11, color: '#aaa' }}>OpenHands</strong>
+          <button
+            onClick={handlePrepareOpenHands}
+            disabled={ohBusy}
+            style={{ fontSize: 11, padding: '2px 8px' }}
+          >
+            {ohBusy ? 'Preparing…' : 'Prepare OpenHands package'}
+          </button>
+          {ohRun && (
+            <>
+              <ToolRunBadge conclusion={ohRun.conclusion} status={ohRun.status} />
+              <span style={{ fontSize: 11, color: '#888' }}>{ohRun.summary}</span>
+            </>
+          )}
+        </div>
+        {ohError && <div className="error" style={{ marginTop: 4, fontSize: 11 }}>{ohError}</div>}
+        {ohPackage && (
+          <>
+            <p style={{ fontSize: 10, color: '#666', margin: '6px 0 2px' }}>
+              Dry-run package — ForgeLoop does not execute OpenHands. Copy to OpenHands manually.
+            </p>
+            <pre style={{
+              maxHeight: 220,
+              overflow: 'auto',
+              background: '#0e0e0e',
+              border: '1px solid #222',
+              borderRadius: 3,
+              padding: 6,
+              fontSize: 10,
+              margin: 0,
+            }}>{JSON.stringify(ohPackage, null, 2)}</pre>
+          </>
+        )}
+        {ohRun && (
+          <div style={{ marginTop: 6 }}>
+            <textarea
+              value={ohResultText}
+              onChange={e => setOhResultText(e.target.value)}
+              placeholder="Paste OpenHands result/output here…"
+              rows={3}
+              disabled={ohRecording}
+              style={{ width: '100%', fontSize: 11, background: '#1a1a1a', border: '1px solid #444', color: '#fff', borderRadius: 3 }}
+            />
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4, flexWrap: 'wrap' }}>
+              <label style={{ fontSize: 11 }}>Conclusion:
+                <select
+                  value={ohResultConclusion}
+                  onChange={e => setOhResultConclusion(e.target.value as ToolRunConclusion)}
+                  disabled={ohRecording}
+                  style={{ marginLeft: 4, fontSize: 11 }}
+                >
+                  <option value="success">success</option>
+                  <option value="failure">failure</option>
+                  <option value="neutral">neutral</option>
+                  <option value="requires_human_action">requires_human_action</option>
+                </select>
+              </label>
+              <button
+                onClick={handleRecordOpenHandsResult}
+                disabled={ohRecording || !ohResultText.trim()}
+                style={{ fontSize: 11 }}
+              >
+                {ohRecording ? 'Recording…' : 'Record result'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* PR draft (Task 28 — metadata-only) */}
+      <div style={{ marginTop: 6, padding: '6px 8px', border: '1px dashed #2c2c2c', borderRadius: 4 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <strong style={{ fontSize: 11, color: '#aaa' }}>PR draft</strong>
+          <button
+            onClick={handlePreparePrDraft}
+            disabled={prBusy}
+            style={{ fontSize: 11, padding: '2px 8px' }}
+          >
+            {prBusy ? 'Preparing…' : 'Prepare PR draft'}
+          </button>
+          {prDraft && (
+            <>
+              <span className="status" style={{ fontSize: 11 }}>{prDraft.status}</span>
+              <span style={{ fontSize: 11, color: '#888' }}>
+                {prDraft.source_branch} → {prDraft.target_branch}
+              </span>
+            </>
+          )}
+        </div>
+        {prError && <div className="error" style={{ marginTop: 4, fontSize: 11 }}>{prError}</div>}
+        {prDraft && (
+          <>
+            <p style={{ fontSize: 10, color: '#666', margin: '6px 0 2px' }}>
+              {prDraft.title} — metadata only, no GitHub call. View/approve in the project's PR drafts panel.
+            </p>
+            <pre style={{
+              maxHeight: 180,
+              overflow: 'auto',
+              background: '#0e0e0e',
+              border: '1px solid #222',
+              borderRadius: 3,
+              padding: 6,
+              fontSize: 10,
+              margin: 0,
+            }}>{prDraft.body.slice(0, 1200)}{prDraft.body.length > 1200 ? '…' : ''}</pre>
+          </>
         )}
       </div>
     </div>

@@ -17,6 +17,7 @@ from app.main import (
     repo_safety_profile_repo,
     requirement_repo,
     subtask_repo,
+    pr_draft_repo,
     tool_run_repo,
     tool_runner_definition_repo,
 )
@@ -43,6 +44,7 @@ def clear_repos():
         check_run_repo,
         tool_runner_definition_repo,
         tool_run_repo,
+        pr_draft_repo,
     ):
         if hasattr(r, "_store"):
             r._store.clear()

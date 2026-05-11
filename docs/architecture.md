@@ -226,7 +226,7 @@ New features must use provider abstractions. Route handlers and business logic m
 | `LLMProvider` | Mock, DeepSeek, Kimi | Ollama (local), others |
 | `ArtifactStore` | — | Filesystem (local), GCS (cloud) |
 | `SecretProvider` | env vars | Secret Manager (cloud) |
-| `ToolRunner` | — | OpenHandsRunner (Release 5) |
+| `ToolRunner` | OpenHandsRunner (instruction-package dry-run, Task 27) | OpenHands execution + PR draft workflow (Release 5, gated by `OPENHANDS_EXECUTION_ENABLED`) |
 | `ObservabilityProvider` | — | Langfuse, Cloud Logging |
 
 This rule applies to Release 4–6 features. Task 25 check definitions and check runs must use the repository abstraction and must not assume Firestore.
@@ -453,6 +453,7 @@ These concepts are used across Studio modules. ForgeLoop owns and stores all of 
 | `Approval` | Human → ForgeLoop | Explicit human sign-off at gate transitions |
 | `AuditEvent` | AuditLens → ForgeLoop | Finding from an independent audit pass |
 | `ToolRun` | ForgeLoop | External coding-tool invocation record (OpenHands, Aider, etc.) |
+| `PullRequestDraft` | ForgeLoop | Metadata-only PR draft: generated title/body, source/target branch, status machine, optional external URL. Created by `POST /projects/{id}/pr-drafts`, approved by `POST /pr-drafts/{id}/approve`. No GitHub API call. |
 | `CostRecord` | ForgeLoop | Token usage and compute cost per agent run |
 
 ### Active build boundary

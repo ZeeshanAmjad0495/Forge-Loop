@@ -13,6 +13,7 @@ from .models import (
     Epic,
     Project,
     ProjectContext,
+    PullRequestDraft,
     Requirement,
     RequirementAnalysis,
     RepoSafetyProfile,
@@ -822,6 +823,61 @@ class FirestoreToolRunRepository:
         return [ToolRun(**d.to_dict()) for d in docs]
 
 
+class PullRequestDraftRepository(Protocol):
+    def save(self, draft: PullRequestDraft) -> None: ...
+    def get(self, draft_id: str) -> PullRequestDraft | None: ...
+    def update(self, draft: PullRequestDraft) -> None: ...
+    def list_by_project(self, project_id: str) -> list[PullRequestDraft]: ...
+    def list_by_dev_task(self, dev_task_id: str) -> list[PullRequestDraft]: ...
+
+
+class InMemoryPullRequestDraftRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, PullRequestDraft] = {}
+
+    def save(self, draft: PullRequestDraft) -> None:
+        self._store[draft.id] = draft
+
+    def get(self, draft_id: str) -> PullRequestDraft | None:
+        return self._store.get(draft_id)
+
+    def update(self, draft: PullRequestDraft) -> None:
+        self._store[draft.id] = draft
+
+    def list_by_project(self, project_id: str) -> list[PullRequestDraft]:
+        matches = [d for d in self._store.values() if d.project_id == project_id]
+        return sorted(matches, key=lambda d: d.created_at, reverse=True)
+
+    def list_by_dev_task(self, dev_task_id: str) -> list[PullRequestDraft]:
+        return [d for d in self._store.values() if d.dev_task_id == dev_task_id]
+
+
+class FirestorePullRequestDraftRepository:
+    def __init__(self, client, collection_name: str = "pull_request_drafts") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, draft: PullRequestDraft) -> None:
+        self._collection.document(draft.id).set(draft.model_dump(mode="python"))
+
+    def get(self, draft_id: str) -> PullRequestDraft | None:
+        snap = self._collection.document(draft_id).get()
+        if not snap.exists:
+            return None
+        return PullRequestDraft(**snap.to_dict())
+
+    def update(self, draft: PullRequestDraft) -> None:
+        self._collection.document(draft.id).set(draft.model_dump(mode="python"))
+
+    def list_by_project(self, project_id: str) -> list[PullRequestDraft]:
+        docs = self._collection.where("project_id", "==", project_id).stream()
+        matches = [PullRequestDraft(**d.to_dict()) for d in docs]
+        return sorted(matches, key=lambda d: d.created_at, reverse=True)
+
+    def list_by_dev_task(self, dev_task_id: str) -> list[PullRequestDraft]:
+        docs = self._collection.where("dev_task_id", "==", dev_task_id).stream()
+        return [PullRequestDraft(**d.to_dict()) for d in docs]
+
+
 def get_repositories() -> tuple[
     TicketRepository,
     AgentRunRepository,
@@ -841,6 +897,7 @@ def get_repositories() -> tuple[
     CheckRunRepository,
     ToolRunnerDefinitionRepository,
     ToolRunRepository,
+    PullRequestDraftRepository,
 ]:
     if config.REPOSITORY_PROVIDER == "memory":
         return (
@@ -862,6 +919,7 @@ def get_repositories() -> tuple[
             InMemoryCheckRunRepository(),
             InMemoryToolRunnerDefinitionRepository(),
             InMemoryToolRunRepository(),
+            InMemoryPullRequestDraftRepository(),
         )
     if config.REPOSITORY_PROVIDER == "firestore":
         from google.cloud import firestore
@@ -889,6 +947,7 @@ def get_repositories() -> tuple[
             FirestoreCheckRunRepository(client),
             FirestoreToolRunnerDefinitionRepository(client),
             FirestoreToolRunRepository(client),
+            FirestorePullRequestDraftRepository(client),
         )
     raise ValueError(
         f"Unknown REPOSITORY_PROVIDER: {config.REPOSITORY_PROVIDER!r}. Supported: memory, firestore"
