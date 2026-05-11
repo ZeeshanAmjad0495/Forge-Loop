@@ -1,14 +1,31 @@
 # Architecture
 
-## MVP overview
+## Implementation status
 
-ForgeLoop is a human-supervised autonomous SDLC + STLC control plane. The current implementation (Releases 1 + 2) accepts software tickets and generates implementation-ready planning briefs using a user-selectable LLM provider. All output is for human review — the system does not create branches, open pull requests, or make any autonomous production changes.
+**Releases 1–6 are complete (all 32 tasks).** ForgeLoop is a human-supervised autonomous SDLC + STLC control plane. All output is for human review — the system does not create branches, open pull requests, or make any autonomous production changes.
 
-Releases 3–6 (planned, not implemented) extend this to a project-centered model with project memory, tool-runner-driven code execution, AI-assisted PR review, and incident triage. See [Target architecture](#target-architecture-releases-36) below.
+Implemented capabilities include: ticket creation, planning agent, LLM provider selection, admin auth/login, project context and project memory, structured requirements intake, task/subtask decomposition, human approval gates, audit events, repo connection and safety profiles, deterministic QA check definitions and check runs, Langfuse tracing, ToolRunner abstraction and OpenHandsRunner (dry-run foundation), PR draft workflow (metadata-only, no GitHub API), Kody/Kodus PR review tracking (no external calls), CI failure ingestion and advisory analysis, production incident workflow and advisory triage, and project memory learning loop (human-supervised candidate flow).
+
+Future work (Release 7 / Execution Bridge / ForgeLoop Studio) is out of scope. See [ForgeLoop Studio](#forgeloop-studio-future-vision) and [Active build boundary](#active-build-boundary).
+
+## Local-first / cloud-optional
+
+ForgeLoop is **cloud-supported, not cloud-dependent**. The same codebase runs locally with zero GCP dependencies:
+
+| Default | Verified behavior |
+|---|---|
+| `REPOSITORY_PROVIDER=memory` | In-memory repositories — no Firestore, no GCP credentials required |
+| `LLM_PROVIDER=mock` | Mock LLM — no external API calls, no keys required |
+| `AUTH_ENABLED=true` | Auth enabled by default; local dev should set `AUTH_TOKEN_SECRET` or disable with `AUTH_ENABLED=false` |
+| `OPENHANDS_EXECUTION_ENABLED=false` | OpenHands dry-run only — no subprocess or network execution |
+| Kody review | Tracking adapter only — no external Kody API calls |
+| GitHub | No GitHub API calls anywhere in the current codebase |
+
+Firestore is imported lazily inside the `get_repositories()` factory branch — only resolved when `REPOSITORY_PROVIDER=firestore`. All automated tests run against in-memory repositories and the mock LLM provider. Cloud is optional, not required.
+
+Profile is selected by environment variables. No profile is hard-coded.
 
 ## System diagrams
-
-ForgeLoop is **cloud-supported, not cloud-dependent**. Profile is selected by environment variables.
 
 ### Local profile (no GCP required)
 
@@ -239,45 +256,46 @@ All agent output is markdown text for human review. The system generates briefs;
 
 ---
 
-## Current boundaries (not in current implementation)
+## Implemented capabilities (Releases 1–6)
 
-Planned items are listed with their target release. Always-out items will not be added inside the 32-task roadmap.
+All 32 tasks are complete. The table below summarises what is and is not implemented.
 
 | Capability | Status |
 |------------|--------|
+| Ticket creation and retrieval | **Implemented, Release 1** |
+| Planning agent (LLM brief generation) | **Implemented, Release 1** |
+| Multi-provider LLM support (Mock, DeepSeek, Kimi) | **Implemented, Release 2** |
+| Admin auth / JWT | **Implemented, Release 2** |
 | Project context / Project Memory | **Implemented, Release 3** |
 | Structured requirements intake | **Implemented, Release 3** |
 | Task / subtask decomposition | **Implemented, Release 3** |
 | Approval gate workflow / audit log | **Implemented, Release 3** |
-| Repo connection + repo safety profile | Planned, Release 4 |
-| Deterministic QA/security bundle (Semgrep, OSV-Scanner, Trivy, Gitleaks, axe-core) | Planned, Release 4 |
-| Playwright / browser QA lane | Planned, Release 4 |
-| Langfuse tracing (prompt versions, cost, token records) | Planned, Release 4 |
-| Tool runner abstraction (OpenHandsRunner primary) | Planned, Release 5 |
-| PR draft workflow | Planned, Release 5 |
-| Branch / PR creation | Planned, Release 5 |
-| AI-assisted PR review (Kodus/Kody) | Tracking foundation landed (Task 29); external Kody execution still planned |
-| CI failure analysis / ingestion | Foundation landed (Task 30) — manual/programmatic `CIEvent` ingestion + advisory `CIAnalysis` only; no CI provider API calls, no auto-fix |
-| Incident triage / production failure analysis | Foundation landed (Task 31) — manual/programmatic `Incident` ingestion + advisory `IncidentAnalysis`; no monitoring providers, no auto-detection, no auto-remediation, no deploy |
-| Project memory learning loop | Foundation landed (Task 32) — LLM-distilled or human-authored `ProjectMemoryCandidate`s with explicit human approve/reject flow; durable `ProjectContext` updates only on approval; no vector DB, no RAG, no embeddings, no background learning |
-| Project memory learning loop | Planned, Release 6 |
-| GitHub App / webhook integration | Planned, Release 4 (repo connection, narrower scope) |
-| Multi-candidate orchestration / evaluator | Deferred (after single-runner loop is stable) |
+| Repo connection + repo safety profile | **Implemented, Release 4** |
+| Deterministic QA check definitions and check runs (Semgrep, OSV-Scanner, Trivy, Gitleaks, axe-core, Playwright metadata) | **Implemented, Release 4** |
+| Langfuse tracing (prompt versions, cost, token records) | **Implemented, Release 4** |
+| ToolRunner abstraction + OpenHandsRunner (dry-run / package foundation) | **Implemented, Release 5** |
+| PR draft workflow (metadata-only; no GitHub API calls) | **Implemented, Release 5** |
+| Kody/Kodus PR review tracking adapter (no external calls) | **Implemented, Release 5** |
+| CI failure ingestion (`CIEvent`) + advisory analysis (`CIAnalysis`) | **Implemented, Release 6** — manual/programmatic ingestion only; no CI provider API calls, no auto-fix |
+| Incident ingestion (`Incident`) + advisory triage (`IncidentAnalysis`) | **Implemented, Release 6** — manual/programmatic ingestion only; no monitoring providers, no auto-detection, no auto-remediation |
+| Project memory learning loop (`MemoryLearningRun`, `MemoryCandidate`) | **Implemented, Release 6** — human-supervised approve/reject flow; no vector DB, no RAG, no background learning |
+| Real branch / PR creation via GitHub API | **Not implemented** — belongs to future Execution Bridge |
+| Live OpenHands execution | **Not implemented** — belongs to future Execution Bridge |
+| Live Kody integration (external API calls) | **Not implemented** — belongs to future Execution Bridge |
+| GitHub App / webhook integration | **Not implemented** |
+| Live monitoring / auto-detection / auto-remediation | **Not implemented** |
+| Multi-candidate orchestration / evaluator | Deferred |
 | Vector search / RAG | Always out (current roadmap) |
-| Marketing / product-growth | Parked, Release 7 (not in active roadmap) |
-| Slack or email notifications | Always out (current roadmap) |
-| Authentication, RBAC, multi-tenancy, billing | Always out (current roadmap) |
-| Frontend deployment / hosting | Always out (current roadmap) |
-| Pub/Sub or Eventarc triggers | Always out (current roadmap) |
-| MCP server | Always out (current roadmap) |
-| Temporal, Kestra, LangGraph | Always out unless a specific need appears |
-| Multi-environment Terraform workspaces | Always out (current roadmap) |
+| Marketing / product-growth (LaunchPilot) | Parked, Release 7 |
+| Slack or email notifications | Always out |
+| RBAC, multi-tenancy, billing | Always out |
+| Pub/Sub, Eventarc, MCP, Temporal, LangGraph | Always out |
 
 ---
 
-## Target architecture (Releases 4–6)
+## Architecture: control plane
 
-ForgeLoop's long-term role is **control plane**, not coding agent. This section describes the intended architecture for Releases 4–6. Release 3 (requirements, task decomposition, approval gates, audit events, project memory) is now implemented. The active engineering scope is fixed at 32 tasks across 6 releases — see [README → Future roadmap](../README.md#future-roadmap) for the per-release breakdown.
+ForgeLoop's role is **control plane**, not coding agent. All 32 core tasks (Releases 1–6) are now implemented. This section describes the structural principles. Future enhancements (Execution Bridge, Release 7, ForgeLoop Studio) are documented separately.
 
 ### Control-plane principle
 
@@ -329,21 +347,21 @@ Project
   └── Monitoring / Incident Triage (Release 6)
 ```
 
-The MVP implements only the leftmost path (Ticket → PlanningAgentRun → Artifact). Project, ProjectMemory, DevTasks, ToolRunner, and the Review/Merge loop are all planned future work.
+The current implementation covers: Ticket → Planning → Requirements → DevTasks → ToolRunner (dry-run) → PRDraft (metadata) → Review tracking → CI/Incident ingestion → Memory learning. Branch creation, real execution, and merge remain future Execution Bridge work.
 
 ### Project Memory (implemented, Release 3)
 
 Per-project storage that gives planning agents the context they need to produce a useful brief without re-explaining the codebase each time. Stores: architecture decisions, tech stack, domain rules, important files, coding standards, testing/deployment commands, previous feedback, approved/rejected approaches, known risks, common failure patterns, prompt versions, and other project-specific context. Project memory is owned by ForgeLoop, not the LLM.
 
-### Tool Runner abstraction (planned, Release 5)
+### Tool Runner abstraction (implemented, Release 5)
 
-A single interface for invoking external coding tools. Conceptual shape:
+A single interface for invoking external coding tools. Implemented shape:
 
 ```
 ToolRunner.invoke(task, project_context) → ToolRunResult
 ```
 
-Primary target: OpenHands (first and only runner until the full loop is validated). Later secondary adapters: Aider (local/manual fallback), Cline (local/manual fallback), OpenCode, Hermes Agent, OpenClaw. ForgeLoop tracks each tool run as an AgentRun, stores its output as an Artifact, and surfaces results to humans for approval. It does not reimplement what these tools already do.
+`OpenHandsRunner` is the primary implementation (dry-run / instruction-package foundation; `OPENHANDS_MODE=dry_run`). The abstraction supports future secondary adapters: Aider, Cline, OpenCode, Hermes Agent, OpenClaw. ForgeLoop tracks each tool run as a `ToolRun`, stores output as an `Artifact`, and surfaces results to humans for approval. Real OpenHands execution (live subprocess/API call) belongs to the future Execution Bridge.
 
 ### Orchestrator / Evaluator pattern (deferred — after single-runner loop is stable)
 
@@ -366,7 +384,7 @@ Explicit human approval is required before the system proceeds at each of these 
 - Deployment to production
 - Production remediation actions
 
-### Work-safe mode (planned, Releases 3–6)
+### Work-safe mode (implemented, Releases 3–6)
 
 Two operating modes:
 
@@ -459,4 +477,4 @@ These concepts are used across Studio modules. ForgeLoop owns and stores all of 
 
 ### Active build boundary
 
-The current implementation is **ForgeLoop Releases 1–3** (ticket creation, planning agent, LLM provider selection, auth, project context/memory, structured requirements, task decomposition, task lifecycle, approval gates, audit events). Everything else in this section — including all ForgeLoop Studio modules — is future architecture only.
+**Releases 1–6 are complete (all 32 tasks).** The implemented core includes everything from ticket creation through project memory learning. Everything in the ForgeLoop Studio section (ProductScout, AuditLens, LaunchPilot) and the future Execution Bridge (live OpenHands execution, real branch/PR creation, live Kody/GitHub integration) remain out of scope for the current roadmap.

@@ -212,8 +212,9 @@ Pass environment variables with `-e` or `--env-file .env`.
 | `AUTH_ENABLED` | `true` | Set `false` to disable auth (local dev / tests only) |
 | `AUTH_ADMIN_EMAIL` | _(empty)_ | Admin login email |
 | `AUTH_ADMIN_PASSWORD` | _(empty)_ | Admin login password |
-| `AUTH_TOKEN_SECRET` | _(empty)_ | Secret used to sign JWT tokens (min 32 bytes recommended) |
+| `AUTH_TOKEN_SECRET` | _(empty)_ | **Required when `AUTH_ENABLED=true`.** Secret used to sign JWT tokens (min 32 chars). Fails fast at startup if missing. |
 | `AUTH_TOKEN_TTL_SECONDS` | `86400` | Token validity period in seconds (default 24 h) |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | Comma-separated list of allowed CORS origins. No wildcard default. Add your deployed frontend URL for cloud deployments. |
 
 ### Frontend (`apps/web/.env`)
 

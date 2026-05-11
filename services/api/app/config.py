@@ -22,3 +22,14 @@ OPENHANDS_BASE_URL = os.getenv("OPENHANDS_BASE_URL", "")
 KODY_REVIEW_ENABLED = os.getenv("KODY_REVIEW_ENABLED", "false").lower() == "true"
 KODY_BASE_URL = os.getenv("KODY_BASE_URL", "")
 KODY_API_KEY = os.getenv("KODY_API_KEY", "")
+
+_cors_raw = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
+CORS_ALLOWED_ORIGINS: list[str] = [o.strip() for o in _cors_raw.split(",") if o.strip()]
+
+
+def validate_startup_config() -> None:
+    if AUTH_ENABLED and not AUTH_TOKEN_SECRET:
+        raise RuntimeError(
+            "AUTH_TOKEN_SECRET must be set when AUTH_ENABLED=true. "
+            "Set a random secret of at least 32 characters."
+        )

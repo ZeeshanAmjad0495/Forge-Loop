@@ -14,6 +14,7 @@ from fastapi import HTTPException
 
 from ..incident_triage.agent import run_incident_triage
 from ..llm import ProviderError, get_default_provider_name, get_provider_by_name
+from ..utils.redaction import redact_sensitive_text
 from ..models import (
     Artifact,
     IncidentAnalysis,
@@ -123,7 +124,7 @@ def create_analysis(
             details={
                 "incident_id": incident.id,
                 "provider": provider.provider_name,
-                "error": str(exc),
+                "error": redact_sensitive_text(str(exc)),
             },
         )
         return failed

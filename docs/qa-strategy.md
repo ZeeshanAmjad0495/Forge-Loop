@@ -1,6 +1,6 @@
 # ForgeLoop QA / STLC Strategy
 
-QA is a first-class pipeline stage in ForgeLoop, not an afterthought. It is planned for Release 4.
+QA is a first-class pipeline stage in ForgeLoop, not an afterthought. The foundational `CheckDefinition` / `CheckRun` data model and repository layer are **implemented in Release 4**. Real external scanner execution is not implemented — that belongs to the future Execution Bridge.
 
 ---
 
@@ -27,7 +27,7 @@ Order of operations within any QA gate:
        [Unit]                  ← pytest (existing)
 ```
 
-Each layer produces a `QARunArtifact` stored in ForgeLoop. A layer must pass its quality gate before the workflow advances to the next stage.
+Each layer produces a `CheckRun` (stored via `CheckDefinition` repository) or links to an `Artifact`. A layer must pass its quality gate before the workflow advances to the next stage. Real tool execution is not yet wired — `CheckRun` records are created manually or programmatically via the API.
 
 ---
 
@@ -46,7 +46,7 @@ Each layer produces a `QARunArtifact` stored in ForgeLoop. A layer must pass its
 
 TestZeus is not the primary QA tool. Playwright Test Agents form the main browser QA lane. TestZeus may be evaluated later as a supplement after the Playwright lane is stable.
 
-All tools are invoked via ForgeLoop's tool runner abstraction (Release 5). Results are stored as artifacts — ForgeLoop does not re-implement any test execution logic.
+When real execution is wired (future Execution Bridge), tools will be invoked via ForgeLoop's `ToolRunner` abstraction (implemented in Release 5). Results will be stored as `Artifact`s — ForgeLoop does not re-implement any test execution logic.
 
 ---
 
@@ -126,9 +126,13 @@ Production incidents and operational issues can be recorded into ForgeLoop as `I
 
 ## Current State
 
-QA pipeline is not yet implemented. It is planned for Release 4 (Golden Path + Deterministic QA).
+**Release 4 is implemented.** `CheckDefinition` and `CheckRun` entities exist with full CRUD and repository abstraction. Deterministic QA metadata and result tracking are in place.
 
-See `docs/roadmap.md` for release schedule and `docs/tooling-strategy.md` for the tool runner model and preferred tool choices.
+Real external scanner execution (running Semgrep, Trivy, Playwright, etc. as subprocesses or via API) is **not implemented** and belongs to the future Execution Bridge.
+
+CI failure ingestion (`CIEvent`, `CIAnalysis`) and incident ingestion (`Incident`, `IncidentAnalysis`) are implemented in Release 6.
+
+See `docs/roadmap.md` for the full release breakdown and `docs/tooling-strategy.md` for tool runner choices.
 
 ---
 

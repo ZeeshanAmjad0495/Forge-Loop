@@ -6,9 +6,12 @@ so existing imports (`from app.main import audit_event_repo`, the
 26-name conftest import) continue to work unchanged.
 """
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from . import config
 from .repositories_state import (
     agent_run_repo,
     analysis_repo,
@@ -63,10 +66,16 @@ from .routes import (
     tool_runners,
 )
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    config.validate_startup_config()
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=config.CORS_ALLOWED_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )

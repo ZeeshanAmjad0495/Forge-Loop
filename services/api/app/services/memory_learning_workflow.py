@@ -16,6 +16,7 @@ from fastapi import HTTPException
 
 from ..llm import ProviderError, get_default_provider_name, get_provider_by_name
 from ..memory_learning.agent import run_memory_learning
+from ..utils.redaction import redact_sensitive_text
 from ..memory_learning.applier import apply_candidate
 from ..memory_learning.source_fetch import SUPPORTED_SOURCE_TYPES, fetch_source
 from ..models import (
@@ -198,7 +199,7 @@ def create_run(project_id: str, body: MemoryLearningRunCreate, current_user: str
                 "source_type": body.source_type,
                 "source_id": body.source_id,
                 "provider": provider.provider_name,
-                "error": str(exc),
+                "error": redact_sensitive_text(str(exc)),
             },
         )
         return failed

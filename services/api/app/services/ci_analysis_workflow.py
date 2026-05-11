@@ -15,6 +15,7 @@ from fastapi import HTTPException
 
 from ..ci_analysis.agent import run_ci_failure_analysis
 from ..llm import ProviderError, get_default_provider_name, get_provider_by_name
+from ..utils.redaction import redact_sensitive_text
 from ..models import Artifact, CIAnalysis, CIAnalysisCreate
 from ..repositories_state import (
     artifact_repo,
@@ -100,7 +101,7 @@ def create_analysis(
             details={
                 "ci_event_id": event.id,
                 "provider": provider.provider_name,
-                "error": str(exc),
+                "error": redact_sensitive_text(str(exc)),
             },
         )
         return failed
