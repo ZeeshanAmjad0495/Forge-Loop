@@ -10,6 +10,15 @@ DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 KIMI_API_KEY = os.getenv("KIMI_API_KEY", "")
 KIMI_BASE_URL = os.getenv("KIMI_BASE_URL", "https://api.moonshot.ai/v1")
 REPOSITORY_PROVIDER = os.getenv("REPOSITORY_PROVIDER", "memory")
+
+# --- Task 40A: Local document database provider (MongoDB) ---
+LOCAL_DOCUMENT_DB_PROVIDER = os.getenv("LOCAL_DOCUMENT_DB_PROVIDER", "mongodb")
+MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
+MONGODB_DATABASE = os.getenv("MONGODB_DATABASE", "forgeloop_local")
+MONGODB_CONNECT_TIMEOUT_MS = int(os.getenv("MONGODB_CONNECT_TIMEOUT_MS", "3000"))
+MONGODB_SERVER_SELECTION_TIMEOUT_MS = int(
+    os.getenv("MONGODB_SERVER_SELECTION_TIMEOUT_MS", "3000")
+)
 AUTH_ENABLED = os.getenv("AUTH_ENABLED", "true").lower() == "true"
 AUTH_ADMIN_EMAIL = os.getenv("AUTH_ADMIN_EMAIL", "")
 AUTH_ADMIN_PASSWORD = os.getenv("AUTH_ADMIN_PASSWORD", "")
@@ -86,3 +95,13 @@ def validate_startup_config() -> None:
             "AUTH_TOKEN_SECRET must be set when AUTH_ENABLED=true. "
             "Set a random secret of at least 32 characters."
         )
+    if REPOSITORY_PROVIDER == "local_document":
+        if LOCAL_DOCUMENT_DB_PROVIDER != "mongodb":
+            raise RuntimeError(
+                "Unsupported LOCAL_DOCUMENT_DB_PROVIDER="
+                f"{LOCAL_DOCUMENT_DB_PROVIDER!r}. Supported: mongodb"
+            )
+        if not MONGODB_URI:
+            raise RuntimeError(
+                "MONGODB_URI must be set when REPOSITORY_PROVIDER=local_document."
+            )

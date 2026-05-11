@@ -1,0 +1,10 @@
+services:
+  mongodb:
+    image: mongo:8
+    ports:
+      - "27017:27017"
+    volumes:
+      - forgeloop_mongo_data:/data/db
+
+volumes:
+  forgeloop_mongo_data:

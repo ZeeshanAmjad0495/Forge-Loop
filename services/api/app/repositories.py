@@ -1865,6 +1865,16 @@ def get_repositories() -> Repositories:
             review_feedback=FirestoreReviewFeedbackRepository(client),
             revision_work_item=FirestoreRevisionWorkItemRepository(client),
         )
+    if config.REPOSITORY_PROVIDER == "local_document":
+        if config.LOCAL_DOCUMENT_DB_PROVIDER != "mongodb":
+            raise ValueError(
+                "Unsupported LOCAL_DOCUMENT_DB_PROVIDER="
+                f"{config.LOCAL_DOCUMENT_DB_PROVIDER!r}. Supported: mongodb"
+            )
+        from .repositories_mongo import build_mongo_repositories
+
+        return build_mongo_repositories()
     raise ValueError(
-        f"Unknown REPOSITORY_PROVIDER: {config.REPOSITORY_PROVIDER!r}. Supported: memory, firestore"
+        f"Unknown REPOSITORY_PROVIDER: {config.REPOSITORY_PROVIDER!r}. "
+        "Supported: memory, firestore, local_document"
     )

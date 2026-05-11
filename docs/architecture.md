@@ -15,6 +15,7 @@ ForgeLoop is **cloud-supported, not cloud-dependent**. The same codebase runs lo
 | Default | Verified behavior |
 |---|---|
 | `REPOSITORY_PROVIDER=memory` | In-memory repositories — no Firestore, no GCP credentials required |
+| `REPOSITORY_PROVIDER=local_document` | MongoDB-backed repositories for durable single-developer local runs (Task 40A); `pymongo` is imported lazily |
 | `LLM_PROVIDER=mock` | Mock LLM — no external API calls, no keys required |
 | `AUTH_ENABLED=true` | Auth enabled by default; local dev should set `AUTH_TOKEN_SECRET` or disable with `AUTH_ENABLED=false` |
 | `OPENHANDS_EXECUTION_ENABLED=false` | OpenHands dry-run only — no subprocess or network execution |
@@ -239,7 +240,7 @@ New features must use provider abstractions. Route handlers and business logic m
 
 | Abstraction | Current implementations | Planned |
 |-------------|------------------------|---------|
-| `RepositoryProvider` | InMemory, Firestore | SQLite (local profile, future) |
+| `RepositoryProvider` | InMemory, Firestore, LocalDocument (MongoDB, Task 40A) | SQLite/Postgres (future) |
 | `LLMProvider` | Mock, DeepSeek, Kimi | Ollama (local), others |
 | `ArtifactStore` | — | Filesystem (local), GCS (cloud) |
 | `SecretProvider` | env vars | Secret Manager (cloud) |

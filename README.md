@@ -200,7 +200,12 @@ Pass environment variables with `-e` or `--env-file .env`.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `ENVIRONMENT` | `local` | Runtime environment label |
-| `REPOSITORY_PROVIDER` | `memory` | `memory` (local) or `firestore` (GCP) |
+| `REPOSITORY_PROVIDER` | `memory` | `memory` (local/tests), `local_document` (durable local MongoDB), or `firestore` (GCP) |
+| `LOCAL_DOCUMENT_DB_PROVIDER` | `mongodb` | Backend for `local_document`. Currently only `mongodb`. |
+| `MONGODB_URI` | `mongodb://localhost:27017` | Connection URI used when `REPOSITORY_PROVIDER=local_document` |
+| `MONGODB_DATABASE` | `forgeloop_local` | Database name used by the local document provider |
+| `MONGODB_CONNECT_TIMEOUT_MS` | `3000` | Mongo connect timeout (ms) |
+| `MONGODB_SERVER_SELECTION_TIMEOUT_MS` | `3000` | Mongo server-selection timeout (ms) |
 | `LLM_PROVIDER` | `mock` | Default provider — `mock` (no key), `deepseek`, or `kimi`. Can be overridden per request from the UI. |
 | `LLM_MODEL` | _(provider default)_ | Model name passed to the provider |
 | `DEEPSEEK_API_KEY` | _(empty)_ | Required when `LLM_PROVIDER=deepseek` |
@@ -283,6 +288,42 @@ FIRESTORE_DATABASE=(default)
 ```
 
 The runtime service account needs `roles/datastore.user` on the project (handled by Terraform).
+
+---
+
+## Local durable mode (MongoDB)
+
+For single-developer use with persistence across backend restarts — without depending on GCP — point ForgeLoop at a local MongoDB:
+
+```bash
+REPOSITORY_PROVIDER=local_document
+LOCAL_DOCUMENT_DB_PROVIDER=mongodb
+MONGODB_URI=mongodb://localhost:27017
+MONGODB_DATABASE=forgeloop_local
+```
+
+Install the optional dependency once:
+
+```bash
+pip install -e 'services/api[local_document]'
+```
+
+Start MongoDB with the bundled compose file (or use any local `mongod` install):
+
+```bash
+docker compose -f services/api/docker-compose.local.yml up -d mongodb
+```
+
+Verify durability end-to-end:
+
+1. Start the backend with the env vars above.
+2. `POST /projects` — create a project.
+3. Restart the backend.
+4. `GET /projects/{id}` — the project is still there.
+
+If MongoDB is unreachable when `REPOSITORY_PROVIDER=local_document`, the backend fails fast at startup with a redacted-URI error — it never silently falls back to in-memory.
+
+The `memory` and `firestore` providers are unchanged and remain the defaults for tests and Cloud Run respectively. `pymongo` is only imported when `local_document` is selected.
 
 ---
 
