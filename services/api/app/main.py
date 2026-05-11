@@ -52,6 +52,7 @@ from .routes import (
     commands,
     dev_tasks,
     epics,
+    git_workflow,
     health,
     incidents,
     llm,
@@ -107,6 +108,7 @@ app.include_router(incidents.router)
 app.include_router(memory.router)
 app.include_router(workspaces.router)
 app.include_router(commands.router)
+app.include_router(git_workflow.router)
 
 
 __all__ = [

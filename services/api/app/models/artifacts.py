@@ -25,6 +25,8 @@ class Artifact(BaseModel):
         "command_run_output",
         "openhands_execution_output",
         "openhands_execution_changed_paths",
+        "git_inspection_summary",
+        "git_commit_summary",
     ]
     content: str
     created_at: datetime

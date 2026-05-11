@@ -65,6 +65,16 @@ from .code_repositories import (
 )
 from .core import AssigneeType
 from .epics import Epic, EpicCreate, EpicPriority, EpicStatus, EpicUpdate
+from .git_workflow import (
+    GitCommitCreate,
+    GitCommitRecord,
+    GitCommitStatus,
+    GitInspectionResponse,
+    WorkspaceBranch,
+    WorkspaceBranchCreate,
+    WorkspaceBranchResponse,
+    WorkspaceBranchStatus,
+)
 from .incidents import (
     Incident,
     IncidentAnalysis,
@@ -231,6 +241,10 @@ __all__ = [
     "EpicPriority",
     "EpicStatus",
     "EpicUpdate",
+    "GitCommitCreate",
+    "GitCommitRecord",
+    "GitCommitStatus",
+    "GitInspectionResponse",
     "Incident",
     "IncidentAnalysis",
     "IncidentAnalysisConclusion",
@@ -320,6 +334,10 @@ __all__ = [
     "ToolRunStatus",
     "ToolRunTargetType",
     "Workspace",
+    "WorkspaceBranch",
+    "WorkspaceBranchCreate",
+    "WorkspaceBranchResponse",
+    "WorkspaceBranchStatus",
     "WorkspaceCreate",
     "WorkspaceInspection",
     "WorkspaceStatus",

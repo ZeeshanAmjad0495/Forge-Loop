@@ -1,12 +1,18 @@
 import { useEffect, useState } from 'react'
 import {
   archiveWorkspace,
+  commitWorkspaceBranch,
   createWorkspace,
+  createWorkspaceBranch,
   inspectWorkspace,
+  inspectWorkspaceGit,
   listProjectWorkspaces,
+  listWorkspaceBranches,
 } from '../../api'
 import type {
   CodeRepository,
+  GitInspectionResponse,
+  WorkspaceBranch,
   Workspace,
   WorkspaceInspection,
   WorkspaceStatus,
@@ -45,6 +51,17 @@ export function WorkspacesPanel({
 
   const [inspections, setInspections] = useState<Record<string, WorkspaceInspection>>({})
   const [inspecting, setInspecting] = useState<Record<string, boolean>>({})
+
+  const [gitInspections, setGitInspections] = useState<Record<string, GitInspectionResponse>>({})
+  const [gitInspecting, setGitInspecting] = useState<Record<string, boolean>>({})
+  const [gitError, setGitError] = useState<Record<string, string>>({})
+  const [branches, setBranches] = useState<Record<string, WorkspaceBranch[]>>({})
+  const [branchBusy, setBranchBusy] = useState<Record<string, boolean>>({})
+  const [branchDevTaskId, setBranchDevTaskId] = useState<Record<string, string>>({})
+  const [branchName, setBranchName] = useState<Record<string, string>>({})
+  const [commitMessage, setCommitMessage] = useState<Record<string, string>>({})
+  const [commitBusy, setCommitBusy] = useState<Record<string, boolean>>({})
+  const [commitError, setCommitError] = useState<Record<string, string>>({})
 
   useEffect(() => {
     listProjectWorkspaces(projectId)
@@ -103,6 +120,66 @@ export function WorkspacesPanel({
       }))
     } finally {
       setInspecting(prev => ({ ...prev, [workspace.id]: false }))
+    }
+  }
+
+  async function handleGitInspect(workspace: Workspace) {
+    setGitError(prev => ({ ...prev, [workspace.id]: '' }))
+    setGitInspecting(prev => ({ ...prev, [workspace.id]: true }))
+    try {
+      const result = await inspectWorkspaceGit(workspace.id)
+      setGitInspections(prev => ({ ...prev, [workspace.id]: result }))
+      try {
+        const list = await listWorkspaceBranches(workspace.id)
+        setBranches(prev => ({ ...prev, [workspace.id]: list }))
+      } catch { /* non-critical */ }
+    } catch (err) {
+      setGitError(prev => ({ ...prev, [workspace.id]: (err as Error).message }))
+    } finally {
+      setGitInspecting(prev => ({ ...prev, [workspace.id]: false }))
+    }
+  }
+
+  async function handleCreateBranch(workspace: Workspace) {
+    setGitError(prev => ({ ...prev, [workspace.id]: '' }))
+    setBranchBusy(prev => ({ ...prev, [workspace.id]: true }))
+    try {
+      const created = await createWorkspaceBranch(workspace.id, {
+        dev_task_id: branchDevTaskId[workspace.id]?.trim() || null,
+        name: branchName[workspace.id]?.trim() || null,
+      })
+      setBranches(prev => ({
+        ...prev,
+        [workspace.id]: [...(prev[workspace.id] ?? []), created.workspace_branch],
+      }))
+      setGitInspections(prev => ({ ...prev, [workspace.id]: created.inspection }))
+      setBranchDevTaskId(prev => ({ ...prev, [workspace.id]: '' }))
+      setBranchName(prev => ({ ...prev, [workspace.id]: '' }))
+    } catch (err) {
+      setGitError(prev => ({ ...prev, [workspace.id]: (err as Error).message }))
+    } finally {
+      setBranchBusy(prev => ({ ...prev, [workspace.id]: false }))
+    }
+  }
+
+  async function handleCommitBranch(workspace: Workspace, branch: WorkspaceBranch) {
+    const key = branch.id
+    setCommitError(prev => ({ ...prev, [key]: '' }))
+    setCommitBusy(prev => ({ ...prev, [key]: true }))
+    try {
+      await commitWorkspaceBranch(branch.id, {
+        message: commitMessage[key]?.trim() || '',
+      })
+      setCommitMessage(prev => ({ ...prev, [key]: '' }))
+      // Refresh branch list to pick up "committed" status.
+      const list = await listWorkspaceBranches(workspace.id)
+      setBranches(prev => ({ ...prev, [workspace.id]: list }))
+      const gi = await inspectWorkspaceGit(workspace.id)
+      setGitInspections(prev => ({ ...prev, [workspace.id]: gi }))
+    } catch (err) {
+      setCommitError(prev => ({ ...prev, [key]: (err as Error).message }))
+    } finally {
+      setCommitBusy(prev => ({ ...prev, [key]: false }))
     }
   }
 
@@ -209,6 +286,142 @@ export function WorkspacesPanel({
                     )}
                   </div>
                 )}
+                {/* Task 37: Git workflow */}
+                <div
+                  style={{
+                    marginTop: 8,
+                    padding: 8,
+                    border: '1px dashed #2c2c2c',
+                    borderRadius: 4,
+                  }}
+                >
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <strong style={{ fontSize: '0.8rem', color: '#aaa' }}>Git</strong>
+                    <button
+                      type="button"
+                      onClick={() => handleGitInspect(w)}
+                      disabled={!!gitInspecting[w.id] || w.status === 'archived'}
+                      style={{ fontSize: 11, padding: '2px 8px' }}
+                    >
+                      {gitInspecting[w.id] ? 'Inspecting…' : 'Inspect git'}
+                    </button>
+                    <span style={{ fontSize: 10, color: '#c66' }}>
+                      Local git only. No push, no GitHub PR, no merge — that is Task 38.
+                    </span>
+                  </div>
+                  {gitError[w.id] && (
+                    <div className="error" style={{ marginTop: 4, fontSize: 11 }}>
+                      {gitError[w.id]}
+                    </div>
+                  )}
+                  {gitInspections[w.id] && (
+                    <div style={{ marginTop: 6, fontSize: 11, fontFamily: 'monospace' }}>
+                      <div>is_git_repo: {String(gitInspections[w.id].is_git_repo)}</div>
+                      <div>current_branch: {gitInspections[w.id].current_branch ?? '—'}</div>
+                      <div>dirty: {String(gitInspections[w.id].dirty)}</div>
+                      <div>changed: {gitInspections[w.id].changed_files.length} · untracked: {gitInspections[w.id].untracked_files.length}</div>
+                      {gitInspections[w.id].diff_stat && (
+                        <pre style={{
+                          maxHeight: 140,
+                          overflow: 'auto',
+                          background: '#0e0e0e',
+                          border: '1px solid #222',
+                          borderRadius: 3,
+                          padding: 6,
+                          fontSize: 10,
+                          margin: '4px 0 0',
+                        }}>{gitInspections[w.id].diff_stat}</pre>
+                      )}
+                    </div>
+                  )}
+                  {gitInspections[w.id]?.is_git_repo && (
+                    <div style={{ marginTop: 8, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <input
+                        placeholder="dev_task_id (optional)"
+                        value={branchDevTaskId[w.id] ?? ''}
+                        onChange={e => setBranchDevTaskId(prev => ({ ...prev, [w.id]: e.target.value }))}
+                        disabled={!gitInspections[w.id].git_workflow_enabled || !!branchBusy[w.id]}
+                        style={{ fontSize: 11, width: 200 }}
+                      />
+                      <input
+                        placeholder="custom branch name (optional)"
+                        value={branchName[w.id] ?? ''}
+                        onChange={e => setBranchName(prev => ({ ...prev, [w.id]: e.target.value }))}
+                        disabled={!gitInspections[w.id].git_workflow_enabled || !!branchBusy[w.id]}
+                        style={{ fontSize: 11, width: 240 }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleCreateBranch(w)}
+                        disabled={!gitInspections[w.id].git_workflow_enabled || !!branchBusy[w.id]}
+                        title={
+                          !gitInspections[w.id].git_workflow_enabled
+                            ? 'Branch creation is disabled (GIT_WORKFLOW_ENABLED=false).'
+                            : 'Create a ForgeLoop-scoped local branch.'
+                        }
+                        style={{ fontSize: 11 }}
+                      >
+                        {branchBusy[w.id] ? 'Creating…' : 'Create branch'}
+                      </button>
+                    </div>
+                  )}
+                  {(branches[w.id]?.length ?? 0) > 0 && (
+                    <ul style={{ listStyle: 'none', padding: 0, marginTop: 8 }}>
+                      {branches[w.id].map(b => (
+                        <li
+                          key={b.id}
+                          style={{
+                            padding: 6,
+                            marginBottom: 6,
+                            border: '1px solid #222',
+                            borderRadius: 3,
+                            fontSize: 11,
+                          }}
+                        >
+                          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                            <code>{b.name}</code>
+                            <StatusBadge label={b.status} color="#9ad3ff" />
+                            {b.base_branch && <span style={{ color: '#888' }}>base: {b.base_branch}</span>}
+                          </div>
+                          {b.error_message && (
+                            <div className="error" style={{ marginTop: 2 }}>{b.error_message}</div>
+                          )}
+                          {b.status !== 'failed' && b.status !== 'archived' && (
+                            <div style={{ marginTop: 4, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                              <input
+                                placeholder="commit message"
+                                value={commitMessage[b.id] ?? ''}
+                                onChange={e => setCommitMessage(prev => ({ ...prev, [b.id]: e.target.value }))}
+                                disabled={!gitInspections[w.id]?.git_commit_enabled || !!commitBusy[b.id]}
+                                style={{ fontSize: 11, width: 320 }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleCommitBranch(w, b)}
+                                disabled={
+                                  !gitInspections[w.id]?.git_commit_enabled
+                                  || !!commitBusy[b.id]
+                                  || !(commitMessage[b.id]?.trim())
+                                }
+                                title={
+                                  !gitInspections[w.id]?.git_commit_enabled
+                                    ? 'Commit is disabled (GIT_COMMIT_ENABLED=false).'
+                                    : 'Local commit. No push, no PR.'
+                                }
+                                style={{ fontSize: 11 }}
+                              >
+                                {commitBusy[b.id] ? 'Committing…' : 'Commit (local)'}
+                              </button>
+                              {commitError[b.id] && (
+                                <span className="error" style={{ fontSize: 11 }}>{commitError[b.id]}</span>
+                              )}
+                            </div>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </li>
             )
           })}

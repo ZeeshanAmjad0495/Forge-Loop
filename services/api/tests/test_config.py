@@ -55,3 +55,15 @@ def test_openhands_execution_defaults_are_safe():
     assert config.OPENHANDS_MAX_OUTPUT_BYTES == 200000
     assert config.OPENHANDS_EXECUTION_HARD_CAP_SECONDS == 3600
     assert config.OPENHANDS_ALLOWED_ARGS == []
+
+
+def test_git_workflow_defaults_are_safe():
+    assert config.GIT_WORKFLOW_ENABLED is False
+    assert config.GIT_COMMIT_ENABLED is False
+    assert config.GIT_ALLOWED_BRANCH_PREFIX == "forgeloop/"
+    for protected in ("main", "master", "develop", "production", "release"):
+        assert protected in config.GIT_PROTECTED_BRANCHES
+    assert config.GIT_TIMEOUT_SECONDS == 60
+    assert config.GIT_MAX_DIFF_BYTES == 200000
+    assert config.GIT_COMMIT_MESSAGE_MAX_LEN == 2000
+    assert config.GIT_BINARY == "git"

@@ -278,10 +278,115 @@ the diff because there is no branch/PR workflow yet.
 - No new `ToolRun` status/conclusion values — outcomes map within the existing
   enum and use a dedicated audit action for `timed_out`/`blocked` clarity.
 
+## Task 37 — Local git branch workflow
+
+Task 37 adds a **narrow, local-only** git capability: ForgeLoop can inspect
+git state inside a registered workspace, create ForgeLoop-scoped local
+branches, and (when explicitly enabled and approved) make local commits.
+**Nothing is pushed.** No remote fetch, no merge, no rebase, no reset, no
+GitHub call. Task 38 will own remote push and PR creation; Task 37 just
+produces the durable local branch + commit evidence Task 38 needs.
+
+### Endpoints
+
+| Endpoint | Method | Purpose |
+|---|---|---|
+| `/workspaces/{workspace_id}/git/inspect` | POST | Read-only git state for the workspace. |
+| `/workspaces/{workspace_id}/branches` | POST | Create a ForgeLoop-scoped local branch. |
+| `/workspaces/{workspace_id}/branches` | GET | List branches. |
+| `/workspace-branches/{branch_id}` | GET | Branch record + fresh inspection. |
+| `/workspace-branches/{branch_id}/inspect` | POST | Refresh branch record from current git state. |
+| `/workspace-branches/{branch_id}/commit` | POST | Local commit (config + approval gated). |
+| `/workspace-branches/{branch_id}/commits` | GET | List commit records on a branch. |
+
+Disabled-state errors are HTTP `409` with detail `GIT_WORKFLOW_DISABLED` or
+`GIT_COMMIT_DISABLED`.
+
+### Config
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `GIT_WORKFLOW_ENABLED` | `false` | Master switch for branch creation. Inspection is always available. |
+| `GIT_COMMIT_ENABLED` | `false` | Required for local commits. |
+| `GIT_ALLOWED_BRANCH_PREFIX` | `forgeloop/` | Branch names must start with this. |
+| `GIT_PROTECTED_BRANCHES` | `main,master,develop,production,release` | Comma-separated; rejected for branch creation. Unioned with the safety profile's `protected_branches`. |
+| `GIT_TIMEOUT_SECONDS` | `60` | Per git invocation. |
+| `GIT_MAX_DIFF_BYTES` | `200000` | Cap on captured output. |
+| `GIT_COMMIT_MESSAGE_MAX_LEN` | `2000` | Commit message length cap. |
+| `GIT_BINARY` | `git` | Override the git executable path. |
+
+### Allowed git operations (the full set)
+
+Task 37 ever invokes only these:
+
+```
+git rev-parse --is-inside-work-tree
+git rev-parse --abbrev-ref HEAD
+git rev-parse --verify --quiet refs/heads/<base>
+git rev-parse HEAD
+git status --porcelain=v1 --untracked-files=all
+git diff --name-only HEAD
+git diff --stat HEAD
+git diff --stat HEAD~1..HEAD
+git switch -c <safe forgeloop-scoped name>
+git switch <safe forgeloop-scoped name>          # ensure HEAD before commit
+git add -- <safe diff-set paths>
+git -c user.name=ForgeLoop -c user.email=forgeloop@local commit -m <msg> --no-gpg-sign
+```
+
+Everything else — `push`, `pull`, `fetch`, `merge`, `rebase`, `reset`,
+`clean`, `tag`, `remote`, `stash`, `worktree`, `cherry-pick`, arbitrary
+`checkout` — is **never constructed** by ForgeLoop and is also explicitly
+rejected by the `_run_git` argv allow-list (defense in depth).
+
+### Safety profile
+
+- Branch validator unions `GIT_PROTECTED_BRANCHES` with the safety profile's
+  `protected_branches`.
+- Commit-path validator unions the profile's `blocked_paths` with a built-in
+  secrets blocklist (`.env*`, `id_rsa`/`id_dsa`/`id_ecdsa`/`id_ed25519`,
+  `*.pem`, `*.key`, `*.p12`, `.aws/`, `.ssh/`, `secrets/`).
+- Pre-commit hooks are not bypassed — if a repo's hooks fail, the commit
+  fails and is recorded as `workspace_commit_failed`.
+- Identity is per-invocation (`-c user.name=ForgeLoop -c user.email=forgeloop@local`);
+  ForgeLoop never writes to `git config --global`.
+
+### Records
+
+- `WorkspaceBranch` — id, workspace, project, code_repository, optional
+  dev_task / subtask / tool_run links, name, base_branch, current_branch,
+  status (`prepared|active|clean|dirty|committed|failed|archived`).
+- `GitCommitRecord` — id, workspace_branch_id, commit_sha, message,
+  changed_files, capped diff_stat, status (`prepared|committed|failed`),
+  optional `artifact_id` pointing to the commit summary artifact.
+
+### Artifacts
+
+- `git_inspection_summary` — JSON of inspection (no diff content).
+- `git_commit_summary` — JSON of commit metadata + capped diff stat.
+
+### Audit actions
+
+`git_inspection_completed`, `workspace_branch_created`,
+`workspace_branch_inspected`, `workspace_commit_prepared`,
+`workspace_commit_created`, `workspace_commit_failed`,
+`git_operation_blocked`.
+
+### Explicit non-goals (Task 37)
+
+- No push / pull / fetch / merge / rebase / reset / clean / stash / tag /
+  remote / worktree / cherry-pick / arbitrary checkout.
+- No GitHub call, no PR creation.
+- No deploy, no monitoring/CI provider integration.
+- No OpenHands invocation.
+- No arbitrary git CLI input.
+- No terminal/log streaming, no diff viewer.
+
 ## What comes next
 
-- **Task 37 — git branch workflow.**
-- **Task 38 — GitHub PR creation.**
+- **Task 38 — GitHub PR creation.** Will use the `WorkspaceBranch` +
+  `GitCommitRecord` produced here to push remote and open a PR.
+- **Task 39 — Review feedback loop.**
 
-Human review remains required between Task 36 (local execution) and
-Tasks 37/38. Anything beyond Task 36 requires an explicit approved task.
+Human review remains required between Tasks 36/37 and Tasks 38+. Anything
+beyond Task 37 requires an explicit approved task.

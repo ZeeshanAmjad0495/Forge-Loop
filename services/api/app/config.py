@@ -54,6 +54,21 @@ COMMAND_RUNNER_BLOCKED_COMMANDS: list[str] = [
     s.strip() for s in _blocked_raw.split(",") if s.strip()
 ]
 
+# --- Task 37: Local Git Branch Workflow ---
+GIT_WORKFLOW_ENABLED = os.getenv("GIT_WORKFLOW_ENABLED", "false").lower() == "true"
+GIT_COMMIT_ENABLED = os.getenv("GIT_COMMIT_ENABLED", "false").lower() == "true"
+GIT_ALLOWED_BRANCH_PREFIX = os.getenv("GIT_ALLOWED_BRANCH_PREFIX", "forgeloop/")
+_git_protected_raw = os.getenv(
+    "GIT_PROTECTED_BRANCHES", "main,master,develop,production,release"
+)
+GIT_PROTECTED_BRANCHES: list[str] = [
+    s.strip() for s in _git_protected_raw.split(",") if s.strip()
+]
+GIT_TIMEOUT_SECONDS = int(os.getenv("GIT_TIMEOUT_SECONDS", "60"))
+GIT_MAX_DIFF_BYTES = int(os.getenv("GIT_MAX_DIFF_BYTES", "200000"))
+GIT_COMMIT_MESSAGE_MAX_LEN = int(os.getenv("GIT_COMMIT_MESSAGE_MAX_LEN", "2000"))
+GIT_BINARY = os.getenv("GIT_BINARY", "git")
+
 
 def validate_startup_config() -> None:
     if AUTH_ENABLED and not AUTH_TOKEN_SECRET:

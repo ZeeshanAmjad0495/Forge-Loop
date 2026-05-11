@@ -42,5 +42,7 @@ memory_candidate_repo = repos.memory_candidate
 workspace_repo = repos.workspace
 command_definition_repo = repos.command_definition
 command_run_repo = repos.command_run
+workspace_branch_repo = repos.workspace_branch
+git_commit_record_repo = repos.git_commit_record
 
 audit_writer = AuditWriter(audit_event_repo)

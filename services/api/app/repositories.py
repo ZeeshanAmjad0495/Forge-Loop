@@ -17,6 +17,7 @@ from .models import (
     CommandRun,
     DevTask,
     Epic,
+    GitCommitRecord,
     Incident,
     IncidentAnalysis,
     MemoryLearningRun,
@@ -33,6 +34,7 @@ from .models import (
     ToolRun,
     ToolRunnerDefinition,
     Workspace,
+    WorkspaceBranch,
 )
 
 
@@ -1479,6 +1481,118 @@ class FirestoreCommandRunRepository:
         return [CommandRun(**d.to_dict()) for d in docs]
 
 
+class WorkspaceBranchRepository(Protocol):
+    def save(self, branch: WorkspaceBranch) -> None: ...
+    def get(self, branch_id: str) -> WorkspaceBranch | None: ...
+    def update(self, branch: WorkspaceBranch) -> None: ...
+    def list_by_workspace(self, workspace_id: str) -> list[WorkspaceBranch]: ...
+    def list_by_project(self, project_id: str) -> list[WorkspaceBranch]: ...
+
+
+class InMemoryWorkspaceBranchRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, WorkspaceBranch] = {}
+
+    def save(self, branch: WorkspaceBranch) -> None:
+        self._store[branch.id] = branch
+
+    def get(self, branch_id: str) -> WorkspaceBranch | None:
+        return self._store.get(branch_id)
+
+    def update(self, branch: WorkspaceBranch) -> None:
+        self._store[branch.id] = branch
+
+    def list_by_workspace(self, workspace_id: str) -> list[WorkspaceBranch]:
+        return [b for b in self._store.values() if b.workspace_id == workspace_id]
+
+    def list_by_project(self, project_id: str) -> list[WorkspaceBranch]:
+        return [b for b in self._store.values() if b.project_id == project_id]
+
+    def clear(self) -> None:
+        self._store.clear()
+
+
+class FirestoreWorkspaceBranchRepository:
+    def __init__(self, client, collection_name: str = "workspace_branches") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, branch: WorkspaceBranch) -> None:
+        self._collection.document(branch.id).set(branch.model_dump(mode="python"))
+
+    def get(self, branch_id: str) -> WorkspaceBranch | None:
+        snap = self._collection.document(branch_id).get()
+        if not snap.exists:
+            return None
+        return WorkspaceBranch(**snap.to_dict())
+
+    def update(self, branch: WorkspaceBranch) -> None:
+        self._collection.document(branch.id).set(branch.model_dump(mode="python"))
+
+    def list_by_workspace(self, workspace_id: str) -> list[WorkspaceBranch]:
+        docs = self._collection.where("workspace_id", "==", workspace_id).stream()
+        return [WorkspaceBranch(**d.to_dict()) for d in docs]
+
+    def list_by_project(self, project_id: str) -> list[WorkspaceBranch]:
+        docs = self._collection.where("project_id", "==", project_id).stream()
+        return [WorkspaceBranch(**d.to_dict()) for d in docs]
+
+
+class GitCommitRecordRepository(Protocol):
+    def save(self, record: GitCommitRecord) -> None: ...
+    def get(self, record_id: str) -> GitCommitRecord | None: ...
+    def update(self, record: GitCommitRecord) -> None: ...
+    def list_by_branch(self, branch_id: str) -> list[GitCommitRecord]: ...
+    def list_by_workspace(self, workspace_id: str) -> list[GitCommitRecord]: ...
+
+
+class InMemoryGitCommitRecordRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, GitCommitRecord] = {}
+
+    def save(self, record: GitCommitRecord) -> None:
+        self._store[record.id] = record
+
+    def get(self, record_id: str) -> GitCommitRecord | None:
+        return self._store.get(record_id)
+
+    def update(self, record: GitCommitRecord) -> None:
+        self._store[record.id] = record
+
+    def list_by_branch(self, branch_id: str) -> list[GitCommitRecord]:
+        return [r for r in self._store.values() if r.workspace_branch_id == branch_id]
+
+    def list_by_workspace(self, workspace_id: str) -> list[GitCommitRecord]:
+        return [r for r in self._store.values() if r.workspace_id == workspace_id]
+
+    def clear(self) -> None:
+        self._store.clear()
+
+
+class FirestoreGitCommitRecordRepository:
+    def __init__(self, client, collection_name: str = "git_commit_records") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, record: GitCommitRecord) -> None:
+        self._collection.document(record.id).set(record.model_dump(mode="python"))
+
+    def get(self, record_id: str) -> GitCommitRecord | None:
+        snap = self._collection.document(record_id).get()
+        if not snap.exists:
+            return None
+        return GitCommitRecord(**snap.to_dict())
+
+    def update(self, record: GitCommitRecord) -> None:
+        self._collection.document(record.id).set(record.model_dump(mode="python"))
+
+    def list_by_branch(self, branch_id: str) -> list[GitCommitRecord]:
+        docs = self._collection.where("workspace_branch_id", "==", branch_id).stream()
+        return [GitCommitRecord(**d.to_dict()) for d in docs]
+
+    def list_by_workspace(self, workspace_id: str) -> list[GitCommitRecord]:
+        docs = self._collection.where("workspace_id", "==", workspace_id).stream()
+        return [GitCommitRecord(**d.to_dict()) for d in docs]
+
+
 @dataclass(frozen=True)
 class Repositories:
     """Named container for the wired-up repository singletons.
@@ -1524,6 +1638,8 @@ class Repositories:
     workspace: WorkspaceRepository
     command_definition: CommandDefinitionRepository
     command_run: CommandRunRepository
+    workspace_branch: WorkspaceBranchRepository
+    git_commit_record: GitCommitRecordRepository
 
 
 def get_repositories() -> Repositories:
@@ -1558,6 +1674,8 @@ def get_repositories() -> Repositories:
             workspace=InMemoryWorkspaceRepository(),
             command_definition=InMemoryCommandDefinitionRepository(),
             command_run=InMemoryCommandRunRepository(),
+            workspace_branch=InMemoryWorkspaceBranchRepository(),
+            git_commit_record=InMemoryGitCommitRecordRepository(),
         )
     if config.REPOSITORY_PROVIDER == "firestore":
         from google.cloud import firestore
@@ -1596,6 +1714,8 @@ def get_repositories() -> Repositories:
             workspace=FirestoreWorkspaceRepository(client),
             command_definition=FirestoreCommandDefinitionRepository(client),
             command_run=FirestoreCommandRunRepository(client),
+            workspace_branch=FirestoreWorkspaceBranchRepository(client),
+            git_commit_record=FirestoreGitCommitRecordRepository(client),
         )
     raise ValueError(
         f"Unknown REPOSITORY_PROVIDER: {config.REPOSITORY_PROVIDER!r}. Supported: memory, firestore"
