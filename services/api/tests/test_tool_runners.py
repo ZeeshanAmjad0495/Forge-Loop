@@ -290,6 +290,24 @@ def test_record_tool_run_returns_201_and_shape():
     assert "updated_at" in data
 
 
+def test_record_tool_run_links_artifact_when_output_present():
+    from app.main import artifact_repo
+
+    project = _create_project()
+    payload = {
+        **TOOL_RUN_PAYLOAD_BASE,
+        "project_id": project["id"],
+        "output": "patch applied",
+    }
+    resp = client.post("/tool-runs", json=payload)
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["artifact_id"] is not None
+    artifact = artifact_repo._store[data["artifact_id"]]
+    assert artifact.artifact_type == "tool_run_result"
+    assert artifact.content == "patch applied"
+
+
 def test_record_tool_run_unknown_project_returns_404():
     payload = {**TOOL_RUN_PAYLOAD_BASE, "project_id": "nonexistent"}
     resp = client.post("/tool-runs", json=payload)

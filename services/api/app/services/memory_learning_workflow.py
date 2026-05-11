@@ -8,6 +8,7 @@ module (`memory_learning/agent.py`) is the LLM boundary;
 `memory_learning/applier.py` is the persistence-side helper.
 """
 
+import json
 import uuid
 from datetime import datetime, timezone
 
@@ -18,6 +19,7 @@ from ..memory_learning.agent import run_memory_learning
 from ..memory_learning.applier import apply_candidate
 from ..memory_learning.source_fetch import SUPPORTED_SOURCE_TYPES, fetch_source
 from ..models import (
+    Artifact,
     MemoryCandidateRejectRequest,
     MemoryLearningRun,
     MemoryLearningRunCreate,
@@ -27,6 +29,7 @@ from ..models import (
 )
 from ..repositories_state import (
     approval_repo,
+    artifact_repo,
     audit_writer,
     check_run_repo,
     ci_analysis_repo,
@@ -57,6 +60,23 @@ def persist_candidate_from_dict(
     actor_email: str | None,
 ) -> ProjectMemoryCandidate:
     now = datetime.now(timezone.utc)
+    candidate_payload = {
+        "memory_type": raw["memory_type"],
+        "title": raw["title"],
+        "content": raw["content"],
+        "tags": list(raw.get("tags") or []),
+        "confidence": raw.get("confidence"),
+    }
+    linked_artifact_id = str(uuid.uuid4())
+    artifact_repo.save(Artifact(
+        id=linked_artifact_id,
+        ticket_id=None,
+        requirement_id=None,
+        agent_run_id=None,
+        artifact_type="memory_candidate_batch",
+        content=json.dumps(candidate_payload, sort_keys=True),
+        created_at=now,
+    ))
     candidate = ProjectMemoryCandidate(
         id=str(uuid.uuid4()),
         project_id=project_id,
@@ -72,7 +92,7 @@ def persist_candidate_from_dict(
         proposed_by=proposed_by,
         provider=provider_name,
         model=model_name,
-        artifact_id=None,
+        artifact_id=linked_artifact_id,
         rejection_reason=None,
         created_at=now,
         updated_at=now,
@@ -198,6 +218,21 @@ def create_run(project_id: str, body: MemoryLearningRunCreate, current_user: str
         )
         candidate_ids.append(candidate.id)
 
+    summary_text = result.get("summary") or ""
+    raw_output = result.get("raw_output")
+    run_artifact_id: str | None = None
+    summary_content = raw_output or summary_text
+    if summary_content:
+        run_artifact_id = str(uuid.uuid4())
+        artifact_repo.save(Artifact(
+            id=run_artifact_id,
+            ticket_id=None,
+            requirement_id=None,
+            agent_run_id=None,
+            artifact_type="memory_learning_summary",
+            content=summary_content,
+            created_at=now,
+        ))
     run = MemoryLearningRun(
         id=run_id,
         project_id=project_id,
@@ -206,11 +241,11 @@ def create_run(project_id: str, body: MemoryLearningRunCreate, current_user: str
         provider=provider.provider_name,
         model=provider.model_name,
         status="completed",
-        summary=result.get("summary") or "",
+        summary=summary_text,
         candidates_created=len(candidate_ids),
         candidate_ids=candidate_ids,
-        artifact_id=None,
-        raw_output=result.get("raw_output"),
+        artifact_id=run_artifact_id,
+        raw_output=raw_output,
         error_message=None,
         created_at=now,
         updated_at=now,

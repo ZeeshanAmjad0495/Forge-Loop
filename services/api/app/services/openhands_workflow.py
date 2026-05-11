@@ -13,6 +13,7 @@ from fastapi import HTTPException
 
 from .. import config as _config
 from ..models import (
+    Artifact,
     OpenHandsInstructionPackage,
     OpenHandsPreparePackageRequest,
     OpenHandsPrepareResponse,
@@ -21,6 +22,7 @@ from ..models import (
     ToolRunnerDefinition,
 )
 from ..repositories_state import (
+    artifact_repo,
     audit_writer,
     code_repo_repo,
     dev_task_repo,
@@ -134,6 +136,17 @@ def prepare_package(
     )
 
     now = datetime.now(timezone.utc)
+    package_content = json.dumps(package_dict, sort_keys=True)
+    linked_artifact_id = str(uuid.uuid4())
+    artifact_repo.save(Artifact(
+        id=linked_artifact_id,
+        ticket_id=None,
+        requirement_id=None,
+        agent_run_id=None,
+        artifact_type="openhands_instruction_package",
+        content=package_content,
+        created_at=now,
+    ))
     run = ToolRun(
         id=str(uuid.uuid4()),
         project_id=project.id,
@@ -146,8 +159,8 @@ def prepare_package(
         status="completed",
         conclusion="requires_human_action",
         summary="OpenHands instruction package prepared",
-        output=json.dumps(package_dict, sort_keys=True),
-        artifact_id=None,
+        output=package_content,
+        artifact_id=linked_artifact_id,
         started_at=now,
         completed_at=now,
         created_at=now,

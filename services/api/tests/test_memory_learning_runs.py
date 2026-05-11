@@ -86,12 +86,22 @@ def test_learning_run_from_ci_analysis_creates_candidates():
     assert run["raw_output"]
     assert run["summary"]
 
+    from app.main import artifact_repo
+    assert run["artifact_id"] is not None
+    run_artifact = artifact_repo._store[run["artifact_id"]]
+    assert run_artifact.artifact_type == "memory_learning_summary"
+    assert run_artifact.content == run["raw_output"]
+
     # Candidates are persisted and linked back to the run.
     cands = client.get(f"/projects/{project['id']}/memory-candidates").json()
     assert len(cands) == run["candidates_created"]
     assert all(c["learning_run_id"] == run["id"] for c in cands)
     assert all(c["status"] == "proposed" for c in cands)
     assert all(c["source_type"] == "ci_analysis" for c in cands)
+    for c in cands:
+        assert c["artifact_id"] is not None
+        cand_artifact = artifact_repo._store[c["artifact_id"]]
+        assert cand_artifact.artifact_type == "memory_candidate_batch"
 
 
 def test_learning_run_from_incident_analysis_works():

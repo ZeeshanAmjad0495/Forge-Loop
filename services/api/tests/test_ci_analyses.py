@@ -52,6 +52,11 @@ def test_create_ci_analysis_default_provider_returns_201_completed():
     assert a["model"]
     assert a["error_message"] is None
     assert a["raw_output"]
+    from app.main import artifact_repo
+    assert a["artifact_id"] is not None
+    artifact = artifact_repo._store[a["artifact_id"]]
+    assert artifact.artifact_type == "ci_failure_analysis"
+    assert artifact.content == a["raw_output"]
     # Parsed fields from the mock CI failure response
     assert a["summary"]
     assert isinstance(a["likely_root_causes"], list) and len(a["likely_root_causes"]) >= 1

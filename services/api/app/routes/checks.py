@@ -5,6 +5,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException
 
 from ..auth import require_auth
 from ..models import (
+    Artifact,
     CheckDefinition,
     CheckDefinitionCreate,
     CheckDefinitionUpdate,
@@ -16,6 +17,7 @@ from ..models import (
     RepoSafetyProfile,
 )
 from ..repositories_state import (
+    artifact_repo,
     audit_writer,
     check_definition_repo,
     check_run_repo,
@@ -230,6 +232,18 @@ def record_check_run(
         if check_definition_repo.get(body.check_definition_id) is None:
             raise HTTPException(status_code=404, detail="CheckDefinition not found")
     now = datetime.now(timezone.utc)
+    linked_artifact_id: str | None = None
+    if body.output:
+        linked_artifact_id = str(uuid.uuid4())
+        artifact_repo.save(Artifact(
+            id=linked_artifact_id,
+            ticket_id=None,
+            requirement_id=None,
+            agent_run_id=None,
+            artifact_type="check_result",
+            content=body.output,
+            created_at=now,
+        ))
     run = CheckRun(
         id=str(uuid.uuid4()),
         project_id=body.project_id,
@@ -241,7 +255,7 @@ def record_check_run(
         conclusion=body.conclusion,
         summary=body.summary,
         output=body.output,
-        artifact_id=None,
+        artifact_id=linked_artifact_id,
         started_at=body.started_at or now,
         completed_at=body.completed_at,
         created_at=now,

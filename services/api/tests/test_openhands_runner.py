@@ -94,6 +94,12 @@ def test_prepare_package_for_dev_task_returns_201_and_shape():
     parsed = json.loads(run["output"])
     assert parsed["dev_task"]["id"] == task["id"]
 
+    from app.main import artifact_repo
+    assert run["artifact_id"] is not None
+    artifact = artifact_repo._store[run["artifact_id"]]
+    assert artifact.artifact_type == "openhands_instruction_package"
+    assert artifact.content == run["output"]
+
 
 def test_prepare_package_includes_task_title_description_and_acceptance_criteria():
     task = _create_dev_task()

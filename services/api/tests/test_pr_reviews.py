@@ -101,6 +101,11 @@ def test_prepare_pr_review_returns_201_pending_with_package():
     assert r["conclusion"] is None
     assert r["completed_at"] is None
     assert r["raw_output"]
+    from app.main import artifact_repo
+    assert r["artifact_id"] is not None
+    artifact = artifact_repo._store[r["artifact_id"]]
+    assert artifact.artifact_type == "pr_review"
+    assert artifact.content == r["raw_output"]
     package = json.loads(r["raw_output"])
     assert package["provider"] == "kody"
     assert package["mode"] == "prepare"

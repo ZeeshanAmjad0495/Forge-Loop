@@ -15,11 +15,13 @@ from fastapi import HTTPException
 from ..incident_triage.agent import run_incident_triage
 from ..llm import ProviderError, get_default_provider_name, get_provider_by_name
 from ..models import (
+    Artifact,
     IncidentAnalysis,
     IncidentAnalysisCreate,
     RemediationWorkItemDraft,
 )
 from ..repositories_state import (
+    artifact_repo,
     audit_writer,
     ci_analysis_repo,
     ci_event_repo,
@@ -126,6 +128,19 @@ def create_analysis(
         )
         return failed
 
+    raw_output = parsed.get("raw_output")
+    linked_artifact_id: str | None = None
+    if raw_output:
+        linked_artifact_id = str(uuid.uuid4())
+        artifact_repo.save(Artifact(
+            id=linked_artifact_id,
+            ticket_id=None,
+            requirement_id=None,
+            agent_run_id=None,
+            artifact_type="incident_analysis",
+            content=raw_output,
+            created_at=now,
+        ))
     analysis = IncidentAnalysis(
         id=analysis_id,
         project_id=incident.project_id,
@@ -142,8 +157,8 @@ def create_analysis(
         prevention_actions=list(parsed.get("prevention_actions") or []),
         affected_areas=list(parsed.get("affected_areas") or []),
         recommended_next_action=parsed.get("recommended_next_action"),
-        raw_output=parsed.get("raw_output"),
-        artifact_id=None,
+        raw_output=raw_output,
+        artifact_id=linked_artifact_id,
         error_message=None,
         created_at=now,
         updated_at=now,

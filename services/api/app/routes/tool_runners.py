@@ -6,6 +6,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException
 
 from ..auth import require_auth
 from ..models import (
+    Artifact,
     ToolRun,
     ToolRunCreate,
     ToolRunnerDefinition,
@@ -15,6 +16,7 @@ from ..models import (
     ToolRunnerDefinitionsDefaultsResponse,
 )
 from ..repositories_state import (
+    artifact_repo,
     audit_writer,
     code_repo_repo,
     project_repo,
@@ -237,6 +239,18 @@ def record_tool_run(
         if tool_runner_definition_repo.get(body.tool_runner_definition_id) is None:
             raise HTTPException(status_code=404, detail="ToolRunnerDefinition not found")
     now = datetime.now(timezone.utc)
+    linked_artifact_id: str | None = None
+    if body.output:
+        linked_artifact_id = str(uuid.uuid4())
+        artifact_repo.save(Artifact(
+            id=linked_artifact_id,
+            ticket_id=None,
+            requirement_id=None,
+            agent_run_id=None,
+            artifact_type="tool_run_result",
+            content=body.output,
+            created_at=now,
+        ))
     run = ToolRun(
         id=str(uuid.uuid4()),
         project_id=body.project_id,
@@ -250,7 +264,7 @@ def record_tool_run(
         conclusion=body.conclusion,
         summary=body.summary,
         output=body.output,
-        artifact_id=None,
+        artifact_id=linked_artifact_id,
         started_at=body.started_at or now,
         completed_at=body.completed_at,
         created_at=now,

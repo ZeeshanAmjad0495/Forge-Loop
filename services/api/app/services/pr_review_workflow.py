@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from fastapi import HTTPException
 
 from ..models import (
+    Artifact,
     AuditAction,
     PullRequestDraft,
     PullRequestReview,
@@ -29,6 +30,7 @@ from ..pr_review.kody import (
 )
 from ..repositories_state import (
     approval_repo,
+    artifact_repo,
     audit_writer,
     check_run_repo,
     code_repo_repo,
@@ -145,6 +147,18 @@ def create_review(pr_draft_id: str, body: PullRequestReviewCreate, current_user:
         raw_output = body.raw_output if body.raw_output is not None else json.dumps(package)
         summary = body.summary or ""
 
+    linked_artifact_id: str | None = None
+    if raw_output:
+        linked_artifact_id = str(uuid.uuid4())
+        artifact_repo.save(Artifact(
+            id=linked_artifact_id,
+            ticket_id=None,
+            requirement_id=None,
+            agent_run_id=None,
+            artifact_type="pr_review",
+            content=raw_output,
+            created_at=now,
+        ))
     review = PullRequestReview(
         id=str(uuid.uuid4()),
         project_id=draft.project_id,
@@ -157,7 +171,7 @@ def create_review(pr_draft_id: str, body: PullRequestReviewCreate, current_user:
         findings=list(body.findings or []),
         recommendations=body.recommendations,
         raw_output=raw_output,
-        artifact_id=None,
+        artifact_id=linked_artifact_id,
         external_review_url=body.external_review_url,
         started_at=started_at,
         completed_at=completed_at,

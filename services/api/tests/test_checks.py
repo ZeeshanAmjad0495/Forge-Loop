@@ -337,6 +337,24 @@ def test_record_check_run_returns_201_and_shape():
     assert "created_at" in data
 
 
+def test_record_check_run_links_artifact_when_output_present():
+    from app.main import artifact_repo
+
+    project = _create_project()
+    payload = {
+        **CHECK_RUN_PAYLOAD_BASE,
+        "project_id": project["id"],
+        "output": "pytest: 42 passed",
+    }
+    resp = client.post("/check-runs", json=payload)
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["artifact_id"] is not None
+    artifact = artifact_repo._store[data["artifact_id"]]
+    assert artifact.artifact_type == "check_result"
+    assert artifact.content == "pytest: 42 passed"
+
+
 def test_record_check_run_with_check_definition():
     project = _create_project()
     defn = _create_definition(project["id"])

@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Protocol
 
 from . import config
@@ -1202,62 +1203,72 @@ class FirestoreProjectMemoryCandidateRepository:
         return sorted(matches, key=lambda c: c.created_at, reverse=True)
 
 
-def get_repositories() -> tuple[
-    TicketRepository,
-    AgentRunRepository,
-    ArtifactRepository,
-    ProjectRepository,
-    ProjectContextRepository,
-    RequirementAnalysisRepository,
-    RequirementRepository,
-    DevTaskRepository,
-    SubtaskRepository,
-    ApprovalRepository,
-    AuditEventRepository,
-    CodeRepositoryRepository,
-    RepoSafetyProfileRepository,
-    EpicRepository,
-    CheckDefinitionRepository,
-    CheckRunRepository,
-    ToolRunnerDefinitionRepository,
-    ToolRunRepository,
-    PullRequestDraftRepository,
-    PullRequestReviewRepository,
-    CIEventRepository,
-    CIAnalysisRepository,
-    IncidentRepository,
-    IncidentAnalysisRepository,
-    MemoryLearningRunRepository,
-    ProjectMemoryCandidateRepository,
-]:
+@dataclass(frozen=True)
+class Repositories:
+    """Named container for the wired-up repository singletons.
+
+    Replaces the previous 26-element positional tuple returned by
+    ``get_repositories()``. Field names mirror the singleton names used in
+    ``repositories_state.py`` with the ``_repo`` suffix stripped.
+    """
+
+    ticket: TicketRepository
+    agent_run: AgentRunRepository
+    artifact: ArtifactRepository
+    project: ProjectRepository
+    project_context: ProjectContextRepository
+    requirement_analysis: RequirementAnalysisRepository
+    requirement: RequirementRepository
+    dev_task: DevTaskRepository
+    subtask: SubtaskRepository
+    approval: ApprovalRepository
+    audit_event: AuditEventRepository
+    code_repository: CodeRepositoryRepository
+    repo_safety_profile: RepoSafetyProfileRepository
+    epic: EpicRepository
+    check_definition: CheckDefinitionRepository
+    check_run: CheckRunRepository
+    tool_runner_definition: ToolRunnerDefinitionRepository
+    tool_run: ToolRunRepository
+    pr_draft: PullRequestDraftRepository
+    pr_review: PullRequestReviewRepository
+    ci_event: CIEventRepository
+    ci_analysis: CIAnalysisRepository
+    incident: IncidentRepository
+    incident_analysis: IncidentAnalysisRepository
+    memory_learning_run: MemoryLearningRunRepository
+    memory_candidate: ProjectMemoryCandidateRepository
+
+
+def get_repositories() -> Repositories:
     if config.REPOSITORY_PROVIDER == "memory":
-        return (
-            InMemoryTicketRepository(),
-            InMemoryAgentRunRepository(),
-            InMemoryArtifactRepository(),
-            InMemoryProjectRepository(),
-            InMemoryProjectContextRepository(),
-            InMemoryRequirementAnalysisRepository(),
-            InMemoryRequirementRepository(),
-            InMemoryDevTaskRepository(),
-            InMemorySubtaskRepository(),
-            InMemoryApprovalRepository(),
-            InMemoryAuditEventRepository(),
-            InMemoryCodeRepositoryRepository(),
-            InMemoryRepoSafetyProfileRepository(),
-            InMemoryEpicRepository(),
-            InMemoryCheckDefinitionRepository(),
-            InMemoryCheckRunRepository(),
-            InMemoryToolRunnerDefinitionRepository(),
-            InMemoryToolRunRepository(),
-            InMemoryPullRequestDraftRepository(),
-            InMemoryPullRequestReviewRepository(),
-            InMemoryCIEventRepository(),
-            InMemoryCIAnalysisRepository(),
-            InMemoryIncidentRepository(),
-            InMemoryIncidentAnalysisRepository(),
-            InMemoryMemoryLearningRunRepository(),
-            InMemoryProjectMemoryCandidateRepository(),
+        return Repositories(
+            ticket=InMemoryTicketRepository(),
+            agent_run=InMemoryAgentRunRepository(),
+            artifact=InMemoryArtifactRepository(),
+            project=InMemoryProjectRepository(),
+            project_context=InMemoryProjectContextRepository(),
+            requirement_analysis=InMemoryRequirementAnalysisRepository(),
+            requirement=InMemoryRequirementRepository(),
+            dev_task=InMemoryDevTaskRepository(),
+            subtask=InMemorySubtaskRepository(),
+            approval=InMemoryApprovalRepository(),
+            audit_event=InMemoryAuditEventRepository(),
+            code_repository=InMemoryCodeRepositoryRepository(),
+            repo_safety_profile=InMemoryRepoSafetyProfileRepository(),
+            epic=InMemoryEpicRepository(),
+            check_definition=InMemoryCheckDefinitionRepository(),
+            check_run=InMemoryCheckRunRepository(),
+            tool_runner_definition=InMemoryToolRunnerDefinitionRepository(),
+            tool_run=InMemoryToolRunRepository(),
+            pr_draft=InMemoryPullRequestDraftRepository(),
+            pr_review=InMemoryPullRequestReviewRepository(),
+            ci_event=InMemoryCIEventRepository(),
+            ci_analysis=InMemoryCIAnalysisRepository(),
+            incident=InMemoryIncidentRepository(),
+            incident_analysis=InMemoryIncidentAnalysisRepository(),
+            memory_learning_run=InMemoryMemoryLearningRunRepository(),
+            memory_candidate=InMemoryProjectMemoryCandidateRepository(),
         )
     if config.REPOSITORY_PROVIDER == "firestore":
         from google.cloud import firestore
@@ -1266,33 +1277,33 @@ def get_repositories() -> tuple[
             project=config.GCP_PROJECT_ID or None,
             database=config.FIRESTORE_DATABASE,
         )
-        return (
-            FirestoreTicketRepository(client),
-            FirestoreAgentRunRepository(client),
-            FirestoreArtifactRepository(client),
-            FirestoreProjectRepository(client),
-            FirestoreProjectContextRepository(client),
-            FirestoreRequirementAnalysisRepository(client),
-            FirestoreRequirementRepository(client),
-            FirestoreDevTaskRepository(client),
-            FirestoreSubtaskRepository(client),
-            FirestoreApprovalRepository(client),
-            FirestoreAuditEventRepository(client),
-            FirestoreCodeRepositoryRepository(client),
-            FirestoreRepoSafetyProfileRepository(client),
-            FirestoreEpicRepository(client),
-            FirestoreCheckDefinitionRepository(client),
-            FirestoreCheckRunRepository(client),
-            FirestoreToolRunnerDefinitionRepository(client),
-            FirestoreToolRunRepository(client),
-            FirestorePullRequestDraftRepository(client),
-            FirestorePullRequestReviewRepository(client),
-            FirestoreCIEventRepository(client),
-            FirestoreCIAnalysisRepository(client),
-            FirestoreIncidentRepository(client),
-            FirestoreIncidentAnalysisRepository(client),
-            FirestoreMemoryLearningRunRepository(client),
-            FirestoreProjectMemoryCandidateRepository(client),
+        return Repositories(
+            ticket=FirestoreTicketRepository(client),
+            agent_run=FirestoreAgentRunRepository(client),
+            artifact=FirestoreArtifactRepository(client),
+            project=FirestoreProjectRepository(client),
+            project_context=FirestoreProjectContextRepository(client),
+            requirement_analysis=FirestoreRequirementAnalysisRepository(client),
+            requirement=FirestoreRequirementRepository(client),
+            dev_task=FirestoreDevTaskRepository(client),
+            subtask=FirestoreSubtaskRepository(client),
+            approval=FirestoreApprovalRepository(client),
+            audit_event=FirestoreAuditEventRepository(client),
+            code_repository=FirestoreCodeRepositoryRepository(client),
+            repo_safety_profile=FirestoreRepoSafetyProfileRepository(client),
+            epic=FirestoreEpicRepository(client),
+            check_definition=FirestoreCheckDefinitionRepository(client),
+            check_run=FirestoreCheckRunRepository(client),
+            tool_runner_definition=FirestoreToolRunnerDefinitionRepository(client),
+            tool_run=FirestoreToolRunRepository(client),
+            pr_draft=FirestorePullRequestDraftRepository(client),
+            pr_review=FirestorePullRequestReviewRepository(client),
+            ci_event=FirestoreCIEventRepository(client),
+            ci_analysis=FirestoreCIAnalysisRepository(client),
+            incident=FirestoreIncidentRepository(client),
+            incident_analysis=FirestoreIncidentAnalysisRepository(client),
+            memory_learning_run=FirestoreMemoryLearningRunRepository(client),
+            memory_candidate=FirestoreProjectMemoryCandidateRepository(client),
         )
     raise ValueError(
         f"Unknown REPOSITORY_PROVIDER: {config.REPOSITORY_PROVIDER!r}. Supported: memory, firestore"

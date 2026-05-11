@@ -4,40 +4,40 @@ Single source of truth for the wired-up repositories. `main.py` re-exports
 these names so existing imports (`from app.main import audit_event_repo`,
 the 26-name conftest import) continue to work unchanged.
 
-The 26-tuple unpack here is preserved verbatim from the original main.py
-pending the S5 Repositories container refactor.
+S5 replaced the positional 26-tuple unpack with named-attribute access on
+the ``Repositories`` container returned by ``get_repositories()``.
 """
 
 from .repositories import get_repositories
 from .services.audit_writer import AuditWriter
 
-(
-    repo,
-    agent_run_repo,
-    artifact_repo,
-    project_repo,
-    project_context_repo,
-    analysis_repo,
-    requirement_repo,
-    dev_task_repo,
-    subtask_repo,
-    approval_repo,
-    audit_event_repo,
-    code_repo_repo,
-    repo_safety_profile_repo,
-    epic_repo,
-    check_definition_repo,
-    check_run_repo,
-    tool_runner_definition_repo,
-    tool_run_repo,
-    pr_draft_repo,
-    pr_review_repo,
-    ci_event_repo,
-    ci_analysis_repo,
-    incident_repo,
-    incident_analysis_repo,
-    memory_learning_run_repo,
-    memory_candidate_repo,
-) = get_repositories()
+repos = get_repositories()
+
+repo = repos.ticket
+agent_run_repo = repos.agent_run
+artifact_repo = repos.artifact
+project_repo = repos.project
+project_context_repo = repos.project_context
+analysis_repo = repos.requirement_analysis
+requirement_repo = repos.requirement
+dev_task_repo = repos.dev_task
+subtask_repo = repos.subtask
+approval_repo = repos.approval
+audit_event_repo = repos.audit_event
+code_repo_repo = repos.code_repository
+repo_safety_profile_repo = repos.repo_safety_profile
+epic_repo = repos.epic
+check_definition_repo = repos.check_definition
+check_run_repo = repos.check_run
+tool_runner_definition_repo = repos.tool_runner_definition
+tool_run_repo = repos.tool_run
+pr_draft_repo = repos.pr_draft
+pr_review_repo = repos.pr_review
+ci_event_repo = repos.ci_event
+ci_analysis_repo = repos.ci_analysis
+incident_repo = repos.incident
+incident_analysis_repo = repos.incident_analysis
+memory_learning_run_repo = repos.memory_learning_run
+memory_candidate_repo = repos.memory_candidate
 
 audit_writer = AuditWriter(audit_event_repo)
