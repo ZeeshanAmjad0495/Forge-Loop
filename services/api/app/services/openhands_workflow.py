@@ -180,6 +180,8 @@ def prepare_package(
     return OpenHandsPrepareResponse(
         tool_run=run,
         instruction_package=OpenHandsInstructionPackage(**package_dict),
+        execution_enabled=bool(_config.OPENHANDS_EXECUTION_ENABLED)
+        and bool(_config.OPENHANDS_COMMAND),
     )
 
 

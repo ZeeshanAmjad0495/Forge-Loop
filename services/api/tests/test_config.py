@@ -45,3 +45,13 @@ def test_validate_startup_config_ok_when_auth_enabled_and_secret_set(monkeypatch
     monkeypatch.setattr(config, "AUTH_ENABLED", True)
     monkeypatch.setattr(config, "AUTH_TOKEN_SECRET", "a-sufficiently-long-test-secret-value")
     config.validate_startup_config()  # must not raise
+
+
+def test_openhands_execution_defaults_are_safe():
+    assert config.OPENHANDS_EXECUTION_ENABLED is False
+    assert config.OPENHANDS_MODE == "dry_run"
+    assert config.OPENHANDS_COMMAND == ""
+    assert config.OPENHANDS_TIMEOUT_SECONDS == 1800
+    assert config.OPENHANDS_MAX_OUTPUT_BYTES == 200000
+    assert config.OPENHANDS_EXECUTION_HARD_CAP_SECONDS == 3600
+    assert config.OPENHANDS_ALLOWED_ARGS == []

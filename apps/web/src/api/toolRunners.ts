@@ -1,5 +1,7 @@
 import { request } from './client'
 import type {
+  OpenHandsExecuteRequest,
+  OpenHandsExecuteResponse,
   OpenHandsPreparePackageRequest,
   OpenHandsPrepareResponse,
   OpenHandsRecordResultRequest,
@@ -64,4 +66,11 @@ export function recordOpenHandsResult(
   body: OpenHandsRecordResultRequest,
 ): Promise<ToolRun> {
   return request<ToolRun>('POST', `/tool-runs/${toolRunId}/openhands/record-result`, body)
+}
+
+export function executeOpenHands(
+  devTaskId: string,
+  body: OpenHandsExecuteRequest,
+): Promise<OpenHandsExecuteResponse> {
+  return request<OpenHandsExecuteResponse>('POST', `/dev-tasks/${devTaskId}/openhands/execute`, body)
 }

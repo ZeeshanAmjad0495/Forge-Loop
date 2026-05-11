@@ -23,6 +23,8 @@ class Artifact(BaseModel):
         "memory_learning_summary",
         "memory_candidate_batch",
         "command_run_output",
+        "openhands_execution_output",
+        "openhands_execution_changed_paths",
     ]
     content: str
     created_at: datetime

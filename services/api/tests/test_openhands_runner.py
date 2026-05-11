@@ -72,6 +72,8 @@ def test_prepare_package_for_dev_task_returns_201_and_shape():
     data = resp.json()
     assert "tool_run" in data
     assert "instruction_package" in data
+    assert "execution_enabled" in data
+    assert data["execution_enabled"] is False
 
     pkg = data["instruction_package"]
     assert pkg["schema_version"] == "1"

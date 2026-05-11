@@ -130,10 +130,47 @@ export interface OpenHandsPreparePackageRequest {
 export interface OpenHandsPrepareResponse {
   tool_run: ToolRun
   instruction_package: OpenHandsInstructionPackage
+  execution_enabled: boolean
 }
 
 export interface OpenHandsRecordResultRequest {
   summary: string
   output: string
   conclusion: ToolRunConclusion
+}
+
+export type OpenHandsExecuteMode = 'dry_run' | 'local'
+
+export type OpenHandsChangeType = 'added' | 'modified' | 'deleted'
+
+export interface OpenHandsChangedPath {
+  path: string
+  change_type: OpenHandsChangeType
+}
+
+export interface OpenHandsExecuteRequest {
+  workspace_id: string
+  tool_runner_definition_id?: string | null
+  approval_id?: string | null
+  mode: OpenHandsExecuteMode
+  timeout_seconds?: number | null
+}
+
+export interface OpenHandsExecutionSummary {
+  mode: OpenHandsExecuteMode
+  exit_code: number | null
+  timed_out: boolean
+  duration_seconds: number
+  changed_paths: OpenHandsChangedPath[]
+  blocked_path_changes: string[]
+  stdout_tail: string
+  stderr_tail: string
+  snapshot_truncated: boolean
+  workspace_id: string | null
+}
+
+export interface OpenHandsExecuteResponse {
+  tool_run: ToolRun
+  instruction_package: OpenHandsInstructionPackage
+  execution_summary: OpenHandsExecutionSummary
 }

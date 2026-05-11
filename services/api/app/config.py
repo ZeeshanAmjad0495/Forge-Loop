@@ -19,6 +19,13 @@ OPENHANDS_EXECUTION_ENABLED = os.getenv("OPENHANDS_EXECUTION_ENABLED", "false").
 OPENHANDS_MODE = os.getenv("OPENHANDS_MODE", "dry_run")
 OPENHANDS_COMMAND = os.getenv("OPENHANDS_COMMAND", "")
 OPENHANDS_BASE_URL = os.getenv("OPENHANDS_BASE_URL", "")
+OPENHANDS_TIMEOUT_SECONDS = int(os.getenv("OPENHANDS_TIMEOUT_SECONDS", "1800"))
+OPENHANDS_MAX_OUTPUT_BYTES = int(os.getenv("OPENHANDS_MAX_OUTPUT_BYTES", "200000"))
+OPENHANDS_EXECUTION_HARD_CAP_SECONDS = int(os.getenv("OPENHANDS_EXECUTION_HARD_CAP_SECONDS", "3600"))
+_openhands_args_raw = os.getenv("OPENHANDS_ALLOWED_ARGS", "")
+OPENHANDS_ALLOWED_ARGS: list[str] = [
+    s.strip() for s in _openhands_args_raw.split(",") if s.strip()
+]
 KODY_REVIEW_ENABLED = os.getenv("KODY_REVIEW_ENABLED", "false").lower() == "true"
 KODY_BASE_URL = os.getenv("KODY_BASE_URL", "")
 KODY_API_KEY = os.getenv("KODY_API_KEY", "")

@@ -2,9 +2,11 @@ import { useState } from 'react'
 import {
   createApproval,
   decideApproval,
+  executeOpenHands,
   listDevTaskCheckRuns,
   listDevTaskToolRuns,
   listProjectCodeRepositories,
+  listProjectWorkspaces,
   prepareOpenHandsPackage,
   preparePullRequestDraft,
   recordOpenHandsResult,
@@ -16,11 +18,13 @@ import type {
   CheckRun,
   DevTask,
   DevTaskStatus,
+  OpenHandsExecutionSummary,
   OpenHandsInstructionPackage,
   PullRequestDraft,
   Subtask,
   ToolRun,
   ToolRunConclusion,
+  Workspace,
 } from '../types'
 import { ALL_STATUSES, ASSIGNEE_TYPES } from '../lib/constants'
 import { CheckBadge, ToolRunBadge } from './StatusBadge'
@@ -89,6 +93,11 @@ export function DevTaskCard({
   const [ohResultText, setOhResultText] = useState('')
   const [ohResultConclusion, setOhResultConclusion] = useState<ToolRunConclusion>('success')
   const [ohRecording, setOhRecording] = useState(false)
+  const [ohExecutionEnabled, setOhExecutionEnabled] = useState(false)
+  const [ohWorkspaces, setOhWorkspaces] = useState<Workspace[]>([])
+  const [ohSelectedWorkspace, setOhSelectedWorkspace] = useState<string>('')
+  const [ohExecuting, setOhExecuting] = useState(false)
+  const [ohSummary, setOhSummary] = useState<OpenHandsExecutionSummary | null>(null)
 
   const [prBusy, setPrBusy] = useState(false)
   const [prError, setPrError] = useState<string | null>(null)
@@ -122,6 +131,14 @@ export function DevTaskCard({
       const resp = await prepareOpenHandsPackage(task.id, {})
       setOhPackage(resp.instruction_package)
       setOhRun(resp.tool_run)
+      setOhExecutionEnabled(resp.execution_enabled)
+      setOhSummary(null)
+      try {
+        const ws = await listProjectWorkspaces(projectId)
+        const ready = ws.filter(w => w.status === 'ready')
+        setOhWorkspaces(ready)
+        if (ready.length === 1) setOhSelectedWorkspace(ready[0].id)
+      } catch { /* non-critical */ }
       if (toolRunsLoaded) {
         try {
           const runs = await listDevTaskToolRuns(task.id)
@@ -132,6 +149,31 @@ export function DevTaskCard({
       setOhError((e as Error).message)
     } finally {
       setOhBusy(false)
+    }
+  }
+
+  async function handleExecuteOpenHands() {
+    if (!ohSelectedWorkspace) return
+    setOhError(null)
+    setOhExecuting(true)
+    setOhSummary(null)
+    try {
+      const resp = await executeOpenHands(task.id, {
+        workspace_id: ohSelectedWorkspace,
+        mode: 'local',
+      })
+      setOhRun(resp.tool_run)
+      setOhSummary(resp.execution_summary)
+      if (toolRunsLoaded) {
+        try {
+          const runs = await listDevTaskToolRuns(task.id)
+          setTaskToolRuns(runs)
+        } catch { /* non-critical */ }
+      }
+    } catch (e) {
+      setOhError((e as Error).message)
+    } finally {
+      setOhExecuting(false)
     }
   }
 
@@ -382,7 +424,8 @@ export function DevTaskCard({
         {ohPackage && (
           <>
             <p style={{ fontSize: 10, color: '#666', margin: '6px 0 2px' }}>
-              Dry-run package — ForgeLoop does not execute OpenHands. Copy to OpenHands manually.
+              Dry-run package — copy to OpenHands manually, or use Execute (local) below
+              when enabled.
             </p>
             <pre style={{
               maxHeight: 220,
@@ -395,6 +438,82 @@ export function DevTaskCard({
               margin: 0,
             }}>{JSON.stringify(ohPackage, null, 2)}</pre>
           </>
+        )}
+        {ohRun && (
+          <div style={{ marginTop: 6, padding: '6px 8px', border: '1px solid #3a1d1d', borderRadius: 3, background: '#1a1010' }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <strong style={{ fontSize: 11, color: '#e58' }}>Execute (local)</strong>
+              <select
+                value={ohSelectedWorkspace}
+                onChange={e => setOhSelectedWorkspace(e.target.value)}
+                disabled={ohExecuting || !ohExecutionEnabled || ohWorkspaces.length === 0}
+                style={{ fontSize: 11 }}
+              >
+                <option value="">— select ready workspace —</option>
+                {ohWorkspaces.map(w => (
+                  <option key={w.id} value={w.id}>{w.name} ({w.root_path})</option>
+                ))}
+              </select>
+              <button
+                onClick={handleExecuteOpenHands}
+                disabled={ohExecuting || !ohExecutionEnabled || !ohSelectedWorkspace}
+                title={
+                  !ohExecutionEnabled
+                    ? 'OpenHands local execution is disabled (OPENHANDS_EXECUTION_ENABLED=false).'
+                    : !ohSelectedWorkspace
+                      ? 'Select a ready workspace first.'
+                      : 'Run OpenHands inside the selected workspace.'
+                }
+                style={{ fontSize: 11, padding: '2px 8px' }}
+              >
+                {ohExecuting ? 'Executing…' : 'Execute (local)'}
+              </button>
+              <span style={{ fontSize: 10, color: '#c66' }}>
+                Modifies files in workspace. No branch/PR. Review changes manually.
+              </span>
+            </div>
+            {ohSummary && (
+              <div style={{ marginTop: 6, fontSize: 11 }}>
+                <div>
+                  exit_code: <code>{String(ohSummary.exit_code)}</code> · timed_out:{' '}
+                  <code>{String(ohSummary.timed_out)}</code> · duration:{' '}
+                  <code>{ohSummary.duration_seconds.toFixed(2)}s</code>
+                </div>
+                {ohSummary.blocked_path_changes.length > 0 && (
+                  <div style={{ color: '#f88', marginTop: 2 }}>
+                    Blocked-path changes: {ohSummary.blocked_path_changes.join(', ')}
+                  </div>
+                )}
+                {ohSummary.changed_paths.length > 0 && (
+                  <details style={{ marginTop: 4 }}>
+                    <summary style={{ cursor: 'pointer', fontSize: 11 }}>
+                      Changed paths ({ohSummary.changed_paths.length})
+                    </summary>
+                    <ul style={{ margin: '4px 0 0 16px', padding: 0, fontSize: 11 }}>
+                      {ohSummary.changed_paths.slice(0, 200).map(c => (
+                        <li key={c.path}><code>{c.change_type}</code> {c.path}</li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+                {(ohSummary.stdout_tail || ohSummary.stderr_tail) && (
+                  <details style={{ marginTop: 4 }}>
+                    <summary style={{ cursor: 'pointer', fontSize: 11 }}>Output tail</summary>
+                    <pre style={{
+                      maxHeight: 160,
+                      overflow: 'auto',
+                      background: '#0e0e0e',
+                      border: '1px solid #222',
+                      borderRadius: 3,
+                      padding: 6,
+                      fontSize: 10,
+                      margin: 4,
+                    }}>{ohSummary.stdout_tail}{ohSummary.stderr_tail ? '\n--- stderr ---\n' + ohSummary.stderr_tail : ''}</pre>
+                  </details>
+                )}
+              </div>
+            )}
+          </div>
         )}
         {ohRun && (
           <div style={{ marginTop: 6 }}>

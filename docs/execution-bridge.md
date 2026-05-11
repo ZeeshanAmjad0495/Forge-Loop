@@ -192,10 +192,96 @@ No new `CheckRun` enum values are introduced — the existing `pending|running|c
 - No terminal / log streaming.
 - No Docker / remote / CI execution.
 
+## Task 36 — OpenHands local execution
+
+Task 36 promotes the OpenHands runner from instruction-package-only to a
+**controlled local execution mode**. It is disabled by default, workspace-scoped,
+approval-gated, audited, output- and timeout-bounded, and does not invoke git,
+GitHub, deploy, merge, or any branch/PR workflow.
+
+### Endpoint
+
+`POST /dev-tasks/{dev_task_id}/openhands/execute`
+
+```jsonc
+{
+  "workspace_id": "ws-...",
+  "tool_runner_definition_id": null,         // optional
+  "approval_id": null,                       // optional; otherwise an approval is required
+  "mode": "local",                           // "dry_run" | "local"
+  "timeout_seconds": 900                     // capped by OPENHANDS_EXECUTION_HARD_CAP_SECONDS
+}
+```
+
+Response: `{ tool_run, instruction_package, execution_summary }`. The summary
+carries `exit_code`, `timed_out`, `duration_seconds`, `changed_paths`,
+`blocked_path_changes`, `stdout_tail`, `stderr_tail`, `snapshot_truncated`.
+
+`mode=dry_run` reuses the existing prepare flow — no executor invocation.
+`mode=local` requires every gate below.
+
+### Config (all default-safe)
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `OPENHANDS_EXECUTION_ENABLED` | `false` | Master kill switch. `false` ⇒ HTTP `409 OPENHANDS_EXECUTION_DISABLED`. |
+| `OPENHANDS_COMMAND` | `""` | CLI binary; empty ⇒ `409 OPENHANDS_COMMAND_NOT_CONFIGURED`. |
+| `OPENHANDS_ALLOWED_ARGS` | `[]` | Server-side argv template (e.g. `--instruction-file,{instruction_file}`). Request body cannot influence argv. |
+| `OPENHANDS_TIMEOUT_SECONDS` | `1800` | Default timeout. |
+| `OPENHANDS_EXECUTION_HARD_CAP_SECONDS` | `3600` | Caps both default and per-request timeouts. |
+| `OPENHANDS_MAX_OUTPUT_BYTES` | `200000` | Combined stdout+stderr cap. |
+
+### Safety profile
+
+- `cwd` is `workspace.root_path` only. Workspace must be in `ready` status.
+- `subprocess.run(shell=False, env={"PATH": …})`. No git, no gh, no docker, no
+  cloud CLI invocation by ForgeLoop.
+- Approval gate matches the `dev_tasks` ready transition: an approved
+  approval on `dev_task` or its `task_decomposition` is required, or an
+  explicit `approval_id` matching one of those.
+- Before/after **metadata-only** filesystem snapshots produce a `changed_paths`
+  summary (no file contents, no git). `.git`, `node_modules`, `.venv`, `dist`,
+  `build`, `__pycache__`, `.pytest_cache`, `.forgeloop` are excluded.
+- Safety-profile `blocked_paths` are checked against the diff. Any blocked
+  write ⇒ `ToolRun.status=failed, conclusion=requires_human_action` and
+  `openhands_execution_blocked` audit.
+
+### ToolRun outcome mapping
+
+| Outcome | status | conclusion | Audit |
+|---------|--------|------------|-------|
+| exit 0, no blocked paths | `completed` | `requires_human_action` | `openhands_execution_completed` |
+| exit non-zero | `failed` | `failure` | `openhands_execution_failed` |
+| timeout | `failed` | `failure` | `openhands_execution_timed_out` |
+| executor error | `failed` | `failure` | `openhands_execution_failed` |
+| blocked-path change | `failed` | `requires_human_action` | `openhands_execution_blocked` |
+| flag/command disabled | no ToolRun, `409` | — | — |
+
+`completed` runs default to `requires_human_action`: a human **must** review
+the diff because there is no branch/PR workflow yet.
+
+### Artifacts
+
+- `openhands_instruction_package` — JSON package handed to OpenHands.
+- `openhands_execution_output` — capped stdout/stderr bundle.
+- `openhands_execution_changed_paths` — JSON diff summary (linked from
+  `ToolRun.artifact_id`).
+
+### Explicit non-goals (Task 36)
+
+- No git invocation, no branch creation, no `gh`, no PR.
+- No deploy, no merge.
+- No arbitrary shell input (argv is server-side only).
+- No terminal / log streaming.
+- No Docker orchestration, no CI provider integration.
+- No subtask-scoped execute endpoint.
+- No new `ToolRun` status/conclusion values — outcomes map within the existing
+  enum and use a dedicated audit action for `timed_out`/`blocked` clarity.
+
 ## What comes next
 
-- **Task 36 — OpenHands execution.** Adds the OpenHands handoff for code-change work.
 - **Task 37 — git branch workflow.**
 - **Task 38 — GitHub PR creation.**
 
-Anything beyond Task 35 requires an explicit approved task.
+Human review remains required between Task 36 (local execution) and
+Tasks 37/38. Anything beyond Task 36 requires an explicit approved task.

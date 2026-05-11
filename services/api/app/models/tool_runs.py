@@ -130,9 +130,46 @@ class OpenHandsInstructionPackage(BaseModel):
 class OpenHandsPrepareResponse(BaseModel):
     tool_run: ToolRun
     instruction_package: OpenHandsInstructionPackage
+    execution_enabled: bool = False
 
 
 class OpenHandsRecordResultRequest(BaseModel):
     summary: str = ""
     output: str = ""
     conclusion: ToolRunConclusion = "neutral"
+
+
+OpenHandsExecuteMode = Literal["dry_run", "local"]
+OpenHandsChangeType = Literal["added", "modified", "deleted"]
+
+
+class OpenHandsExecuteRequest(BaseModel):
+    workspace_id: str
+    tool_runner_definition_id: str | None = None
+    approval_id: str | None = None
+    mode: OpenHandsExecuteMode = "dry_run"
+    timeout_seconds: int | None = None
+
+
+class OpenHandsChangedPath(BaseModel):
+    path: str
+    change_type: OpenHandsChangeType
+
+
+class OpenHandsExecutionSummary(BaseModel):
+    mode: OpenHandsExecuteMode
+    exit_code: int | None = None
+    timed_out: bool = False
+    duration_seconds: float = 0.0
+    changed_paths: list[OpenHandsChangedPath] = []
+    blocked_path_changes: list[str] = []
+    stdout_tail: str = ""
+    stderr_tail: str = ""
+    snapshot_truncated: bool = False
+    workspace_id: str | None = None
+
+
+class OpenHandsExecuteResponse(BaseModel):
+    tool_run: ToolRun
+    instruction_package: OpenHandsInstructionPackage
+    execution_summary: OpenHandsExecutionSummary
