@@ -4,7 +4,12 @@ from typing import Literal
 from pydantic import BaseModel
 
 ApprovalTargetType = Literal[
-    "requirement_analysis", "task_decomposition", "dev_task", "subtask", "artifact"
+    "requirement_analysis",
+    "task_decomposition",
+    "dev_task",
+    "subtask",
+    "artifact",
+    "revision_work_item",
 ]
 ApprovalStatus = Literal["pending", "approved", "rejected", "needs_revision"]
 

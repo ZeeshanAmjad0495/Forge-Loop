@@ -29,6 +29,8 @@ from .models import (
     Requirement,
     RequirementAnalysis,
     RepoSafetyProfile,
+    ReviewFeedback,
+    RevisionWorkItem,
     Subtask,
     Ticket,
     ToolRun,
@@ -1593,6 +1595,146 @@ class FirestoreGitCommitRecordRepository:
         return [GitCommitRecord(**d.to_dict()) for d in docs]
 
 
+class ReviewFeedbackRepository(Protocol):
+    def save(self, feedback: ReviewFeedback) -> None: ...
+    def get(self, feedback_id: str) -> ReviewFeedback | None: ...
+    def update(self, feedback: ReviewFeedback) -> None: ...
+    def list_by_pr_draft(self, pr_draft_id: str) -> list[ReviewFeedback]: ...
+    def list_by_pr_review(self, pr_review_id: str) -> list[ReviewFeedback]: ...
+    def list_by_project(self, project_id: str) -> list[ReviewFeedback]: ...
+
+
+class InMemoryReviewFeedbackRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, ReviewFeedback] = {}
+
+    def save(self, feedback: ReviewFeedback) -> None:
+        self._store[feedback.id] = feedback
+
+    def get(self, feedback_id: str) -> ReviewFeedback | None:
+        return self._store.get(feedback_id)
+
+    def update(self, feedback: ReviewFeedback) -> None:
+        self._store[feedback.id] = feedback
+
+    def list_by_pr_draft(self, pr_draft_id: str) -> list[ReviewFeedback]:
+        items = [f for f in self._store.values() if f.pr_draft_id == pr_draft_id]
+        return sorted(items, key=lambda f: f.created_at, reverse=True)
+
+    def list_by_pr_review(self, pr_review_id: str) -> list[ReviewFeedback]:
+        items = [f for f in self._store.values() if f.pr_review_id == pr_review_id]
+        return sorted(items, key=lambda f: f.created_at, reverse=True)
+
+    def list_by_project(self, project_id: str) -> list[ReviewFeedback]:
+        items = [f for f in self._store.values() if f.project_id == project_id]
+        return sorted(items, key=lambda f: f.created_at, reverse=True)
+
+    def clear(self) -> None:
+        self._store.clear()
+
+
+class FirestoreReviewFeedbackRepository:
+    def __init__(self, client, collection_name: str = "review_feedback") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, feedback: ReviewFeedback) -> None:
+        self._collection.document(feedback.id).set(feedback.model_dump(mode="python"))
+
+    def get(self, feedback_id: str) -> ReviewFeedback | None:
+        snap = self._collection.document(feedback_id).get()
+        if not snap.exists:
+            return None
+        return ReviewFeedback(**snap.to_dict())
+
+    def update(self, feedback: ReviewFeedback) -> None:
+        self._collection.document(feedback.id).set(feedback.model_dump(mode="python"))
+
+    def list_by_pr_draft(self, pr_draft_id: str) -> list[ReviewFeedback]:
+        docs = self._collection.where("pr_draft_id", "==", pr_draft_id).stream()
+        items = [ReviewFeedback(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda f: f.created_at, reverse=True)
+
+    def list_by_pr_review(self, pr_review_id: str) -> list[ReviewFeedback]:
+        docs = self._collection.where("pr_review_id", "==", pr_review_id).stream()
+        items = [ReviewFeedback(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda f: f.created_at, reverse=True)
+
+    def list_by_project(self, project_id: str) -> list[ReviewFeedback]:
+        docs = self._collection.where("project_id", "==", project_id).stream()
+        items = [ReviewFeedback(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda f: f.created_at, reverse=True)
+
+
+class RevisionWorkItemRepository(Protocol):
+    def save(self, item: RevisionWorkItem) -> None: ...
+    def get(self, item_id: str) -> RevisionWorkItem | None: ...
+    def update(self, item: RevisionWorkItem) -> None: ...
+    def list_by_pr_draft(self, pr_draft_id: str) -> list[RevisionWorkItem]: ...
+    def list_by_feedback(self, feedback_id: str) -> list[RevisionWorkItem]: ...
+    def list_by_project(self, project_id: str) -> list[RevisionWorkItem]: ...
+
+
+class InMemoryRevisionWorkItemRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, RevisionWorkItem] = {}
+
+    def save(self, item: RevisionWorkItem) -> None:
+        self._store[item.id] = item
+
+    def get(self, item_id: str) -> RevisionWorkItem | None:
+        return self._store.get(item_id)
+
+    def update(self, item: RevisionWorkItem) -> None:
+        self._store[item.id] = item
+
+    def list_by_pr_draft(self, pr_draft_id: str) -> list[RevisionWorkItem]:
+        items = [r for r in self._store.values() if r.pr_draft_id == pr_draft_id]
+        return sorted(items, key=lambda r: r.created_at, reverse=True)
+
+    def list_by_feedback(self, feedback_id: str) -> list[RevisionWorkItem]:
+        items = [r for r in self._store.values() if r.review_feedback_id == feedback_id]
+        return sorted(items, key=lambda r: r.created_at, reverse=True)
+
+    def list_by_project(self, project_id: str) -> list[RevisionWorkItem]:
+        items = [r for r in self._store.values() if r.project_id == project_id]
+        return sorted(items, key=lambda r: r.created_at, reverse=True)
+
+    def clear(self) -> None:
+        self._store.clear()
+
+
+class FirestoreRevisionWorkItemRepository:
+    def __init__(self, client, collection_name: str = "revision_work_items") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, item: RevisionWorkItem) -> None:
+        self._collection.document(item.id).set(item.model_dump(mode="python"))
+
+    def get(self, item_id: str) -> RevisionWorkItem | None:
+        snap = self._collection.document(item_id).get()
+        if not snap.exists:
+            return None
+        return RevisionWorkItem(**snap.to_dict())
+
+    def update(self, item: RevisionWorkItem) -> None:
+        self._collection.document(item.id).set(item.model_dump(mode="python"))
+
+    def list_by_pr_draft(self, pr_draft_id: str) -> list[RevisionWorkItem]:
+        docs = self._collection.where("pr_draft_id", "==", pr_draft_id).stream()
+        items = [RevisionWorkItem(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda r: r.created_at, reverse=True)
+
+    def list_by_feedback(self, feedback_id: str) -> list[RevisionWorkItem]:
+        docs = self._collection.where("review_feedback_id", "==", feedback_id).stream()
+        items = [RevisionWorkItem(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda r: r.created_at, reverse=True)
+
+    def list_by_project(self, project_id: str) -> list[RevisionWorkItem]:
+        docs = self._collection.where("project_id", "==", project_id).stream()
+        items = [RevisionWorkItem(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda r: r.created_at, reverse=True)
+
+
 @dataclass(frozen=True)
 class Repositories:
     """Named container for the wired-up repository singletons.
@@ -1640,6 +1782,8 @@ class Repositories:
     command_run: CommandRunRepository
     workspace_branch: WorkspaceBranchRepository
     git_commit_record: GitCommitRecordRepository
+    review_feedback: ReviewFeedbackRepository
+    revision_work_item: RevisionWorkItemRepository
 
 
 def get_repositories() -> Repositories:
@@ -1676,6 +1820,8 @@ def get_repositories() -> Repositories:
             command_run=InMemoryCommandRunRepository(),
             workspace_branch=InMemoryWorkspaceBranchRepository(),
             git_commit_record=InMemoryGitCommitRecordRepository(),
+            review_feedback=InMemoryReviewFeedbackRepository(),
+            revision_work_item=InMemoryRevisionWorkItemRepository(),
         )
     if config.REPOSITORY_PROVIDER == "firestore":
         from google.cloud import firestore
@@ -1716,6 +1862,8 @@ def get_repositories() -> Repositories:
             command_run=FirestoreCommandRunRepository(client),
             workspace_branch=FirestoreWorkspaceBranchRepository(client),
             git_commit_record=FirestoreGitCommitRecordRepository(client),
+            review_feedback=FirestoreReviewFeedbackRepository(client),
+            revision_work_item=FirestoreRevisionWorkItemRepository(client),
         )
     raise ValueError(
         f"Unknown REPOSITORY_PROVIDER: {config.REPOSITORY_PROVIDER!r}. Supported: memory, firestore"

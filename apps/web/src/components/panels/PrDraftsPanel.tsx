@@ -2,15 +2,22 @@ import { useEffect, useState } from 'react'
 import {
   approvePullRequestDraft,
   createGitHubDraftPr,
+  createReviewFeedback,
+  listPrDraftReviewFeedback,
   listProjectPullRequestDrafts,
   listProjectWorkspaces,
   listWorkspaceBranches,
+  planReviewFeedbackRevision,
+  resolveReviewFeedback,
   updatePullRequestDraft,
 } from '../../api'
 import type {
   CodeRepository,
   GitHubPublicationSummary,
   PullRequestDraft,
+  ReviewFeedback,
+  ReviewFeedbackCategory,
+  ReviewFeedbackSeverity,
   Workspace,
   WorkspaceBranch,
 } from '../../types'
@@ -153,6 +160,136 @@ function PullRequestDraftCard({
   const [ghBusy, setGhBusy] = useState(false)
   const [ghError, setGhError] = useState('')
   const [ghSummary, setGhSummary] = useState<GitHubPublicationSummary | null>(null)
+
+  const [fbOpen, setFbOpen] = useState(false)
+  const [fbItems, setFbItems] = useState<ReviewFeedback[]>([])
+  const [fbBusy, setFbBusy] = useState(false)
+  const [fbError, setFbError] = useState('')
+  const [fbForm, setFbForm] = useState<{
+    summary: string
+    severity: ReviewFeedbackSeverity
+    category: ReviewFeedbackCategory
+    file_path: string
+    line: string
+    details: string
+    recommendation: string
+  }>({
+    summary: '',
+    severity: 'warning',
+    category: 'other',
+    file_path: '',
+    line: '',
+    details: '',
+    recommendation: '',
+  })
+  const [fbWorkspaces, setFbWorkspaces] = useState<Workspace[]>([])
+  const [fbBranches, setFbBranches] = useState<Record<string, WorkspaceBranch[]>>({})
+  const [fbPlanFor, setFbPlanFor] = useState<string>('')
+  const [fbPlanWs, setFbPlanWs] = useState<string>('')
+  const [fbPlanBranch, setFbPlanBranch] = useState<string>('')
+  const [fbResolveFor, setFbResolveFor] = useState<string>('')
+  const [fbResolveText, setFbResolveText] = useState<string>('')
+
+  async function refreshFeedback() {
+    try {
+      setFbItems(await listPrDraftReviewFeedback(draft.id))
+    } catch (e) {
+      setFbError((e as Error).message)
+    }
+  }
+
+  async function toggleFeedback() {
+    const next = !fbOpen
+    setFbOpen(next)
+    if (next && fbItems.length === 0) {
+      await refreshFeedback()
+    }
+  }
+
+  async function loadFbWorkspaces() {
+    try {
+      const ws = await listProjectWorkspaces(projectId)
+      setFbWorkspaces(ws.filter(w => w.status === 'ready'))
+    } catch (e) {
+      setFbError((e as Error).message)
+    }
+  }
+
+  async function loadFbBranches(workspaceId: string) {
+    if (!workspaceId) return
+    try {
+      const bs = await listWorkspaceBranches(workspaceId)
+      setFbBranches(prev => ({
+        ...prev,
+        [workspaceId]: bs.filter(b => b.status !== 'failed' && b.status !== 'archived'),
+      }))
+    } catch { /* non-critical */ }
+  }
+
+  async function handleCreateFeedback() {
+    if (!fbForm.summary.trim()) return
+    setFbError('')
+    setFbBusy(true)
+    try {
+      await createReviewFeedback(draft.id, {
+        summary: fbForm.summary.trim(),
+        severity: fbForm.severity,
+        category: fbForm.category,
+        file_path: fbForm.file_path.trim() || null,
+        line: fbForm.line.trim() ? Number(fbForm.line) : null,
+        details: fbForm.details.trim() || null,
+        recommendation: fbForm.recommendation.trim() || null,
+      })
+      setFbForm({
+        summary: '', severity: 'warning', category: 'other',
+        file_path: '', line: '', details: '', recommendation: '',
+      })
+      await refreshFeedback()
+    } catch (e) {
+      setFbError((e as Error).message)
+    } finally {
+      setFbBusy(false)
+    }
+  }
+
+  async function handlePlanRevision(feedbackId: string) {
+    if (!fbPlanWs) return
+    setFbError('')
+    setFbBusy(true)
+    try {
+      await planReviewFeedbackRevision(feedbackId, {
+        workspace_id: fbPlanWs,
+        workspace_branch_id: fbPlanBranch || null,
+        approval_required: true,
+      })
+      setFbPlanFor('')
+      setFbPlanWs('')
+      setFbPlanBranch('')
+      await refreshFeedback()
+    } catch (e) {
+      setFbError((e as Error).message)
+    } finally {
+      setFbBusy(false)
+    }
+  }
+
+  async function handleResolveFeedback(feedbackId: string) {
+    if (!fbResolveText.trim()) return
+    setFbError('')
+    setFbBusy(true)
+    try {
+      await resolveReviewFeedback(feedbackId, {
+        resolution_summary: fbResolveText.trim(),
+      })
+      setFbResolveFor('')
+      setFbResolveText('')
+      await refreshFeedback()
+    } catch (e) {
+      setFbError((e as Error).message)
+    } finally {
+      setFbBusy(false)
+    }
+  }
 
   async function loadGhContext() {
     setGhError('')
@@ -362,7 +499,254 @@ function PullRequestDraftCard({
           )}
         </div>
       )}
-      <PullRequestReviewsPanel prDraftId={draft.id} />
+      <div style={{ marginTop: 8 }}>
+        <button
+          type="button"
+          onClick={toggleFeedback}
+          style={{ fontSize: 11, padding: '2px 8px' }}
+        >
+          {fbOpen ? '▾' : '▸'} Feedback ({fbItems.length})
+        </button>
+        {fbOpen && (
+          <div
+            style={{
+              marginTop: 6,
+              padding: '6px 8px',
+              border: '1px dashed #2c2c2c',
+              borderRadius: 4,
+            }}
+          >
+            <div style={{ fontSize: 10, color: '#888' }}>
+              Feedback tracking is local — no live GitHub comment sync.
+            </div>
+            {fbError && (
+              <div className="error" style={{ marginTop: 4, fontSize: 11 }}>{fbError}</div>
+            )}
+            {fbItems.length === 0 && (
+              <div style={{ marginTop: 6, fontSize: 11, color: '#666' }}>
+                No feedback yet for this draft.
+              </div>
+            )}
+            <ul style={{ listStyle: 'none', padding: 0, marginTop: 6 }}>
+              {fbItems.map(f => (
+                <li
+                  key={f.id}
+                  style={{
+                    padding: 6,
+                    marginBottom: 6,
+                    border: '1px solid #222',
+                    borderRadius: 3,
+                    fontSize: 11,
+                  }}
+                >
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span className="status" style={{ fontSize: 10 }}>{f.severity}</span>
+                    <span className="status" style={{ fontSize: 10 }}>{f.category}</span>
+                    <span className="status" style={{ fontSize: 10 }}>{f.status}</span>
+                    <span className="status" style={{ fontSize: 10 }}>{f.source}</span>
+                    {f.revision_work_item_id && (
+                      <span style={{ fontSize: 10, color: '#9ad3ff' }}>
+                        rev: {f.revision_work_item_id.slice(0, 8)}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ marginTop: 4 }}>{f.summary}</div>
+                  {f.file_path && (
+                    <div style={{ marginTop: 2, color: '#888' }}>
+                      <code>{f.file_path}{f.line != null ? `:${f.line}` : ''}</code>
+                    </div>
+                  )}
+                  {f.details && (
+                    <details style={{ marginTop: 4 }}>
+                      <summary style={{ cursor: 'pointer' }}>details</summary>
+                      <div style={{ whiteSpace: 'pre-wrap' }}>{f.details}</div>
+                    </details>
+                  )}
+                  {f.recommendation && (
+                    <div style={{ marginTop: 2, color: '#9ad3ff' }}>
+                      → {f.recommendation}
+                    </div>
+                  )}
+                  {f.status !== 'resolved' && f.status !== 'rejected' && (
+                    <div style={{ marginTop: 6, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {!f.revision_work_item_id && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFbPlanFor(f.id)
+                            loadFbWorkspaces()
+                          }}
+                          disabled={fbBusy}
+                          style={{ fontSize: 11 }}
+                        >
+                          Plan revision
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setFbResolveFor(f.id)}
+                        disabled={fbBusy}
+                        style={{ fontSize: 11 }}
+                      >
+                        Resolve
+                      </button>
+                    </div>
+                  )}
+                  {fbPlanFor === f.id && (
+                    <div style={{ marginTop: 6, padding: 6, background: '#101010', borderRadius: 3 }}>
+                      <div style={{ fontSize: 11 }}>Plan revision:</div>
+                      <div style={{ marginTop: 4, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        <select
+                          value={fbPlanWs}
+                          onChange={e => {
+                            setFbPlanWs(e.target.value)
+                            loadFbBranches(e.target.value)
+                          }}
+                          disabled={fbBusy}
+                          style={{ fontSize: 11 }}
+                        >
+                          <option value="">— workspace —</option>
+                          {fbWorkspaces.map(w => (
+                            <option key={w.id} value={w.id}>{w.name}</option>
+                          ))}
+                        </select>
+                        <select
+                          value={fbPlanBranch}
+                          onChange={e => setFbPlanBranch(e.target.value)}
+                          disabled={fbBusy || !fbPlanWs}
+                          style={{ fontSize: 11 }}
+                        >
+                          <option value="">— branch (optional) —</option>
+                          {(fbBranches[fbPlanWs] || []).map(b => (
+                            <option key={b.id} value={b.id}>{b.name}</option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => handlePlanRevision(f.id)}
+                          disabled={fbBusy || !fbPlanWs}
+                          style={{ fontSize: 11 }}
+                        >
+                          Create work item
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setFbPlanFor(''); setFbPlanWs(''); setFbPlanBranch('') }}
+                          style={{ fontSize: 11 }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {fbResolveFor === f.id && (
+                    <div style={{ marginTop: 6, padding: 6, background: '#101010', borderRadius: 3 }}>
+                      <div style={{ fontSize: 11 }}>Resolution summary:</div>
+                      <input
+                        value={fbResolveText}
+                        onChange={e => setFbResolveText(e.target.value)}
+                        placeholder="What was changed to address this feedback?"
+                        disabled={fbBusy}
+                        style={{ fontSize: 11, width: 360, marginTop: 4 }}
+                      />
+                      <div style={{ marginTop: 4, display: 'flex', gap: 6 }}>
+                        <button
+                          type="button"
+                          onClick={() => handleResolveFeedback(f.id)}
+                          disabled={fbBusy || !fbResolveText.trim()}
+                          style={{ fontSize: 11 }}
+                        >
+                          Resolve
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setFbResolveFor(''); setFbResolveText('') }}
+                          style={{ fontSize: 11 }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+            <div
+              style={{
+                marginTop: 6,
+                padding: 6,
+                border: '1px solid #222',
+                borderRadius: 3,
+              }}
+            >
+              <div style={{ fontSize: 11, color: '#aaa' }}>Add feedback</div>
+              <input
+                placeholder="Summary"
+                value={fbForm.summary}
+                onChange={e => setFbForm({ ...fbForm, summary: e.target.value })}
+                disabled={fbBusy}
+                style={{ fontSize: 11, width: '100%', marginTop: 4 }}
+              />
+              <div style={{ marginTop: 4, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <select
+                  value={fbForm.severity}
+                  onChange={e => setFbForm({ ...fbForm, severity: e.target.value as ReviewFeedbackSeverity })}
+                  style={{ fontSize: 11 }}
+                >
+                  <option value="blocking">blocking</option>
+                  <option value="warning">warning</option>
+                  <option value="info">info</option>
+                </select>
+                <select
+                  value={fbForm.category}
+                  onChange={e => setFbForm({ ...fbForm, category: e.target.value as ReviewFeedbackCategory })}
+                  style={{ fontSize: 11 }}
+                >
+                  {(['correctness','tests','security','maintainability','performance','scope','style','documentation','other'] as ReviewFeedbackCategory[]).map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+                <input
+                  placeholder="file path (optional)"
+                  value={fbForm.file_path}
+                  onChange={e => setFbForm({ ...fbForm, file_path: e.target.value })}
+                  style={{ fontSize: 11, width: 200 }}
+                />
+                <input
+                  placeholder="line"
+                  value={fbForm.line}
+                  onChange={e => setFbForm({ ...fbForm, line: e.target.value })}
+                  style={{ fontSize: 11, width: 60 }}
+                />
+              </div>
+              <input
+                placeholder="recommendation (optional)"
+                value={fbForm.recommendation}
+                onChange={e => setFbForm({ ...fbForm, recommendation: e.target.value })}
+                style={{ fontSize: 11, width: '100%', marginTop: 4 }}
+              />
+              <textarea
+                placeholder="details (optional)"
+                value={fbForm.details}
+                onChange={e => setFbForm({ ...fbForm, details: e.target.value })}
+                rows={2}
+                style={{ fontSize: 11, width: '100%', marginTop: 4, background: '#1a1a1a', border: '1px solid #444', color: '#fff', borderRadius: 3 }}
+              />
+              <div style={{ marginTop: 4 }}>
+                <button
+                  type="button"
+                  onClick={handleCreateFeedback}
+                  disabled={fbBusy || !fbForm.summary.trim()}
+                  style={{ fontSize: 11 }}
+                >
+                  Add feedback
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+      <PullRequestReviewsPanel prDraftId={draft.id} onFeedbackImported={refreshFeedback} />
     </div>
   )
 }

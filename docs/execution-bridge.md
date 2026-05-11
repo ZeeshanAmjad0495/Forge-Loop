@@ -517,8 +517,126 @@ included in audit details, and never stored in artifacts. A single
 - No auto-resync of `external_pr_url` after manual GitHub UI edits.
 - GitLab/Bitbucket providers are rejected at validation.
 
+## Task 39 — Review feedback loop
+
+Task 39 closes the review side of the loop. It captures review feedback
+as durable `ReviewFeedback` rows (entered manually or imported from a
+`PullRequestReview`'s findings), lets the operator plan a traceable
+`RevisionWorkItem` linked to a workspace + branch, and tracks resolution
+— **without** orchestrating execution. Revision execution itself flows
+through the existing Task 36 / 37 / 38 endpoints; Task 39 is the audit
+trail and approval gate around that work. ForgeLoop never auto-merges,
+never auto-runs OpenHands, never syncs live GitHub comments, never
+deploys.
+
+### Endpoints
+
+| Endpoint | Method | Purpose |
+|---|---|---|
+| `/pr-drafts/{pr_draft_id}/feedback-items` | POST | Create manual feedback |
+| `/pr-drafts/{pr_draft_id}/feedback-items` | GET | List feedback for a draft |
+| `/review-feedback/{feedback_id}` | GET | Fetch one feedback row |
+| `/review-feedback/{feedback_id}` | PATCH | Safe-fields + status transitions |
+| `/pr-reviews/{review_id}/feedback-items/from-findings` | POST | Import findings (idempotent) |
+| `/review-feedback/{feedback_id}/plan-revision` | POST | Create RevisionWorkItem |
+| `/review-feedback/{feedback_id}/resolve` | POST | Mark feedback resolved |
+| `/pr-drafts/{pr_draft_id}/revision-work-items` | GET | List revision work items |
+| `/revision-work-items/{revision_work_item_id}` | GET | Fetch revision work item |
+| `/revision-work-items/{revision_work_item_id}` | PATCH | Safe-fields + status transitions (status=approved requires an approved Approval row) |
+
+No merge endpoint, no GitHub-comment sync, no auto-execute endpoint.
+
+### ReviewFeedback status transitions
+
+```
+open → {accepted, rejected, deferred, revision_planned}
+accepted → {revision_planned, in_progress, resolved, rejected, deferred}
+revision_planned → {in_progress, resolved, rejected, deferred}
+in_progress → {resolved, deferred, rejected}
+deferred → {open, accepted, revision_planned}
+rejected (terminal)
+resolved (terminal)
+```
+
+Only `POST /review-feedback/{id}/resolve` sets `resolved` (with a required
+`resolution_summary`). The plan-revision flow auto-transitions feedback
+to `revision_planned` and stamps `revision_work_item_id`.
+
+### RevisionWorkItem status transitions
+
+```
+proposed → {approved, rejected}
+approved → {in_progress, rejected}
+in_progress → {implemented, rejected}
+implemented → {checks_passed, rejected}
+checks_passed → {ready_for_review, rejected}
+ready_for_review → {resolved, rejected}
+rejected (terminal)
+resolved (terminal)
+```
+
+`proposed → approved` requires
+`approval_repo.find_approved_for_target("revision_work_item", id)` to be
+present (Approval row created via the existing `POST /approvals` +
+`PATCH /approvals/{id}` flow). This adds `"revision_work_item"` to
+`ApprovalTargetType` — additive, backwards-compatible.
+
+### Findings import (idempotent)
+
+Each `PullRequestReviewFinding` is mapped to one `ReviewFeedback`. The
+service skips a finding when an existing row matches
+`(pr_review_id, severity, category, file_path, line, sha256(summary))` —
+a stable content hash. Returns `{created, skipped, feedback_items}`. No
+GitHub call, no diff inspection.
+
+### Records
+
+- **`ReviewFeedback`**: `pr_draft_id`, optional `pr_review_id`,
+  `source ∈ {human, kody, github, manual, custom}`, `severity ∈
+  {blocking, warning, info}`, `category ∈ {correctness, tests,
+  security, maintainability, performance, scope, style, documentation,
+  other}`, capped `summary` (500), `details` (4000), `recommendation`
+  (2000), `file_path`, `line`, optional `revision_work_item_id`,
+  optional `resolution_summary` (1000).
+- **`RevisionWorkItem`**: `pr_draft_id`, `review_feedback_id`,
+  `workspace_id`, optional `workspace_branch_id`, optional
+  `dev_task_id` / `subtask_id`, generated `title` + `description`,
+  `status`, `requires_approval` flag.
+
+### Artifacts
+
+- `review_feedback_import_summary` — JSON of import counts + created ids.
+- `revision_plan_summary` — JSON of the work item + linked feedback id.
+- `review_feedback_resolution_summary` — JSON of the resolution.
+
+No raw GitHub comment bodies. No secrets. All bounded.
+
+### Audit actions
+
+`review_feedback_created`, `review_feedback_imported`,
+`review_feedback_updated`, `review_feedback_rejected`,
+`review_feedback_deferred`, `review_feedback_resolved`,
+`revision_work_item_planned`, `revision_work_item_updated`.
+
+### PR draft / review interaction
+
+Task 39 **never** modifies `PullRequestDraft` or `PullRequestReview`
+status / conclusion. Blocking feedback does not auto-flip review
+conclusion. Resolution does not auto-approve any PR. The operator
+decides what the review record should reflect.
+
+### Explicit non-goals (Task 39)
+
+- No auto-merge, no auto-OpenHands run, no auto-PR creation.
+- No deploy, no production remediation.
+- No live GitHub webhook / comment sync.
+- No CI provider polling.
+- No GitHub App install, no arbitrary GitHub API.
+- No mutation of PR draft / PR review records.
+- No autonomous feedback loops; every revision step is operator-driven.
+
 ## What comes next
 
-- **Task 39 — Review feedback loop.**
+- **Task 40 — End-to-end build loop validation.**
 
-Human review remains required between Task 38 and Task 39.
+Human review remains required between Task 39 and Task 40.

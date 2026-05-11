@@ -123,6 +123,24 @@ from .pr import (
 )
 from .projects import Project, ProjectContext, ProjectContextUpdate, ProjectCreate
 from .providers import ProviderInfo, ProvidersResponse
+from .review_feedback import (
+    ReviewFeedback,
+    ReviewFeedbackCategory,
+    ReviewFeedbackCreate,
+    ReviewFeedbackImportResponse,
+    ReviewFeedbackResolve,
+    ReviewFeedbackSeverity,
+    ReviewFeedbackSource,
+    ReviewFeedbackStatus,
+    ReviewFeedbackUpdate,
+)
+from .revision import (
+    RevisionPlanResponse,
+    RevisionWorkItem,
+    RevisionWorkItemCreate,
+    RevisionWorkItemStatus,
+    RevisionWorkItemUpdate,
+)
 from .requirements import (
     Requirement,
     RequirementAnalysis,
@@ -310,6 +328,20 @@ __all__ = [
     "RemediationWorkItemDraft",
     "RepoSafetyProfile",
     "RepoSafetyProfileUpsert",
+    "ReviewFeedback",
+    "ReviewFeedbackCategory",
+    "ReviewFeedbackCreate",
+    "ReviewFeedbackImportResponse",
+    "ReviewFeedbackResolve",
+    "ReviewFeedbackSeverity",
+    "ReviewFeedbackSource",
+    "ReviewFeedbackStatus",
+    "ReviewFeedbackUpdate",
+    "RevisionPlanResponse",
+    "RevisionWorkItem",
+    "RevisionWorkItemCreate",
+    "RevisionWorkItemStatus",
+    "RevisionWorkItemUpdate",
     "Requirement",
     "RequirementAnalysis",
     "RequirementAnalysisRunCreate",

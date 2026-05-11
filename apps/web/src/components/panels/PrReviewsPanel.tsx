@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   completePullRequestReview,
   createPullRequestReview,
+  importReviewFeedbackFromFindings,
   listPullRequestReviews,
 } from '../../api'
 import type {
@@ -9,7 +10,13 @@ import type {
   PullRequestReviewConclusion,
 } from '../../types'
 
-export function PullRequestReviewsPanel({ prDraftId }: { prDraftId: string }) {
+export function PullRequestReviewsPanel({
+  prDraftId,
+  onFeedbackImported,
+}: {
+  prDraftId: string
+  onFeedbackImported?: () => void
+}) {
   const [open, setOpen] = useState(false)
   const [reviews, setReviews] = useState<PullRequestReview[]>([])
   const [busy, setBusy] = useState(false)
@@ -66,6 +73,20 @@ export function PullRequestReviewsPanel({ prDraftId }: { prDraftId: string }) {
       setManualSummary('')
       setManualRaw('')
       await refresh()
+    } catch (e) {
+      setError(String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function importFindings(reviewId: string) {
+    setBusy(true)
+    setError(null)
+    try {
+      const resp = await importReviewFeedbackFromFindings(reviewId)
+      setError(`Imported ${resp.created} feedback item(s); skipped ${resp.skipped} duplicate(s).`)
+      onFeedbackImported?.()
     } catch (e) {
       setError(String(e))
     } finally {
@@ -153,6 +174,7 @@ export function PullRequestReviewsPanel({ prDraftId }: { prDraftId: string }) {
                   review={r}
                   busy={busy}
                   onMarkComplete={c => markComplete(r.id, c)}
+                  onImportFindings={() => importFindings(r.id)}
                 />
               ))}
             </div>
@@ -167,10 +189,12 @@ function PullRequestReviewCard({
   review,
   busy,
   onMarkComplete,
+  onImportFindings,
 }: {
   review: PullRequestReview
   busy: boolean
   onMarkComplete: (c: PullRequestReviewConclusion) => void
+  onImportFindings: () => void
 }) {
   const [conclusion, setConclusion] = useState<PullRequestReviewConclusion>('approved')
   return (
@@ -187,16 +211,29 @@ function PullRequestReviewCard({
         <div style={{ fontSize: 11, marginTop: 4 }}>{review.summary}</div>
       )}
       {review.findings.length > 0 && (
-        <ul style={{ fontSize: 11, marginTop: 4, paddingLeft: 16 }}>
-          {review.findings.map((f, i) => (
-            <li key={i}>
-              {f.severity ? `[${f.severity}] ` : ''}
-              {f.category ? `(${f.category}) ` : ''}
-              {f.message}
-              {f.file_path ? ` — ${f.file_path}${f.line ? `:${f.line}` : ''}` : ''}
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul style={{ fontSize: 11, marginTop: 4, paddingLeft: 16 }}>
+            {review.findings.map((f, i) => (
+              <li key={i}>
+                {f.severity ? `[${f.severity}] ` : ''}
+                {f.category ? `(${f.category}) ` : ''}
+                {f.message}
+                {f.file_path ? ` — ${f.file_path}${f.line ? `:${f.line}` : ''}` : ''}
+              </li>
+            ))}
+          </ul>
+          <div style={{ marginTop: 4 }}>
+            <button
+              type="button"
+              onClick={onImportFindings}
+              disabled={busy}
+              style={{ fontSize: 11 }}
+              title="Create ReviewFeedback rows from these findings (idempotent)."
+            >
+              Import findings as feedback
+            </button>
+          </div>
+        </>
       )}
       {review.external_review_url && (
         <div style={{ fontSize: 11, marginTop: 4 }}>

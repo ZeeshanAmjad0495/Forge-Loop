@@ -63,6 +63,7 @@ from .routes import (
     pr_reviews,
     projects,
     requirements,
+    review_feedback,
     subtasks,
     task_decomposition,
     tickets,
@@ -109,6 +110,7 @@ app.include_router(memory.router)
 app.include_router(workspaces.router)
 app.include_router(commands.router)
 app.include_router(git_workflow.router)
+app.include_router(review_feedback.router)
 
 
 __all__ = [
