@@ -112,6 +112,12 @@ QA check definitions and check run records must be persisted via the repository 
 
 ---
 
+## CI failure evidence (Task 30)
+
+Externally observed CI failures can be recorded into ForgeLoop as `CIEvent`s alongside check runs, linked to PR drafts / dev tasks / subtasks / check runs. A `CIAnalysis` can be requested per event; it invokes the configured LLM provider with a structured prompt and stores a parsed diagnostic (summary, likely root causes, suggested debugging steps, suggested follow-up action, conclusion). Analyses are advisory only — they do not claim a fix was applied, do not recommend merge or deploy, and never include secrets. Live webhook / CI provider API integration is out of scope; ingestion is manual or programmatic via the ForgeLoop API.
+
+---
+
 ## Current State
 
 QA pipeline is not yet implemented. It is planned for Release 4 (Golden Path + Deterministic QA).

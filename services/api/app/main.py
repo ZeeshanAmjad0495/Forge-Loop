@@ -27,6 +27,10 @@ from .models import (
     CheckRun,
     CheckRunCreate,
     CheckType,
+    CIAnalysis,
+    CIAnalysisCreate,
+    CIEvent,
+    CIEventCreate,
     CodeRepository,
     CodeRepositoryCreate,
     CodeRepositoryUpdate,
@@ -93,6 +97,7 @@ from .pr_review.kody import (
     is_allowed_review_status_transition,
 )
 from .tool_runners.openhands import OpenHandsRunner
+from .ci_analysis.agent import run_ci_failure_analysis
 import json
 
 from . import config as _config
@@ -136,6 +141,8 @@ app.add_middleware(
     tool_run_repo,
     pr_draft_repo,
     pr_review_repo,
+    ci_event_repo,
+    ci_analysis_repo,
 ) = get_repositories()
 
 # ---------------------------------------------------------------------------
@@ -2381,3 +2388,237 @@ def complete_pr_review(
         },
     )
     return updated
+
+
+# ---------------------------------------------------------------------------
+# CI failure ingestion and analysis (Task 30)
+# ---------------------------------------------------------------------------
+
+@app.post(
+    "/projects/{project_id}/ci-events",
+    response_model=CIEvent,
+    status_code=201,
+)
+def record_ci_event(
+    project_id: str,
+    body: CIEventCreate,
+    current_user: str = Depends(require_auth),
+):
+    if project_repo.get(project_id) is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    if body.code_repository_id is not None:
+        repo_obj = code_repo_repo.get(body.code_repository_id)
+        if repo_obj is None:
+            raise HTTPException(status_code=404, detail="CodeRepository not found")
+    if body.pr_draft_id is not None:
+        if pr_draft_repo.get(body.pr_draft_id) is None:
+            raise HTTPException(status_code=404, detail="PullRequestDraft not found")
+    if body.dev_task_id is not None:
+        if dev_task_repo.get(body.dev_task_id) is None:
+            raise HTTPException(status_code=404, detail="DevTask not found")
+    if body.subtask_id is not None:
+        if subtask_repo.get(body.subtask_id) is None:
+            raise HTTPException(status_code=404, detail="Subtask not found")
+    if body.check_run_id is not None:
+        if check_run_repo.get(body.check_run_id) is None:
+            raise HTTPException(status_code=404, detail="CheckRun not found")
+
+    now = datetime.now(timezone.utc)
+    event = CIEvent(
+        id=str(uuid.uuid4()),
+        project_id=project_id,
+        code_repository_id=body.code_repository_id,
+        pr_draft_id=body.pr_draft_id,
+        dev_task_id=body.dev_task_id,
+        subtask_id=body.subtask_id,
+        check_run_id=body.check_run_id,
+        provider=body.provider,
+        external_run_id=body.external_run_id,
+        workflow_name=body.workflow_name,
+        job_name=body.job_name,
+        branch=body.branch,
+        commit_sha=body.commit_sha,
+        pr_number=body.pr_number,
+        pr_url=body.pr_url,
+        status=body.status,
+        conclusion=body.conclusion,
+        failure_summary=body.failure_summary,
+        logs_excerpt=body.logs_excerpt,
+        raw_payload=body.raw_payload,
+        artifact_id=None,
+        created_at=now,
+        updated_at=now,
+    )
+    ci_event_repo.save(event)
+    _audit(
+        "ci_event_recorded", "ci_event", event.id,
+        project_id=project_id, actor_email=current_user,
+        details={
+            "provider": event.provider,
+            "workflow_name": event.workflow_name,
+            "job_name": event.job_name,
+            "conclusion": event.conclusion,
+            "pr_draft_id": event.pr_draft_id,
+            "dev_task_id": event.dev_task_id,
+            "check_run_id": event.check_run_id,
+        },
+    )
+    return event
+
+
+@app.get("/projects/{project_id}/ci-events", response_model=list[CIEvent])
+def list_project_ci_events(project_id: str, _: str = Depends(require_auth)):
+    if project_repo.get(project_id) is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return ci_event_repo.list_by_project(project_id)
+
+
+@app.get("/ci-events/{ci_event_id}", response_model=CIEvent)
+def get_ci_event(ci_event_id: str, _: str = Depends(require_auth)):
+    event = ci_event_repo.get(ci_event_id)
+    if event is None:
+        raise HTTPException(status_code=404, detail="CIEvent not found")
+    return event
+
+
+@app.get("/pr-drafts/{pr_draft_id}/ci-events", response_model=list[CIEvent])
+def list_pr_draft_ci_events(pr_draft_id: str, _: str = Depends(require_auth)):
+    if pr_draft_repo.get(pr_draft_id) is None:
+        raise HTTPException(status_code=404, detail="PullRequestDraft not found")
+    return ci_event_repo.list_by_pr_draft(pr_draft_id)
+
+
+@app.get("/dev-tasks/{dev_task_id}/ci-events", response_model=list[CIEvent])
+def list_dev_task_ci_events(dev_task_id: str, _: str = Depends(require_auth)):
+    if dev_task_repo.get(dev_task_id) is None:
+        raise HTTPException(status_code=404, detail="DevTask not found")
+    return ci_event_repo.list_by_dev_task(dev_task_id)
+
+
+@app.post(
+    "/ci-events/{ci_event_id}/analysis",
+    response_model=CIAnalysis,
+    status_code=201,
+)
+def create_ci_analysis(
+    ci_event_id: str,
+    body: CIAnalysisCreate | None = Body(default=None),
+    current_user: str = Depends(require_auth),
+):
+    event = ci_event_repo.get(ci_event_id)
+    if event is None:
+        raise HTTPException(status_code=404, detail="CIEvent not found")
+
+    provider_name = body.provider if (body and body.provider) else get_default_provider_name()
+    try:
+        provider = get_provider_by_name(provider_name)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except ProviderError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    pr_draft = pr_draft_repo.get(event.pr_draft_id) if event.pr_draft_id else None
+    dev_task = dev_task_repo.get(event.dev_task_id) if event.dev_task_id else None
+    subtask = subtask_repo.get(event.subtask_id) if event.subtask_id else None
+    check_run = check_run_repo.get(event.check_run_id) if event.check_run_id else None
+    project_context = project_context_repo.get(event.project_id)
+
+    analysis_id = str(uuid.uuid4())
+    _audit(
+        "ci_analysis_requested", "ci_analysis", analysis_id,
+        project_id=event.project_id, actor_email=current_user,
+        details={
+            "ci_event_id": event.id,
+            "provider": provider.provider_name,
+        },
+    )
+
+    now = datetime.now(timezone.utc)
+    try:
+        parsed = run_ci_failure_analysis(
+            ci_event=event,
+            provider=provider,
+            project_context=project_context,
+            pr_draft=pr_draft,
+            dev_task=dev_task,
+            subtask=subtask,
+            check_run=check_run,
+        )
+    except Exception as exc:
+        failed = CIAnalysis(
+            id=analysis_id,
+            project_id=event.project_id,
+            ci_event_id=event.id,
+            provider=provider.provider_name,
+            model=provider.model_name,
+            status="failed",
+            conclusion="unknown",
+            summary="",
+            likely_root_causes=[],
+            suggested_fixes=[],
+            affected_areas=[],
+            recommended_next_action=None,
+            raw_output=None,
+            artifact_id=None,
+            error_message=str(exc),
+            created_at=now,
+            updated_at=now,
+        )
+        ci_analysis_repo.save(failed)
+        _audit(
+            "ci_analysis_failed", "ci_analysis", failed.id,
+            project_id=event.project_id, actor_email=current_user,
+            details={
+                "ci_event_id": event.id,
+                "provider": provider.provider_name,
+                "error": str(exc),
+            },
+        )
+        return failed
+
+    analysis = CIAnalysis(
+        id=analysis_id,
+        project_id=event.project_id,
+        ci_event_id=event.id,
+        provider=provider.provider_name,
+        model=provider.model_name,
+        status="completed",
+        conclusion=parsed.get("conclusion") or "unknown",
+        summary=parsed.get("summary", ""),
+        likely_root_causes=list(parsed.get("likely_root_causes") or []),
+        suggested_fixes=list(parsed.get("suggested_fixes") or []),
+        affected_areas=list(parsed.get("affected_areas") or []),
+        recommended_next_action=parsed.get("recommended_next_action"),
+        raw_output=parsed.get("raw_output"),
+        artifact_id=None,
+        error_message=None,
+        created_at=now,
+        updated_at=now,
+    )
+    ci_analysis_repo.save(analysis)
+    _audit(
+        "ci_analysis_completed", "ci_analysis", analysis.id,
+        project_id=event.project_id, actor_email=current_user,
+        details={
+            "ci_event_id": event.id,
+            "provider": analysis.provider,
+            "conclusion": analysis.conclusion,
+        },
+    )
+    return analysis
+
+
+@app.get("/ci-events/{ci_event_id}/analyses", response_model=list[CIAnalysis])
+def list_ci_event_analyses(ci_event_id: str, _: str = Depends(require_auth)):
+    if ci_event_repo.get(ci_event_id) is None:
+        raise HTTPException(status_code=404, detail="CIEvent not found")
+    return ci_analysis_repo.list_by_ci_event(ci_event_id)
+
+
+@app.get("/ci-analyses/{analysis_id}", response_model=CIAnalysis)
+def get_ci_analysis(analysis_id: str, _: str = Depends(require_auth)):
+    analysis = ci_analysis_repo.get(analysis_id)
+    if analysis is None:
+        raise HTTPException(status_code=404, detail="CIAnalysis not found")
+    return analysis

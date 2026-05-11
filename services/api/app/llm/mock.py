@@ -130,6 +130,45 @@ _MOCK_REQUIREMENT_GENERATION_RESPONSE = json.dumps(
     indent=2,
 )
 
+_MOCK_CI_FAILURE_ANALYSIS_RESPONSE = """\
+# CI Failure Analysis
+
+## 1. Failure Summary
+
+The CI job failed during the test phase. The exact failing test is not
+identified in the supplied logs excerpt and should be confirmed from the full
+job output.
+
+## 2. Likely Root Causes
+
+- A recent code change altered behaviour covered by an existing test.
+- A flaky test sensitive to timing or external state.
+- An environment or dependency drift in the CI runner.
+
+## 3. Failure Category
+
+code_regression — most likely, pending confirmation from the full logs.
+
+## 4. Affected Areas
+
+- The module or package referenced by the failing test.
+- Any code paths recently modified on the failing branch.
+
+## 5. Suggested Debugging Steps
+
+- Re-run the job locally on the same commit to reproduce.
+- Inspect the failing test output and recent diffs on the branch.
+- Compare against the last known-passing commit on the target branch.
+
+## 6. Suggested ForgeLoop Follow-up Action
+
+Open a dev task to investigate and fix the failing test; do not auto-merge.
+
+## 7. Human Review Required
+
+yes — failures require a human owner before any remediation.
+"""
+
 _MOCK_ANALYSIS_RESPONSE = json.dumps(
     {
         "summary": "Implement the changes described in the ticket.",
@@ -165,6 +204,8 @@ class MockLLMProvider:
             return _MOCK_REQUIREMENT_GENERATION_RESPONSE
         if "REQUIREMENT_ANALYSIS_AGENT" in prompt:
             return _MOCK_ANALYSIS_RESPONSE
+        if "CI Failure Analysis" in prompt:
+            return _MOCK_CI_FAILURE_ANALYSIS_RESPONSE
         return """\
 # Implementation Brief
 

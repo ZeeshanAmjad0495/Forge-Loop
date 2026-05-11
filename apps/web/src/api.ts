@@ -52,6 +52,10 @@ import type {
   PullRequestReviewComplete,
   PullRequestReviewCreate,
   PullRequestReviewUpdate,
+  CIAnalysis,
+  CIAnalysisCreate,
+  CIEvent,
+  CIEventCreate,
 } from './types'
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
@@ -749,4 +753,58 @@ export async function completePullRequestReview(
     body: JSON.stringify(body),
   })
   return handleResponse<PullRequestReview>(res)
+}
+
+// CI failure ingestion and analysis (Task 30)
+
+export async function recordCIEvent(
+  projectId: string,
+  body: CIEventCreate,
+): Promise<CIEvent> {
+  const res = await fetch(`${BASE}/projects/${projectId}/ci-events`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(body),
+  })
+  return handleResponse<CIEvent>(res)
+}
+
+export async function listProjectCIEvents(projectId: string): Promise<CIEvent[]> {
+  const res = await fetch(`${BASE}/projects/${projectId}/ci-events`, {
+    headers: authHeaders(),
+  })
+  return handleResponse<CIEvent[]>(res)
+}
+
+export async function getCIEvent(ciEventId: string): Promise<CIEvent> {
+  const res = await fetch(`${BASE}/ci-events/${ciEventId}`, {
+    headers: authHeaders(),
+  })
+  return handleResponse<CIEvent>(res)
+}
+
+export async function createCIAnalysis(
+  ciEventId: string,
+  body: CIAnalysisCreate = {},
+): Promise<CIAnalysis> {
+  const res = await fetch(`${BASE}/ci-events/${ciEventId}/analysis`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(body),
+  })
+  return handleResponse<CIAnalysis>(res)
+}
+
+export async function listCIEventAnalyses(ciEventId: string): Promise<CIAnalysis[]> {
+  const res = await fetch(`${BASE}/ci-events/${ciEventId}/analyses`, {
+    headers: authHeaders(),
+  })
+  return handleResponse<CIAnalysis[]>(res)
+}
+
+export async function getCIAnalysis(analysisId: string): Promise<CIAnalysis> {
+  const res = await fetch(`${BASE}/ci-analyses/${analysisId}`, {
+    headers: authHeaders(),
+  })
+  return handleResponse<CIAnalysis>(res)
 }

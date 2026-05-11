@@ -8,6 +8,8 @@ from .models import (
     Artifact,
     CheckDefinition,
     CheckRun,
+    CIAnalysis,
+    CIEvent,
     CodeRepository,
     DevTask,
     Epic,
@@ -926,6 +928,106 @@ class FirestorePullRequestReviewRepository:
         return sorted(matches, key=lambda r: r.created_at, reverse=True)
 
 
+class CIEventRepository(Protocol):
+    def save(self, event: CIEvent) -> None: ...
+    def get(self, event_id: str) -> CIEvent | None: ...
+    def list_by_project(self, project_id: str) -> list[CIEvent]: ...
+    def list_by_pr_draft(self, pr_draft_id: str) -> list[CIEvent]: ...
+    def list_by_dev_task(self, dev_task_id: str) -> list[CIEvent]: ...
+
+
+class InMemoryCIEventRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, CIEvent] = {}
+
+    def save(self, event: CIEvent) -> None:
+        self._store[event.id] = event
+
+    def get(self, event_id: str) -> CIEvent | None:
+        return self._store.get(event_id)
+
+    def list_by_project(self, project_id: str) -> list[CIEvent]:
+        matches = [e for e in self._store.values() if e.project_id == project_id]
+        return sorted(matches, key=lambda e: e.created_at, reverse=True)
+
+    def list_by_pr_draft(self, pr_draft_id: str) -> list[CIEvent]:
+        matches = [e for e in self._store.values() if e.pr_draft_id == pr_draft_id]
+        return sorted(matches, key=lambda e: e.created_at, reverse=True)
+
+    def list_by_dev_task(self, dev_task_id: str) -> list[CIEvent]:
+        matches = [e for e in self._store.values() if e.dev_task_id == dev_task_id]
+        return sorted(matches, key=lambda e: e.created_at, reverse=True)
+
+
+class FirestoreCIEventRepository:
+    def __init__(self, client, collection_name: str = "ci_events") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, event: CIEvent) -> None:
+        self._collection.document(event.id).set(event.model_dump(mode="python"))
+
+    def get(self, event_id: str) -> CIEvent | None:
+        snap = self._collection.document(event_id).get()
+        if not snap.exists:
+            return None
+        return CIEvent(**snap.to_dict())
+
+    def list_by_project(self, project_id: str) -> list[CIEvent]:
+        docs = self._collection.where("project_id", "==", project_id).stream()
+        matches = [CIEvent(**d.to_dict()) for d in docs]
+        return sorted(matches, key=lambda e: e.created_at, reverse=True)
+
+    def list_by_pr_draft(self, pr_draft_id: str) -> list[CIEvent]:
+        docs = self._collection.where("pr_draft_id", "==", pr_draft_id).stream()
+        matches = [CIEvent(**d.to_dict()) for d in docs]
+        return sorted(matches, key=lambda e: e.created_at, reverse=True)
+
+    def list_by_dev_task(self, dev_task_id: str) -> list[CIEvent]:
+        docs = self._collection.where("dev_task_id", "==", dev_task_id).stream()
+        matches = [CIEvent(**d.to_dict()) for d in docs]
+        return sorted(matches, key=lambda e: e.created_at, reverse=True)
+
+
+class CIAnalysisRepository(Protocol):
+    def save(self, analysis: CIAnalysis) -> None: ...
+    def get(self, analysis_id: str) -> CIAnalysis | None: ...
+    def list_by_ci_event(self, ci_event_id: str) -> list[CIAnalysis]: ...
+
+
+class InMemoryCIAnalysisRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, CIAnalysis] = {}
+
+    def save(self, analysis: CIAnalysis) -> None:
+        self._store[analysis.id] = analysis
+
+    def get(self, analysis_id: str) -> CIAnalysis | None:
+        return self._store.get(analysis_id)
+
+    def list_by_ci_event(self, ci_event_id: str) -> list[CIAnalysis]:
+        matches = [a for a in self._store.values() if a.ci_event_id == ci_event_id]
+        return sorted(matches, key=lambda a: a.created_at, reverse=True)
+
+
+class FirestoreCIAnalysisRepository:
+    def __init__(self, client, collection_name: str = "ci_analyses") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, analysis: CIAnalysis) -> None:
+        self._collection.document(analysis.id).set(analysis.model_dump(mode="python"))
+
+    def get(self, analysis_id: str) -> CIAnalysis | None:
+        snap = self._collection.document(analysis_id).get()
+        if not snap.exists:
+            return None
+        return CIAnalysis(**snap.to_dict())
+
+    def list_by_ci_event(self, ci_event_id: str) -> list[CIAnalysis]:
+        docs = self._collection.where("ci_event_id", "==", ci_event_id).stream()
+        matches = [CIAnalysis(**d.to_dict()) for d in docs]
+        return sorted(matches, key=lambda a: a.created_at, reverse=True)
+
+
 def get_repositories() -> tuple[
     TicketRepository,
     AgentRunRepository,
@@ -947,6 +1049,8 @@ def get_repositories() -> tuple[
     ToolRunRepository,
     PullRequestDraftRepository,
     PullRequestReviewRepository,
+    CIEventRepository,
+    CIAnalysisRepository,
 ]:
     if config.REPOSITORY_PROVIDER == "memory":
         return (
@@ -970,6 +1074,8 @@ def get_repositories() -> tuple[
             InMemoryToolRunRepository(),
             InMemoryPullRequestDraftRepository(),
             InMemoryPullRequestReviewRepository(),
+            InMemoryCIEventRepository(),
+            InMemoryCIAnalysisRepository(),
         )
     if config.REPOSITORY_PROVIDER == "firestore":
         from google.cloud import firestore
@@ -999,6 +1105,8 @@ def get_repositories() -> tuple[
             FirestoreToolRunRepository(client),
             FirestorePullRequestDraftRepository(client),
             FirestorePullRequestReviewRepository(client),
+            FirestoreCIEventRepository(client),
+            FirestoreCIAnalysisRepository(client),
         )
     raise ValueError(
         f"Unknown REPOSITORY_PROVIDER: {config.REPOSITORY_PROVIDER!r}. Supported: memory, firestore"

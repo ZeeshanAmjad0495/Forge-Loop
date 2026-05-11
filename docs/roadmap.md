@@ -95,7 +95,7 @@ See `docs/tooling-strategy.md`.
 
 Scope:
 
-- CI failure ingestion and analysis (connect CI events → ForgeLoop tickets)
+- CI failure ingestion and analysis (connect CI events → ForgeLoop tickets) — Task 30 lands the foundation only. ForgeLoop accepts manually or programmatically recorded CI failure events as `CIEvent`s, links them to PR drafts / dev tasks / subtasks / check runs, and produces advisory LLM-assisted `CIAnalysis` records with structured root causes and suggested debugging steps. ForgeLoop does not call GitHub Actions, GitLab CI, CircleCI, or any CI provider; it does not run shell, edit code, create branches, open PRs, or auto-fix.
 - Production/incident ticket workflow (failure → triage → remediation brief)
 - Project memory learning loop (outcomes, QA results, production events update project memory)
 
