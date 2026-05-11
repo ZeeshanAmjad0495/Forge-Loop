@@ -259,6 +259,7 @@ Planned items are listed with their target release. Always-out items will not be
 | AI-assisted PR review (Kodus/Kody) | Tracking foundation landed (Task 29); external Kody execution still planned |
 | CI failure analysis / ingestion | Foundation landed (Task 30) — manual/programmatic `CIEvent` ingestion + advisory `CIAnalysis` only; no CI provider API calls, no auto-fix |
 | Incident triage / production failure analysis | Foundation landed (Task 31) — manual/programmatic `Incident` ingestion + advisory `IncidentAnalysis`; no monitoring providers, no auto-detection, no auto-remediation, no deploy |
+| Project memory learning loop | Foundation landed (Task 32) — LLM-distilled or human-authored `ProjectMemoryCandidate`s with explicit human approve/reject flow; durable `ProjectContext` updates only on approval; no vector DB, no RAG, no embeddings, no background learning |
 | Project memory learning loop | Planned, Release 6 |
 | GitHub App / webhook integration | Planned, Release 4 (repo connection, narrower scope) |
 | Multi-candidate orchestration / evaluator | Deferred (after single-runner loop is stable) |

@@ -91,13 +91,15 @@ See `docs/tooling-strategy.md`.
 
 ---
 
-## Release 6 — CI + Incident + Learning Loop (Tasks 30–32)
+## Release 6 — CI + Incident + Learning Loop (Tasks 30–32) — Complete
 
-Scope:
+Scope (implemented):
 
 - CI failure ingestion and analysis (connect CI events → ForgeLoop tickets) — Task 30 lands the foundation only. ForgeLoop accepts manually or programmatically recorded CI failure events as `CIEvent`s, links them to PR drafts / dev tasks / subtasks / check runs, and produces advisory LLM-assisted `CIAnalysis` records with structured root causes and suggested debugging steps. ForgeLoop does not call GitHub Actions, GitLab CI, CircleCI, or any CI provider; it does not run shell, edit code, create branches, open PRs, or auto-fix.
-- Production/incident ticket workflow (failure → triage → remediation brief)
-- Project memory learning loop (outcomes, QA results, production events update project memory)
+- Production/incident ticket workflow (failure → triage → remediation brief) — Task 31 lands the foundation: manual/programmatic `Incident` ingestion, advisory `IncidentAnalysis`, optional non-persisted `RemediationWorkItemDraft`. No live monitoring integration, no auto-remediation, no deploy.
+- Project memory learning loop (outcomes, QA results, production events update project memory) — Task 32 lands the foundation: LLM-distilled or human-authored `ProjectMemoryCandidate`s from CI / incident / PR review / check run / tool run / approval / dev task / subtask sources, with explicit human approve/reject. Approved candidates append deterministic blocks to `ProjectContext`. No vector DB, no RAG, no embeddings, no background learning, no automatic memory writes.
+
+The fixed 32-task core ForgeLoop roadmap (Releases 1–6) is now complete.
 
 ---
 

@@ -169,6 +169,38 @@ Open a dev task to investigate and fix the failing test; do not auto-merge.
 yes — failures require a human owner before any remediation.
 """
 
+_MOCK_MEMORY_LEARNING_RESPONSE = """\
+# Project Memory Learning
+
+## Summary
+
+Two durable lessons surface from this evidence: a recurring failure pattern
+worth recording for future triage, and a testing rule the team should adopt
+to prevent the same regression. Confidence is moderate pending a human
+review of the source.
+
+## Candidates
+
+```json
+[
+  {
+    "memory_type": "known_failure_pattern",
+    "title": "Test phase regression after recent diff",
+    "content": "When CI fails in the test phase shortly after a code diff on the same branch, the most likely cause is a regression in the changed module. Re-run locally before triaging further.",
+    "tags": ["ci", "regression"],
+    "confidence": 0.6
+  },
+  {
+    "memory_type": "testing_rule",
+    "title": "Compare against last known-passing commit",
+    "content": "When a test suddenly fails on a feature branch, compare the failing test output against the last known-passing commit on the target branch before assuming a flake.",
+    "tags": ["testing", "triage"],
+    "confidence": 0.7
+  }
+]
+```
+"""
+
 _MOCK_INCIDENT_TRIAGE_RESPONSE = """\
 # Incident Triage Brief
 
@@ -274,6 +306,8 @@ class MockLLMProvider:
             return _MOCK_CI_FAILURE_ANALYSIS_RESPONSE
         if "Incident Triage Brief" in prompt:
             return _MOCK_INCIDENT_TRIAGE_RESPONSE
+        if "Project Memory Learning" in prompt:
+            return _MOCK_MEMORY_LEARNING_RESPONSE
         return """\
 # Implementation Brief
 

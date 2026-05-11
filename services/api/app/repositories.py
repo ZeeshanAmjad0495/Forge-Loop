@@ -15,7 +15,9 @@ from .models import (
     Epic,
     Incident,
     IncidentAnalysis,
+    MemoryLearningRun,
     Project,
+    ProjectMemoryCandidate,
     ProjectContext,
     PullRequestDraft,
     PullRequestReview,
@@ -1110,6 +1112,96 @@ class FirestoreIncidentAnalysisRepository:
         return sorted(matches, key=lambda a: a.created_at, reverse=True)
 
 
+class MemoryLearningRunRepository(Protocol):
+    def save(self, run: MemoryLearningRun) -> None: ...
+    def get(self, run_id: str) -> MemoryLearningRun | None: ...
+    def list_by_project(self, project_id: str) -> list[MemoryLearningRun]: ...
+
+
+class InMemoryMemoryLearningRunRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, MemoryLearningRun] = {}
+
+    def save(self, run: MemoryLearningRun) -> None:
+        self._store[run.id] = run
+
+    def get(self, run_id: str) -> MemoryLearningRun | None:
+        return self._store.get(run_id)
+
+    def list_by_project(self, project_id: str) -> list[MemoryLearningRun]:
+        matches = [r for r in self._store.values() if r.project_id == project_id]
+        return sorted(matches, key=lambda r: r.created_at, reverse=True)
+
+
+class FirestoreMemoryLearningRunRepository:
+    def __init__(self, client, collection_name: str = "memory_learning_runs") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, run: MemoryLearningRun) -> None:
+        self._collection.document(run.id).set(run.model_dump(mode="python"))
+
+    def get(self, run_id: str) -> MemoryLearningRun | None:
+        snap = self._collection.document(run_id).get()
+        if not snap.exists:
+            return None
+        return MemoryLearningRun(**snap.to_dict())
+
+    def list_by_project(self, project_id: str) -> list[MemoryLearningRun]:
+        docs = self._collection.where("project_id", "==", project_id).stream()
+        matches = [MemoryLearningRun(**d.to_dict()) for d in docs]
+        return sorted(matches, key=lambda r: r.created_at, reverse=True)
+
+
+class ProjectMemoryCandidateRepository(Protocol):
+    def save(self, candidate: ProjectMemoryCandidate) -> None: ...
+    def get(self, candidate_id: str) -> ProjectMemoryCandidate | None: ...
+    def list_by_project(self, project_id: str) -> list[ProjectMemoryCandidate]: ...
+    def list_by_learning_run(self, learning_run_id: str) -> list[ProjectMemoryCandidate]: ...
+
+
+class InMemoryProjectMemoryCandidateRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, ProjectMemoryCandidate] = {}
+
+    def save(self, candidate: ProjectMemoryCandidate) -> None:
+        self._store[candidate.id] = candidate
+
+    def get(self, candidate_id: str) -> ProjectMemoryCandidate | None:
+        return self._store.get(candidate_id)
+
+    def list_by_project(self, project_id: str) -> list[ProjectMemoryCandidate]:
+        matches = [c for c in self._store.values() if c.project_id == project_id]
+        return sorted(matches, key=lambda c: c.created_at, reverse=True)
+
+    def list_by_learning_run(self, learning_run_id: str) -> list[ProjectMemoryCandidate]:
+        matches = [c for c in self._store.values() if c.learning_run_id == learning_run_id]
+        return sorted(matches, key=lambda c: c.created_at, reverse=True)
+
+
+class FirestoreProjectMemoryCandidateRepository:
+    def __init__(self, client, collection_name: str = "project_memory_candidates") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, candidate: ProjectMemoryCandidate) -> None:
+        self._collection.document(candidate.id).set(candidate.model_dump(mode="python"))
+
+    def get(self, candidate_id: str) -> ProjectMemoryCandidate | None:
+        snap = self._collection.document(candidate_id).get()
+        if not snap.exists:
+            return None
+        return ProjectMemoryCandidate(**snap.to_dict())
+
+    def list_by_project(self, project_id: str) -> list[ProjectMemoryCandidate]:
+        docs = self._collection.where("project_id", "==", project_id).stream()
+        matches = [ProjectMemoryCandidate(**d.to_dict()) for d in docs]
+        return sorted(matches, key=lambda c: c.created_at, reverse=True)
+
+    def list_by_learning_run(self, learning_run_id: str) -> list[ProjectMemoryCandidate]:
+        docs = self._collection.where("learning_run_id", "==", learning_run_id).stream()
+        matches = [ProjectMemoryCandidate(**d.to_dict()) for d in docs]
+        return sorted(matches, key=lambda c: c.created_at, reverse=True)
+
+
 def get_repositories() -> tuple[
     TicketRepository,
     AgentRunRepository,
@@ -1135,6 +1227,8 @@ def get_repositories() -> tuple[
     CIAnalysisRepository,
     IncidentRepository,
     IncidentAnalysisRepository,
+    MemoryLearningRunRepository,
+    ProjectMemoryCandidateRepository,
 ]:
     if config.REPOSITORY_PROVIDER == "memory":
         return (
@@ -1162,6 +1256,8 @@ def get_repositories() -> tuple[
             InMemoryCIAnalysisRepository(),
             InMemoryIncidentRepository(),
             InMemoryIncidentAnalysisRepository(),
+            InMemoryMemoryLearningRunRepository(),
+            InMemoryProjectMemoryCandidateRepository(),
         )
     if config.REPOSITORY_PROVIDER == "firestore":
         from google.cloud import firestore
@@ -1195,6 +1291,8 @@ def get_repositories() -> tuple[
             FirestoreCIAnalysisRepository(client),
             FirestoreIncidentRepository(client),
             FirestoreIncidentAnalysisRepository(client),
+            FirestoreMemoryLearningRunRepository(client),
+            FirestoreProjectMemoryCandidateRepository(client),
         )
     raise ValueError(
         f"Unknown REPOSITORY_PROVIDER: {config.REPOSITORY_PROVIDER!r}. Supported: memory, firestore"

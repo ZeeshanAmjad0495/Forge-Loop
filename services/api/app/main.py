@@ -46,6 +46,9 @@ from .models import (
     IncidentCreate,
     IncidentUpdate,
     LoginRequest,
+    MemoryCandidateRejectRequest,
+    MemoryLearningRun,
+    MemoryLearningRunCreate,
     LoginResponse,
     MeResponse,
     PlanningRunCreate,
@@ -90,6 +93,9 @@ from .models import (
     PullRequestReviewComplete,
     PullRequestReviewCreate,
     PullRequestReviewUpdate,
+    ProjectMemoryCandidate,
+    ProjectMemoryCandidateCreate,
+    ProjectMemoryCandidateUpdate,
     RemediationWorkItemDraft,
 )
 from .pr_draft import (
@@ -105,6 +111,9 @@ from .pr_review.kody import (
 from .tool_runners.openhands import OpenHandsRunner
 from .ci_analysis.agent import run_ci_failure_analysis
 from .incident_triage.agent import run_incident_triage
+from .memory_learning.agent import run_memory_learning
+from .memory_learning.applier import apply_candidate
+from .memory_learning.source_fetch import SUPPORTED_SOURCE_TYPES, fetch_source
 import json
 
 from . import config as _config
@@ -152,6 +161,8 @@ app.add_middleware(
     ci_analysis_repo,
     incident_repo,
     incident_analysis_repo,
+    memory_learning_run_repo,
+    memory_candidate_repo,
 ) = get_repositories()
 
 # ---------------------------------------------------------------------------
@@ -2977,3 +2988,388 @@ def prepare_incident_remediation(
         },
     )
     return draft
+
+
+# ---------------------------------------------------------------------------
+# Project memory learning loop (Task 32)
+# ---------------------------------------------------------------------------
+
+_CANDIDATE_UPDATABLE_FIELDS = {"memory_type", "title", "content", "tags", "confidence"}
+
+
+def _persist_candidate_from_dict(
+    *,
+    project_id: str,
+    learning_run_id: str | None,
+    source_type: str,
+    source_id: str | None,
+    proposed_by: str | None,
+    provider_name: str | None,
+    model_name: str | None,
+    raw: dict,
+    actor_email: str | None,
+) -> ProjectMemoryCandidate:
+    now = datetime.now(timezone.utc)
+    candidate = ProjectMemoryCandidate(
+        id=str(uuid.uuid4()),
+        project_id=project_id,
+        learning_run_id=learning_run_id,
+        source_type=source_type,
+        source_id=source_id,
+        memory_type=raw["memory_type"],
+        title=raw["title"],
+        content=raw["content"],
+        tags=list(raw.get("tags") or []),
+        confidence=raw.get("confidence"),
+        status="proposed",
+        proposed_by=proposed_by,
+        provider=provider_name,
+        model=model_name,
+        artifact_id=None,
+        rejection_reason=None,
+        created_at=now,
+        updated_at=now,
+        approved_at=None,
+        rejected_at=None,
+    )
+    memory_candidate_repo.save(candidate)
+    _audit(
+        "memory_candidate_created", "memory_candidate", candidate.id,
+        project_id=project_id, actor_email=actor_email,
+        details={
+            "memory_type": candidate.memory_type,
+            "source_type": candidate.source_type,
+            "source_id": candidate.source_id,
+            "learning_run_id": candidate.learning_run_id,
+        },
+    )
+    return candidate
+
+
+@app.post(
+    "/projects/{project_id}/memory-learning-runs",
+    response_model=MemoryLearningRun,
+    status_code=201,
+)
+def create_memory_learning_run(
+    project_id: str,
+    body: MemoryLearningRunCreate,
+    current_user: str = Depends(require_auth),
+):
+    if project_repo.get(project_id) is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    if body.source_type not in SUPPORTED_SOURCE_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"source_type {body.source_type!r} is not supported as a "
+                "learning-run input"
+            ),
+        )
+
+    try:
+        fetched = fetch_source(
+            body.source_type, body.source_id,
+            ci_analysis_repo=ci_analysis_repo,
+            incident_analysis_repo=incident_analysis_repo,
+            pr_review_repo=pr_review_repo,
+            check_run_repo=check_run_repo,
+            tool_run_repo=tool_run_repo,
+            approval_repo=approval_repo,
+            dev_task_repo=dev_task_repo,
+            subtask_repo=subtask_repo,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if fetched is None:
+        raise HTTPException(status_code=404, detail="Source not found")
+    source_obj, source_block = fetched
+
+    provider_name = body.provider if body.provider else get_default_provider_name()
+    try:
+        provider = get_provider_by_name(provider_name)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except ProviderError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    project_context = project_context_repo.get(project_id)
+    run_id = str(uuid.uuid4())
+    _audit(
+        "memory_learning_requested", "memory_learning_run", run_id,
+        project_id=project_id, actor_email=current_user,
+        details={
+            "source_type": body.source_type,
+            "source_id": body.source_id,
+            "provider": provider.provider_name,
+        },
+    )
+
+    now = datetime.now(timezone.utc)
+    try:
+        result = run_memory_learning(
+            provider=provider,
+            project_context=project_context,
+            source_type=body.source_type,
+            source_summary_block=source_block,
+        )
+    except Exception as exc:
+        failed = MemoryLearningRun(
+            id=run_id,
+            project_id=project_id,
+            source_type=body.source_type,
+            source_id=body.source_id,
+            provider=provider.provider_name,
+            model=provider.model_name,
+            status="failed",
+            summary="",
+            candidates_created=0,
+            candidate_ids=[],
+            artifact_id=None,
+            raw_output=None,
+            error_message=str(exc),
+            created_at=now,
+            updated_at=now,
+        )
+        memory_learning_run_repo.save(failed)
+        _audit(
+            "memory_learning_failed", "memory_learning_run", failed.id,
+            project_id=project_id, actor_email=current_user,
+            details={
+                "source_type": body.source_type,
+                "source_id": body.source_id,
+                "provider": provider.provider_name,
+                "error": str(exc),
+            },
+        )
+        return failed
+
+    candidate_ids: list[str] = []
+    for raw_candidate in result.get("candidates") or []:
+        candidate = _persist_candidate_from_dict(
+            project_id=project_id,
+            learning_run_id=run_id,
+            source_type=body.source_type,
+            source_id=body.source_id,
+            proposed_by=current_user,
+            provider_name=provider.provider_name,
+            model_name=provider.model_name,
+            raw=raw_candidate,
+            actor_email=current_user,
+        )
+        candidate_ids.append(candidate.id)
+
+    run = MemoryLearningRun(
+        id=run_id,
+        project_id=project_id,
+        source_type=body.source_type,
+        source_id=body.source_id,
+        provider=provider.provider_name,
+        model=provider.model_name,
+        status="completed",
+        summary=result.get("summary") or "",
+        candidates_created=len(candidate_ids),
+        candidate_ids=candidate_ids,
+        artifact_id=None,
+        raw_output=result.get("raw_output"),
+        error_message=None,
+        created_at=now,
+        updated_at=now,
+    )
+    memory_learning_run_repo.save(run)
+    _audit(
+        "memory_learning_completed", "memory_learning_run", run.id,
+        project_id=project_id, actor_email=current_user,
+        details={
+            "source_type": body.source_type,
+            "source_id": body.source_id,
+            "provider": provider.provider_name,
+            "candidates_created": len(candidate_ids),
+        },
+    )
+    return run
+
+
+@app.get(
+    "/projects/{project_id}/memory-learning-runs",
+    response_model=list[MemoryLearningRun],
+)
+def list_project_memory_learning_runs(project_id: str, _: str = Depends(require_auth)):
+    if project_repo.get(project_id) is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return memory_learning_run_repo.list_by_project(project_id)
+
+
+@app.get("/memory-learning-runs/{run_id}", response_model=MemoryLearningRun)
+def get_memory_learning_run(run_id: str, _: str = Depends(require_auth)):
+    run = memory_learning_run_repo.get(run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="MemoryLearningRun not found")
+    return run
+
+
+@app.post(
+    "/projects/{project_id}/memory-candidates",
+    response_model=ProjectMemoryCandidate,
+    status_code=201,
+)
+def create_manual_memory_candidate(
+    project_id: str,
+    body: ProjectMemoryCandidateCreate,
+    current_user: str = Depends(require_auth),
+):
+    if project_repo.get(project_id) is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    candidate = _persist_candidate_from_dict(
+        project_id=project_id,
+        learning_run_id=body.learning_run_id,
+        source_type=body.source_type,
+        source_id=body.source_id,
+        proposed_by=body.proposed_by or current_user,
+        provider_name=body.provider,
+        model_name=body.model,
+        raw={
+            "memory_type": body.memory_type,
+            "title": body.title,
+            "content": body.content,
+            "tags": body.tags,
+            "confidence": body.confidence,
+        },
+        actor_email=current_user,
+    )
+    return candidate
+
+
+@app.get(
+    "/projects/{project_id}/memory-candidates",
+    response_model=list[ProjectMemoryCandidate],
+)
+def list_project_memory_candidates(project_id: str, _: str = Depends(require_auth)):
+    if project_repo.get(project_id) is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return memory_candidate_repo.list_by_project(project_id)
+
+
+@app.get(
+    "/memory-candidates/{candidate_id}",
+    response_model=ProjectMemoryCandidate,
+)
+def get_memory_candidate(candidate_id: str, _: str = Depends(require_auth)):
+    candidate = memory_candidate_repo.get(candidate_id)
+    if candidate is None:
+        raise HTTPException(status_code=404, detail="MemoryCandidate not found")
+    return candidate
+
+
+@app.patch(
+    "/memory-candidates/{candidate_id}",
+    response_model=ProjectMemoryCandidate,
+)
+def update_memory_candidate(
+    candidate_id: str,
+    body: ProjectMemoryCandidateUpdate,
+    _: str = Depends(require_auth),
+):
+    candidate = memory_candidate_repo.get(candidate_id)
+    if candidate is None:
+        raise HTTPException(status_code=404, detail="MemoryCandidate not found")
+    if candidate.status != "proposed":
+        raise HTTPException(
+            status_code=409,
+            detail="Candidate is not in 'proposed' status; PATCH not allowed",
+        )
+
+    changes = body.model_dump(exclude_unset=True)
+    for field, value in changes.items():
+        if field not in _CANDIDATE_UPDATABLE_FIELDS:
+            continue
+        setattr(candidate, field, value)
+
+    candidate.updated_at = datetime.now(timezone.utc)
+    memory_candidate_repo.save(candidate)
+    return candidate
+
+
+@app.post(
+    "/memory-candidates/{candidate_id}/approve",
+    response_model=ProjectMemoryCandidate,
+)
+def approve_memory_candidate(
+    candidate_id: str,
+    current_user: str = Depends(require_auth),
+):
+    candidate = memory_candidate_repo.get(candidate_id)
+    if candidate is None:
+        raise HTTPException(status_code=404, detail="MemoryCandidate not found")
+    if candidate.status != "proposed":
+        raise HTTPException(
+            status_code=409,
+            detail="Candidate is not in 'proposed' status; cannot approve",
+        )
+
+    context = project_context_repo.get(candidate.project_id)
+    updated_context = apply_candidate(context, candidate)
+    project_context_repo.save(updated_context)
+
+    now = datetime.now(timezone.utc)
+    candidate.status = "approved"
+    candidate.approved_at = now
+    candidate.updated_at = now
+    memory_candidate_repo.save(candidate)
+
+    _audit(
+        "memory_candidate_approved", "memory_candidate", candidate.id,
+        project_id=candidate.project_id, actor_email=current_user,
+        details={
+            "memory_type": candidate.memory_type,
+            "source_type": candidate.source_type,
+            "source_id": candidate.source_id,
+        },
+    )
+    _audit(
+        "project_memory_learned", "project_context", candidate.project_id,
+        project_id=candidate.project_id, actor_email=current_user,
+        details={
+            "candidate_id": candidate.id,
+            "memory_type": candidate.memory_type,
+        },
+    )
+    return candidate
+
+
+@app.post(
+    "/memory-candidates/{candidate_id}/reject",
+    response_model=ProjectMemoryCandidate,
+)
+def reject_memory_candidate(
+    candidate_id: str,
+    body: MemoryCandidateRejectRequest | None = Body(default=None),
+    current_user: str = Depends(require_auth),
+):
+    candidate = memory_candidate_repo.get(candidate_id)
+    if candidate is None:
+        raise HTTPException(status_code=404, detail="MemoryCandidate not found")
+    if candidate.status != "proposed":
+        raise HTTPException(
+            status_code=409,
+            detail="Candidate is not in 'proposed' status; cannot reject",
+        )
+
+    reason = body.reason if body else None
+    now = datetime.now(timezone.utc)
+    candidate.status = "rejected"
+    candidate.rejection_reason = reason
+    candidate.rejected_at = now
+    candidate.updated_at = now
+    memory_candidate_repo.save(candidate)
+
+    _audit(
+        "memory_candidate_rejected", "memory_candidate", candidate.id,
+        project_id=candidate.project_id, actor_email=current_user,
+        details={
+            "memory_type": candidate.memory_type,
+            "reason": reason,
+        },
+    )
+    return candidate

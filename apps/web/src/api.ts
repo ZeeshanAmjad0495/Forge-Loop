@@ -61,6 +61,12 @@ import type {
   IncidentAnalysisCreate,
   IncidentCreate,
   IncidentUpdate,
+  MemoryCandidateRejectRequest,
+  MemoryLearningRun,
+  MemoryLearningRunCreate,
+  ProjectMemoryCandidate,
+  ProjectMemoryCandidateCreate,
+  ProjectMemoryCandidateUpdate,
   RemediationWorkItemDraft,
 } from './types'
 
@@ -893,4 +899,100 @@ export async function prepareIncidentRemediation(
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
   })
   return handleResponse<RemediationWorkItemDraft>(res)
+}
+
+// Project memory learning loop (Task 32)
+
+export async function createMemoryLearningRun(
+  projectId: string,
+  body: MemoryLearningRunCreate,
+): Promise<MemoryLearningRun> {
+  const res = await fetch(`${BASE}/projects/${projectId}/memory-learning-runs`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(body),
+  })
+  return handleResponse<MemoryLearningRun>(res)
+}
+
+export async function listProjectMemoryLearningRuns(
+  projectId: string,
+): Promise<MemoryLearningRun[]> {
+  const res = await fetch(`${BASE}/projects/${projectId}/memory-learning-runs`, {
+    headers: authHeaders(),
+  })
+  return handleResponse<MemoryLearningRun[]>(res)
+}
+
+export async function getMemoryLearningRun(
+  runId: string,
+): Promise<MemoryLearningRun> {
+  const res = await fetch(`${BASE}/memory-learning-runs/${runId}`, {
+    headers: authHeaders(),
+  })
+  return handleResponse<MemoryLearningRun>(res)
+}
+
+export async function createMemoryCandidate(
+  projectId: string,
+  body: ProjectMemoryCandidateCreate,
+): Promise<ProjectMemoryCandidate> {
+  const res = await fetch(`${BASE}/projects/${projectId}/memory-candidates`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(body),
+  })
+  return handleResponse<ProjectMemoryCandidate>(res)
+}
+
+export async function listProjectMemoryCandidates(
+  projectId: string,
+): Promise<ProjectMemoryCandidate[]> {
+  const res = await fetch(`${BASE}/projects/${projectId}/memory-candidates`, {
+    headers: authHeaders(),
+  })
+  return handleResponse<ProjectMemoryCandidate[]>(res)
+}
+
+export async function getMemoryCandidate(
+  candidateId: string,
+): Promise<ProjectMemoryCandidate> {
+  const res = await fetch(`${BASE}/memory-candidates/${candidateId}`, {
+    headers: authHeaders(),
+  })
+  return handleResponse<ProjectMemoryCandidate>(res)
+}
+
+export async function updateMemoryCandidate(
+  candidateId: string,
+  body: ProjectMemoryCandidateUpdate,
+): Promise<ProjectMemoryCandidate> {
+  const res = await fetch(`${BASE}/memory-candidates/${candidateId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(body),
+  })
+  return handleResponse<ProjectMemoryCandidate>(res)
+}
+
+export async function approveMemoryCandidate(
+  candidateId: string,
+): Promise<ProjectMemoryCandidate> {
+  const res = await fetch(`${BASE}/memory-candidates/${candidateId}/approve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+  })
+  return handleResponse<ProjectMemoryCandidate>(res)
+}
+
+export async function rejectMemoryCandidate(
+  candidateId: string,
+  body: MemoryCandidateRejectRequest = {},
+): Promise<ProjectMemoryCandidate> {
+  const res = await fetch(`${BASE}/memory-candidates/${candidateId}/reject`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(body),
+  })
+  return handleResponse<ProjectMemoryCandidate>(res)
 }
