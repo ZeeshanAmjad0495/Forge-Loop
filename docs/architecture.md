@@ -279,6 +279,7 @@ All 32 tasks are complete. The table below summarises what is and is not impleme
 | CI failure ingestion (`CIEvent`) + advisory analysis (`CIAnalysis`) | **Implemented, Release 6** — manual/programmatic ingestion only; no CI provider API calls, no auto-fix |
 | Incident ingestion (`Incident`) + advisory triage (`IncidentAnalysis`) | **Implemented, Release 6** — manual/programmatic ingestion only; no monitoring providers, no auto-detection, no auto-remediation |
 | Project memory learning loop (`MemoryLearningRun`, `MemoryCandidate`) | **Implemented, Release 6** — human-supervised approve/reject flow; no vector DB, no RAG, no background learning |
+| Local workspace metadata + safe directory management (`Workspace`) | **Implemented, Task 33** — Execution Bridge foundation; pathlib-only, no shell, no git, no GitHub, no source-file mutation |
 | Real branch / PR creation via GitHub API | **Not implemented** — belongs to future Execution Bridge |
 | Live OpenHands execution | **Not implemented** — belongs to future Execution Bridge |
 | Live Kody integration (external API calls) | **Not implemented** — belongs to future Execution Bridge |

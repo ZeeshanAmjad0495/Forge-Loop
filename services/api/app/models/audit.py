@@ -54,6 +54,11 @@ AuditAction = Literal[
     "memory_candidate_approved",
     "memory_candidate_rejected",
     "project_memory_learned",
+    "workspace_created",
+    "workspace_registered",
+    "workspace_inspected",
+    "workspace_archived",
+    "workspace_invalid",
 ]
 
 

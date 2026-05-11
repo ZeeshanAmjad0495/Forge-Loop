@@ -124,6 +124,14 @@ from .tasks import (
     TaskDecompositionRunCreate,
 )
 from .tickets import Ticket, TicketCreate
+from .workspaces import (
+    Workspace,
+    WorkspaceCreate,
+    WorkspaceInspection,
+    WorkspaceStatus,
+    WorkspaceType,
+    WorkspaceUpdate,
+)
 from .tool_runs import (
     OpenHandsInstructionPackage,
     OpenHandsPreparePackageRequest,
@@ -275,4 +283,10 @@ __all__ = [
     "ToolRunnerMode",
     "ToolRunStatus",
     "ToolRunTargetType",
+    "Workspace",
+    "WorkspaceCreate",
+    "WorkspaceInspection",
+    "WorkspaceStatus",
+    "WorkspaceType",
+    "WorkspaceUpdate",
 ]

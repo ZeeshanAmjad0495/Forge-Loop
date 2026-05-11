@@ -39,5 +39,6 @@ incident_repo = repos.incident
 incident_analysis_repo = repos.incident_analysis
 memory_learning_run_repo = repos.memory_learning_run
 memory_candidate_repo = repos.memory_candidate
+workspace_repo = repos.workspace
 
 audit_writer = AuditWriter(audit_event_repo)

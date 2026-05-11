@@ -30,6 +30,7 @@ from .models import (
     Ticket,
     ToolRun,
     ToolRunnerDefinition,
+    Workspace,
 )
 
 
@@ -1292,6 +1293,62 @@ class FirestoreProjectMemoryCandidateRepository:
         return sorted(matches, key=lambda c: c.created_at, reverse=True)
 
 
+class WorkspaceRepository(Protocol):
+    def save(self, workspace: Workspace) -> None: ...
+    def get(self, workspace_id: str) -> Workspace | None: ...
+    def update(self, workspace: Workspace) -> None: ...
+    def list_by_project(self, project_id: str) -> list[Workspace]: ...
+    def list_by_code_repository(self, code_repository_id: str) -> list[Workspace]: ...
+
+
+class InMemoryWorkspaceRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, Workspace] = {}
+
+    def save(self, workspace: Workspace) -> None:
+        self._store[workspace.id] = workspace
+
+    def get(self, workspace_id: str) -> Workspace | None:
+        return self._store.get(workspace_id)
+
+    def update(self, workspace: Workspace) -> None:
+        self._store[workspace.id] = workspace
+
+    def list_by_project(self, project_id: str) -> list[Workspace]:
+        return [w for w in self._store.values() if w.project_id == project_id]
+
+    def list_by_code_repository(self, code_repository_id: str) -> list[Workspace]:
+        return [w for w in self._store.values() if w.code_repository_id == code_repository_id]
+
+    def clear(self) -> None:
+        self._store.clear()
+
+
+class FirestoreWorkspaceRepository:
+    def __init__(self, client, collection_name: str = "workspaces") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, workspace: Workspace) -> None:
+        self._collection.document(workspace.id).set(workspace.model_dump(mode="python"))
+
+    def get(self, workspace_id: str) -> Workspace | None:
+        snap = self._collection.document(workspace_id).get()
+        if not snap.exists:
+            return None
+        return Workspace(**snap.to_dict())
+
+    def update(self, workspace: Workspace) -> None:
+        self._collection.document(workspace.id).set(workspace.model_dump(mode="python"))
+
+    def list_by_project(self, project_id: str) -> list[Workspace]:
+        docs = self._collection.where("project_id", "==", project_id).stream()
+        return [Workspace(**d.to_dict()) for d in docs]
+
+    def list_by_code_repository(self, code_repository_id: str) -> list[Workspace]:
+        docs = self._collection.where("code_repository_id", "==", code_repository_id).stream()
+        return [Workspace(**d.to_dict()) for d in docs]
+
+
 @dataclass(frozen=True)
 class Repositories:
     """Named container for the wired-up repository singletons.
@@ -1334,6 +1391,7 @@ class Repositories:
     incident_analysis: IncidentAnalysisRepository
     memory_learning_run: MemoryLearningRunRepository
     memory_candidate: ProjectMemoryCandidateRepository
+    workspace: WorkspaceRepository
 
 
 def get_repositories() -> Repositories:
@@ -1365,6 +1423,7 @@ def get_repositories() -> Repositories:
             incident_analysis=InMemoryIncidentAnalysisRepository(),
             memory_learning_run=InMemoryMemoryLearningRunRepository(),
             memory_candidate=InMemoryProjectMemoryCandidateRepository(),
+            workspace=InMemoryWorkspaceRepository(),
         )
     if config.REPOSITORY_PROVIDER == "firestore":
         from google.cloud import firestore
@@ -1400,6 +1459,7 @@ def get_repositories() -> Repositories:
             incident_analysis=FirestoreIncidentAnalysisRepository(client),
             memory_learning_run=FirestoreMemoryLearningRunRepository(client),
             memory_candidate=FirestoreProjectMemoryCandidateRepository(client),
+            workspace=FirestoreWorkspaceRepository(client),
         )
     raise ValueError(
         f"Unknown REPOSITORY_PROVIDER: {config.REPOSITORY_PROVIDER!r}. Supported: memory, firestore"

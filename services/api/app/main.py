@@ -40,6 +40,7 @@ from .repositories_state import (
     subtask_repo,
     tool_run_repo,
     tool_runner_definition_repo,
+    workspace_repo,
 )
 from .routes import (
     approvals,
@@ -64,6 +65,7 @@ from .routes import (
     task_decomposition,
     tickets,
     tool_runners,
+    workspaces,
 )
 
 @asynccontextmanager
@@ -102,6 +104,7 @@ app.include_router(pr_reviews.router)
 app.include_router(ci.router)
 app.include_router(incidents.router)
 app.include_router(memory.router)
+app.include_router(workspaces.router)
 
 
 __all__ = [
@@ -133,4 +136,5 @@ __all__ = [
     "incident_analysis_repo",
     "memory_learning_run_repo",
     "memory_candidate_repo",
+    "workspace_repo",
 ]

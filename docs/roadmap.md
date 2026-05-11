@@ -129,3 +129,14 @@ The following cross-cutting capabilities are folded into Releases 3–6 and do n
 ## Rule
 
 Do not implement Release 4+ items unless the current task explicitly requests them.
+
+---
+
+## Execution Bridge — Foundations (post-32, additive)
+
+Tasks beyond the fixed 32 are scoped one at a time and must not be expanded without approval.
+
+- Task 33 — Local Workspace Manager: `Workspace` model, safe path validation, register/create/inspect/archive API, and a minimal UI. Metadata + empty-directory creation only. No shell, no git, no GitHub, no PR, no OpenHands, no source-file mutation, no remote clone.
+- Task 34 — Safe command runner (future). Will introduce controlled command execution against a workspace. Not in Task 33.
+
+See [`docs/execution-bridge.md`](execution-bridge.md).
