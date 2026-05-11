@@ -11,6 +11,8 @@ from ..models import (
     CheckDefinitionUpdate,
     CheckDefinitionsFromSafetyProfileRequest,
     CheckDefinitionsFromSafetyProfileResponse,
+    CheckExecutionRequest,
+    CheckExecutionResponse,
     CheckRun,
     CheckRunCreate,
     CheckType,
@@ -22,8 +24,22 @@ from ..repositories_state import (
     check_definition_repo,
     check_run_repo,
     code_repo_repo,
+    command_definition_repo,
+    command_run_repo,
     project_repo,
     repo_safety_profile_repo,
+    workspace_repo,
+)
+from ..services.check_execution import (
+    CheckDefinitionNotFound,
+    CheckExecutionService,
+    CheckExecutionValidationError,
+)
+from ..services.command_runner import (
+    CommandRunnerDisabled,
+    CommandRunnerService,
+    CommandValidationError,
+    WorkspaceNotFoundError,
 )
 from .code_repositories import DEFAULT_REQUIRED_CHECKS
 
@@ -288,3 +304,52 @@ def get_check_run(check_run_id: str, _: str = Depends(require_auth)):
     if run is None:
         raise HTTPException(status_code=404, detail="CheckRun not found")
     return run
+
+
+def _check_execution_service() -> CheckExecutionService:
+    command_runner = CommandRunnerService(
+        command_def_repo=command_definition_repo,
+        command_run_repo=command_run_repo,
+        project_repo=project_repo,
+        workspace_repo=workspace_repo,
+        code_repo_repo=code_repo_repo,
+        artifact_repo=artifact_repo,
+        audit_writer=audit_writer,
+    )
+    return CheckExecutionService(
+        check_definition_repo=check_definition_repo,
+        check_run_repo=check_run_repo,
+        workspace_repo=workspace_repo,
+        project_repo=project_repo,
+        command_runner=command_runner,
+        audit_writer=audit_writer,
+    )
+
+
+@router.post(
+    "/check-definitions/{check_definition_id}/execute",
+    response_model=CheckExecutionResponse,
+    status_code=201,
+)
+def execute_check_definition(
+    check_definition_id: str,
+    body: CheckExecutionRequest,
+    current_user: str = Depends(require_auth),
+):
+    svc = _check_execution_service()
+    try:
+        result = svc.execute(check_definition_id, body, actor_email=current_user)
+    except CheckDefinitionNotFound:
+        raise HTTPException(status_code=404, detail="CheckDefinition not found")
+    except WorkspaceNotFoundError:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    except CommandRunnerDisabled as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    except CheckExecutionValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except CommandValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return CheckExecutionResponse(
+        check_run=result.check_run,
+        command_run=result.command_run,
+    )

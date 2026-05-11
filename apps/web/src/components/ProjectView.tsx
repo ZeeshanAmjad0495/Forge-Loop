@@ -203,7 +203,7 @@ export function ProjectView({
       <CommandRunnerPanel projectId={project.id} workspaces={workspaces} />
 
       <hr style={{ margin: '24px 0', borderColor: '#333' }} />
-      <ChecksPanel projectId={project.id} codeRepos={codeRepos} />
+      <ChecksPanel projectId={project.id} codeRepos={codeRepos} workspaces={workspaces} />
 
       <hr style={{ margin: '24px 0', borderColor: '#333' }} />
       <ToolRunnersPanel projectId={project.id} codeRepos={codeRepos} />

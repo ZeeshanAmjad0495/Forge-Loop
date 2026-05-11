@@ -85,6 +85,10 @@ def _arg_invalid_reason(arg: str) -> str | None:
     return None
 
 
+command_invalid_reason = _command_invalid_reason
+arg_invalid_reason = _arg_invalid_reason
+
+
 def _working_directory_invalid_reason(wd: str | None) -> str | None:
     if wd is None:
         return None

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   createCheckDefinition,
+  executeCheckDefinition,
   generateCheckDefinitionsFromSafetyProfile,
   listProjectCheckDefinitions,
   listProjectCheckRuns,
@@ -16,6 +17,8 @@ import type {
   CheckSeverity,
   CheckType,
   CodeRepository,
+  CommandRun,
+  Workspace,
 } from '../../types'
 import {
   CHECK_RUN_CONCLUSIONS,
@@ -26,13 +29,32 @@ import {
 } from '../../lib/constants'
 import { CheckBadge } from '../StatusBadge'
 
-export function ChecksPanel({ projectId, codeRepos }: { projectId: string; codeRepos: CodeRepository[] }) {
+export function ChecksPanel({
+  projectId,
+  codeRepos,
+  workspaces = [],
+}: {
+  projectId: string
+  codeRepos: CodeRepository[]
+  workspaces?: Workspace[]
+}) {
   const [definitions, setDefinitions] = useState<CheckDefinition[]>([])
   const [runs, setRuns] = useState<CheckRun[]>([])
   const [open, setOpen] = useState(false)
   const [genBusy, setGenBusy] = useState(false)
   const [genError, setGenError] = useState('')
   const [genMsg, setGenMsg] = useState('')
+
+  const [executeWorkspaceId, setExecuteWorkspaceId] = useState('')
+  const [executingId, setExecutingId] = useState<string | null>(null)
+  const [executeError, setExecuteError] = useState('')
+  const [lastCommandRun, setLastCommandRun] = useState<CommandRun | null>(null)
+
+  useEffect(() => {
+    if (!executeWorkspaceId && workspaces.length > 0) {
+      setExecuteWorkspaceId(workspaces[0].id)
+    }
+  }, [workspaces, executeWorkspaceId])
 
   const [defName, setDefName] = useState('')
   const [defType, setDefType] = useState<CheckType>('tests')
@@ -101,6 +123,28 @@ export function ChecksPanel({ projectId, codeRepos }: { projectId: string; codeR
     }
   }
 
+  async function handleExecute(def: CheckDefinition) {
+    setExecuteError('')
+    setLastCommandRun(null)
+    if (!executeWorkspaceId) {
+      setExecuteError('Select a workspace to execute in.')
+      return
+    }
+    setExecutingId(def.id)
+    try {
+      const result = await executeCheckDefinition(def.id, {
+        workspace_id: executeWorkspaceId,
+        target_type: 'manual',
+      })
+      setRuns(prev => [result.check_run, ...prev])
+      setLastCommandRun(result.command_run)
+    } catch (err) {
+      setExecuteError((err as Error).message)
+    } finally {
+      setExecutingId(null)
+    }
+  }
+
   async function handleToggleEnabled(def: CheckDefinition) {
     try {
       const updated = await updateCheckDefinition(def.id, { enabled: !def.enabled })
@@ -158,23 +202,77 @@ export function ChecksPanel({ projectId, codeRepos }: { projectId: string; codeR
             {genError && <span className="error" style={{ fontSize: 12 }}>{genError}</span>}
           </div>
 
+          {workspaces.length > 0 && (
+            <div style={{ marginBottom: 8, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <label style={{ fontSize: 12, color: '#aaa' }}>Execute in workspace:</label>
+              <select
+                value={executeWorkspaceId}
+                onChange={e => setExecuteWorkspaceId(e.target.value)}
+                style={{ fontSize: 12 }}
+              >
+                {workspaces.map(w => (
+                  <option key={w.id} value={w.id}>{w.name} ({w.status})</option>
+                ))}
+              </select>
+              {executeError && <span className="error" style={{ fontSize: 12 }}>{executeError}</span>}
+            </div>
+          )}
+
           {definitions.length > 0 && (
             <div style={{ marginBottom: 12 }}>
-              {definitions.map(def => (
-                <div key={def.id} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '4px 0', borderBottom: '1px solid #2a2a2a', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, minWidth: 120 }}>{def.name}</span>
-                  <span className="status" style={{ fontSize: 11 }}>{def.check_type}</span>
-                  <span className="status" style={{ fontSize: 11, color: def.severity === 'blocking' ? '#f44336' : def.severity === 'warning' ? '#ff9800' : '#aaa' }}>{def.severity}</span>
-                  {def.command && <code style={{ fontSize: 11, color: '#888' }}>{def.command}</code>}
-                  <span style={{ fontSize: 11, color: def.enabled ? '#4caf50' : '#888' }}>{def.enabled ? 'enabled' : 'disabled'}</span>
-                  <button
-                    onClick={() => handleToggleEnabled(def)}
-                    style={{ fontSize: 11, padding: '1px 6px' }}
-                  >
-                    {def.enabled ? 'Disable' : 'Enable'}
-                  </button>
+              {definitions.map(def => {
+                const canExecute = def.enabled && !!def.command.trim() && workspaces.length > 0
+                const isExecuting = executingId === def.id
+                return (
+                  <div key={def.id} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '4px 0', borderBottom: '1px solid #2a2a2a', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, minWidth: 120 }}>{def.name}</span>
+                    <span className="status" style={{ fontSize: 11 }}>{def.check_type}</span>
+                    <span className="status" style={{ fontSize: 11, color: def.severity === 'blocking' ? '#f44336' : def.severity === 'warning' ? '#ff9800' : '#aaa' }}>{def.severity}</span>
+                    {def.command && <code style={{ fontSize: 11, color: '#888' }}>{def.command}</code>}
+                    <span style={{ fontSize: 11, color: def.enabled ? '#4caf50' : '#888' }}>{def.enabled ? 'enabled' : 'disabled'}</span>
+                    <button
+                      onClick={() => handleToggleEnabled(def)}
+                      style={{ fontSize: 11, padding: '1px 6px' }}
+                    >
+                      {def.enabled ? 'Disable' : 'Enable'}
+                    </button>
+                    {canExecute && (
+                      <button
+                        onClick={() => handleExecute(def)}
+                        disabled={isExecuting || !!executingId}
+                        style={{ fontSize: 11, padding: '1px 6px' }}
+                        title="Execute through Safe Command Runner"
+                      >
+                        {isExecuting ? 'Executing…' : 'Execute'}
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {lastCommandRun && (
+            <div style={{ marginBottom: 12, padding: 8, border: '1px solid #2a2a2a', borderRadius: 4, fontSize: 12 }}>
+              <div style={{ marginBottom: 4 }}>
+                <strong>Last CommandRun:</strong>{' '}
+                <code style={{ fontSize: 11 }}>{lastCommandRun.command} {lastCommandRun.args.join(' ')}</code>
+              </div>
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                <span>status: <code>{lastCommandRun.status}</code></span>
+                <span>conclusion: <code>{lastCommandRun.conclusion ?? '—'}</code></span>
+                <span>exit_code: <code>{lastCommandRun.exit_code ?? '—'}</code></span>
+              </div>
+              {lastCommandRun.output_summary && (
+                <pre style={{ marginTop: 6, fontSize: 11, whiteSpace: 'pre-wrap', color: '#aaa' }}>
+                  {lastCommandRun.output_summary}
+                </pre>
+              )}
+              {lastCommandRun.error_message && (
+                <div style={{ marginTop: 6, fontSize: 11, color: '#f44336' }}>
+                  {lastCommandRun.error_message}
                 </div>
-              ))}
+              )}
             </div>
           )}
 
@@ -260,6 +358,9 @@ export function ChecksPanel({ projectId, codeRepos }: { projectId: string; codeR
                   <CheckBadge conclusion={run.conclusion} status={run.status} />
                   <span style={{ fontSize: 11, color: '#888' }}>{run.target_type}:{run.target_id.slice(0, 12)}</span>
                   <span style={{ fontSize: 12 }}>{run.summary}</span>
+                  {run.command_run_id && (
+                    <span style={{ fontSize: 10, color: '#666' }}>cmd:{run.command_run_id.slice(0, 8)}</span>
+                  )}
                 </div>
               ))}
             </div>

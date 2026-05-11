@@ -128,7 +128,9 @@ Production incidents and operational issues can be recorded into ForgeLoop as `I
 
 **Release 4 is implemented.** `CheckDefinition` and `CheckRun` entities exist with full CRUD and repository abstraction. Deterministic QA metadata and result tracking are in place.
 
-Real external scanner execution (running Semgrep, Trivy, Playwright, etc. as subprocesses or via API) is **not implemented** and belongs to the future Execution Bridge.
+**Task 35 (Execution Bridge — Actual Check Execution) is implemented.** A `CheckDefinition` whose `command` parses safely can be executed inside a registered workspace via `POST /check-definitions/{id}/execute`. Execution is delegated to the Safe Command Runner (Task 34) — no subprocess is spawned from check code, no shell, allowlist-enforced, timeout + output-cap + audit + artifact trail. The resulting `CheckRun` links to the underlying `CommandRun` via `command_run_id` and reuses its `artifact_id`. Batch / "run all required checks" execution remains future work.
+
+Real external scanner execution (running Semgrep, Trivy, Playwright, etc. as subprocesses or via API) for scanners not on the runner allowlist is still **not implemented** and belongs to later Execution Bridge tasks.
 
 CI failure ingestion (`CIEvent`, `CIAnalysis`) and incident ingestion (`Incident`, `IncidentAnalysis`) are implemented in Release 6.
 

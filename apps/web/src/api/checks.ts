@@ -4,6 +4,8 @@ import type {
   CheckDefinitionCreate,
   CheckDefinitionUpdate,
   CheckDefinitionsFromSafetyProfileResponse,
+  CheckExecutionRequest,
+  CheckExecutionResponse,
   CheckRun,
   CheckRunCreate,
 } from '../types'
@@ -55,4 +57,15 @@ export function listDevTaskCheckRuns(devTaskId: string): Promise<CheckRun[]> {
 
 export function recordCheckRun(body: CheckRunCreate): Promise<CheckRun> {
   return request<CheckRun>('POST', `/check-runs`, body)
+}
+
+export function executeCheckDefinition(
+  checkDefinitionId: string,
+  body: CheckExecutionRequest,
+): Promise<CheckExecutionResponse> {
+  return request<CheckExecutionResponse>(
+    'POST',
+    `/check-definitions/${checkDefinitionId}/execute`,
+    body,
+  )
 }

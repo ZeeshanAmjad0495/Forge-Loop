@@ -124,11 +124,78 @@ The command runner enforces every rule below in order:
 - No cancel endpoint for in-flight runs.
 - No environment-variable / secret injection into child processes.
 
+## Task 35 — Actual Check Execution (implemented)
+
+Connects approved `CheckDefinition`s to the Safe Command Runner so a deterministic check can be executed inside a registered workspace and recorded as a linked `CheckRun` + `CommandRun` pair.
+
+Backend additions:
+
+- `CheckRun.command_run_id` — optional pointer to the underlying `CommandRun` (additive, back-compat).
+- `CheckExecutionRequest` / `CheckExecutionResponse` models (`services/api/app/models/checks.py`).
+- `CheckExecutionService` (`services/api/app/services/check_execution.py`) — orchestrates validation, command parsing, delegation to `CommandRunnerService.run`, and CheckRun mapping. Never spawns subprocesses itself.
+- Route mounted at:
+  - `POST /check-definitions/{check_definition_id}/execute`
+- Audit actions: `check_execution_requested`, `check_execution_completed`, `check_execution_failed`, `check_execution_blocked`.
+
+Frontend additions:
+
+- `executeCheckDefinition` in `apps/web/src/api/checks.ts`.
+- `CheckExecutionRequest` / `CheckExecutionResponse` and `CheckRun.command_run_id` in `apps/web/src/types/checks.ts`.
+- `ChecksPanel` (`apps/web/src/components/panels/CheckRunsPanel.tsx`) gains a workspace picker and per-definition Execute button; surfaces the linked CommandRun's status, conclusion, exit code, and output summary.
+
+### Command parsing
+
+`CheckDefinition.command` is split with `shlex.split(posix=True)` into an executable + args list. Each token is re-validated against the same shell-metacharacter rules the `CommandDefinition` validators apply. Anything ambiguous or unsafe is rejected with `400`.
+
+Examples that parse safely:
+
+| Command string | Executable | Args |
+|---|---|---|
+| `pytest` | `pytest` | `[]` |
+| `pytest -q` | `pytest` | `["-q"]` |
+| `npm run build` | `npm` | `["run", "build"]` |
+| `python -m pytest` | `python` | `["-m", "pytest"]` |
+
+Anything with `&&`, `|`, `;`, `>`, backticks, or `$()` is rejected at parse time.
+
+### CommandRun → CheckRun mapping
+
+| `CommandRun.conclusion` | `CheckRun.status` | `CheckRun.conclusion` |
+|---|---|---|
+| `success` | `completed` | `success` |
+| `failure` | `failed` | `failure` |
+| `timed_out` | `failed` | `failure` (summary notes the timeout) |
+| `blocked` | `failed` | `failure` (summary starts with `Blocked:`) |
+
+No new `CheckRun` enum values are introduced — the existing `pending|running|completed|failed` / `success|failure|neutral|skipped|cancelled` enums are preserved. The exact runner outcome is always available via `CheckRun.command_run_id`.
+
+### Artifact behaviour
+
+`CheckRun.artifact_id` is set to the underlying `CommandRun.artifact_id` (the `command_run_output` artifact already written by the runner). No duplicate artifact is created for the CheckRun.
+
+### Status codes
+
+| Status | When |
+|---|---|
+| `201` | Any terminal outcome (success, failure, timeout, blocked) — both records are returned in the body |
+| `400` | Disabled definition; empty command; unsafe parse; workspace/project mismatch; workspace/repo mismatch |
+| `403` | `COMMAND_RUNNER_ENABLED=false` |
+| `404` | CheckDefinition or Workspace missing |
+
+### Explicit non-goals (Task 35)
+
+- No batch / "execute-all-required" endpoint — single-check execution only.
+- No OpenHands invocation.
+- No `git` / branch workflow; no GitHub PR creation.
+- No arbitrary shell strings — only the parsed, validated CheckDefinition command runs.
+- No new `CheckRun` enum values (`timed_out`, `blocked` map to existing `failed/failure`).
+- No terminal / log streaming.
+- No Docker / remote / CI execution.
+
 ## What comes next
 
-- **Task 35 — CheckDefinition execution.** Will let approved `CheckDefinition`s execute via the safe command runner.
 - **Task 36 — OpenHands execution.** Adds the OpenHands handoff for code-change work.
 - **Task 37 — git branch workflow.**
 - **Task 38 — GitHub PR creation.**
 
-Anything beyond Task 34 requires an explicit approved task.
+Anything beyond Task 35 requires an explicit approved task.

@@ -97,6 +97,7 @@ class CheckRun(BaseModel):
     summary: str = ""
     output: str | None = None
     artifact_id: str | None = None
+    command_run_id: str | None = None
     started_at: datetime
     completed_at: datetime | None = None
     created_at: datetime
@@ -106,3 +107,21 @@ class CheckRun(BaseModel):
 class CheckDefinitionsFromSafetyProfileResponse(BaseModel):
     created: list[CheckDefinition]
     existing: list[CheckDefinition]
+
+
+class CheckExecutionRequest(BaseModel):
+    workspace_id: str
+    target_type: CheckRunTargetType = "manual"
+    target_id: str | None = None
+    timeout_seconds: int | None = None
+
+
+class CheckExecutionResponse(BaseModel):
+    check_run: CheckRun
+    command_run: "CommandRun"  # type: ignore[name-defined]
+
+
+# Late import to resolve forward reference without circular import at module load.
+from .commands import CommandRun  # noqa: E402
+
+CheckExecutionResponse.model_rebuild()

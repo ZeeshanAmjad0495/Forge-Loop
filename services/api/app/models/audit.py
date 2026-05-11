@@ -66,6 +66,10 @@ AuditAction = Literal[
     "command_run_completed",
     "command_run_failed",
     "command_run_timed_out",
+    "check_execution_requested",
+    "check_execution_completed",
+    "check_execution_failed",
+    "check_execution_blocked",
 ]
 
 

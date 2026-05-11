@@ -79,8 +79,21 @@ export interface CheckRun {
   summary: string
   output: string | null
   artifact_id: string | null
+  command_run_id: string | null
   started_at: string
   completed_at: string | null
   created_at: string
   updated_at: string
+}
+
+export interface CheckExecutionRequest {
+  workspace_id: string
+  target_type?: CheckRunTargetType
+  target_id?: string | null
+  timeout_seconds?: number | null
+}
+
+export interface CheckExecutionResponse {
+  check_run: CheckRun
+  command_run: import('./commands').CommandRun
 }
