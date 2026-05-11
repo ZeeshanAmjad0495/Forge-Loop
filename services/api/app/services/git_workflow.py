@@ -10,9 +10,15 @@ public method composes a small, fixed argv list and routes it through a single
 - an argv top-level allow-list (defense in depth against future regressions)
 
 There is no generic "run any git command" entrypoint. Forbidden operations
-(push, pull, fetch, merge, rebase, reset, clean, remote, config, stash, tag,
+(pull, fetch, merge, rebase, reset, clean, remote, config, stash, tag,
 worktree, cherry-pick, checkout-anything) are never constructed and would
 be rejected by the allow-list even if they were.
+
+Task 38 narrowly allows ``push`` for the GitHub PR publication flow.
+``push`` is the only relaxation. The push helper still rejects unsafe
+branch names, refuses ``--force``/``--mirror``/``--tags``/refspec/upstream
+flags, redacts the token before audit, and is itself gated by
+``GITHUB_PUSH_ENABLED``.
 """
 
 from __future__ import annotations
@@ -54,7 +60,26 @@ _ALLOWED_TOP_LEVEL: frozenset[str] = frozenset({
     "add",
     "commit",
     "branch",  # only used with --list/--show-current internally
+    "push",  # Task 38: PR publication only; argv shape is enforced separately
 })
+
+# Push argv flags that must never appear. Defense in depth — the
+# publication path never constructs these.
+_PUSH_FORBIDDEN_FLAGS: frozenset[str] = frozenset({
+    "--force",
+    "-f",
+    "--mirror",
+    "--tags",
+    "--all",
+    "--set-upstream",
+    "-u",
+    "--delete",
+    "-d",
+    "--force-with-lease",
+    "--prune",
+})
+
+_REMOTE_NAME_RE = re.compile(r"^[A-Za-z0-9_.\-]{1,64}$")
 
 _BRANCH_NAME_RE = re.compile(r"^[A-Za-z0-9._\-/]{1,180}$")
 
@@ -98,6 +123,26 @@ def _truncate(text: str, cap: int) -> str:
         return text
     head = text[: max(0, cap - len(TRUNCATION_MARKER))]
     return head + TRUNCATION_MARKER
+
+
+def _redact_token(text: str, token: str | None) -> str:
+    """Replace a token value (and its URL-embedded form) with ``***``.
+
+    No-op when ``token`` is None/empty. Also redacts the
+    ``x-access-token:<TOKEN>@`` form used when push URLs embed credentials.
+    """
+    if not token or not text:
+        return text or ""
+    out = text.replace(token, "***")
+    # Common HTTP basic-auth-style embedding in git remote URLs.
+    out = out.replace(f"x-access-token:{token}", "x-access-token:***")
+    out = out.replace(f":{token}@", ":***@")
+    return out
+
+
+def _expose_redact_token():
+    """Module-level alias kept for tests that import the helper directly."""
+    return _redact_token
 
 
 def _validate_branch_name(name: str, *, prefix: str, protected: set[str]) -> None:
@@ -1017,6 +1062,77 @@ class GitWorkflowService:
         if record is None:
             raise HTTPException(status_code=404, detail="WorkspaceBranch not found")
         return self.git_commit_record_repo.list_by_branch(branch_id)
+
+    # --- Task 38: narrow push helper -------------------------------------
+
+    def push_forgeloop_branch(
+        self,
+        *,
+        workspace,
+        branch_name: str,
+        remote_name: str = "origin",
+        remote_url_with_token: str | None = None,
+        token: str | None = None,
+    ) -> tuple["_GitResult", str]:
+        """Push a single ForgeLoop-scoped branch to a single remote.
+
+        Returns ``(result, sanitized_remote_label)`` where the label is the
+        plain remote name (never the auth URL). All stdout/stderr is
+        token-redacted on return.
+        """
+        if not _config.GITHUB_PUSH_ENABLED:
+            raise HTTPException(status_code=409, detail="GITHUB_PUSH_DISABLED")
+
+        root = self._require_workspace_ready_git(workspace)
+        timeout = int(_config.GIT_TIMEOUT_SECONDS)
+        cap = int(_config.GIT_MAX_DIFF_BYTES)
+
+        prefix = _config.GIT_ALLOWED_BRANCH_PREFIX or "forgeloop/"
+        protected = self._protected_set(workspace)
+        _validate_branch_name(branch_name, prefix=prefix, protected=protected)
+
+        if not _REMOTE_NAME_RE.match(remote_name or ""):
+            raise HTTPException(status_code=400, detail="invalid remote_name")
+
+        # Confirm local branch exists.
+        verify = _run_git(
+            cwd=root,
+            args=["rev-parse", "--verify", "--quiet", f"refs/heads/{branch_name}"],
+            timeout=timeout,
+            output_cap=cap,
+        )
+        if verify.exit_code != 0:
+            raise HTTPException(
+                status_code=400,
+                detail=f"local branch '{branch_name}' not found",
+            )
+
+        # Build argv — explicitly minimal. No flags. No refspec.
+        push_target = remote_url_with_token if remote_url_with_token else remote_name
+        argv = ["push", push_target, branch_name]
+        # Defense in depth: scan our own constructed argv.
+        for tok in argv:
+            if tok in _PUSH_FORBIDDEN_FLAGS:
+                raise HTTPException(
+                    status_code=400, detail=f"forbidden push flag: {tok}"
+                )
+
+        result = _run_git(
+            cwd=root,
+            args=argv,
+            timeout=timeout,
+            output_cap=cap,
+        )
+
+        # Redact the token from captured output before returning.
+        redacted_stdout = _redact_token(result.stdout, token)
+        redacted_stderr = _redact_token(result.stderr, token)
+        sanitized = _GitResult(
+            exit_code=result.exit_code,
+            stdout=redacted_stdout,
+            stderr=redacted_stderr,
+        )
+        return sanitized, remote_name
 
 
 def _service() -> GitWorkflowService:

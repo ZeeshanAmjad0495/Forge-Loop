@@ -382,11 +382,143 @@ rejected by the `_run_git` argv allow-list (defense in depth).
 - No arbitrary git CLI input.
 - No terminal/log streaming, no diff viewer.
 
+## Task 38 — GitHub draft PR creation
+
+Task 38 is the first time ForgeLoop touches a remote: it publishes one
+approved ForgeLoop-scoped local branch to GitHub and opens a single
+**draft** PR. ForgeLoop still does not merge, deploy, auto-approve,
+fetch, pull, manage remotes, or expose a general git/GitHub shell.
+Task 39 owns the review feedback loop.
+
+### Endpoint
+
+`POST /pr-drafts/{pr_draft_id}/create-github-draft`
+
+```jsonc
+{
+  "workspace_id": "ws-...",
+  "workspace_branch_id": "wb-...",
+  "approval_id": null,           // optional; status="approved_for_creation" is the primary gate
+  "remote_name": "origin",
+  "push_branch": true,
+  "draft": true
+}
+```
+
+Response 201: `{ pr_draft, publication_summary }`. On success the
+`PullRequestDraft` row is updated atomically with `status="created"`,
+`provider="github"`, `external_pr_url`, `external_pr_number`,
+`source_branch`, `workspace_id`, `workspace_branch_id`, `github_owner`,
+`github_repo`, `last_published_at`.
+
+### Gates (all enforced server-side)
+
+| Gate | Behavior on failure |
+|---|---|
+| `GITHUB_INTEGRATION_ENABLED=true` | `409 GITHUB_INTEGRATION_DISABLED` |
+| `GITHUB_TOKEN` non-empty | `409 GITHUB_TOKEN_NOT_CONFIGURED` |
+| `push_branch=true` ⇒ `GITHUB_PUSH_ENABLED=true` | `409 GITHUB_PUSH_DISABLED` |
+| PR draft exists and `status == "approved_for_creation"` | 404 / 400 |
+| Project/repo/workspace/branch all share `project_id` | 400 |
+| `WorkspaceBranch.workspace_id == workspace.id` | 400 |
+| `code_repository.provider == "github"` | 400 |
+| `code_repository.repo_url` is a parseable github.com URL | 400 |
+| Branch name passes `GIT_ALLOWED_BRANCH_PREFIX` and is not protected | 400 |
+| `target_branch` has safe characters | 400 |
+| Optional `approval_id`: matches dev_task / subtask / task_decomposition / artifact(pr_draft) | 400 |
+
+### Config
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `GITHUB_INTEGRATION_ENABLED` | `false` | Master switch. |
+| `GITHUB_PUSH_ENABLED` | `false` | Independent switch for `git push`. |
+| `GITHUB_TOKEN` | `""` | PAT with `pull_requests:write` + `contents:write`. Never logged/stored/echoed. |
+| `GITHUB_API_BASE_URL` | `https://api.github.com` | For Enterprise (parser still requires `github.com` hosts in v1). |
+| `GITHUB_DEFAULT_REMOTE` | `origin` | Used when `remote_name` omitted and `GITHUB_TOKEN` not embedded. |
+| `GITHUB_PR_DRAFT_DEFAULT` | `true` | Default for `draft` field. |
+| `GITHUB_REQUEST_TIMEOUT_SECONDS` | `30` | Per HTTP call. |
+| `GITHUB_MAX_RESPONSE_BYTES` | `200000` | Response body cap. |
+
+### Allowed git push form
+
+Exactly one invocation, no flags:
+
+```
+git push <remote-or-auth-url> <forgeloop-branch>
+```
+
+- When `GITHUB_TOKEN` is set, the publication service constructs
+  `https://x-access-token:TOKEN@github.com/<owner>/<repo>.git` and passes
+  it as the URL (argv exposure only — never written to disk; redacted
+  before audit/artifact).
+- When `GITHUB_TOKEN` is empty (and `push_branch=false`), the operator
+  must have configured the remote out-of-band.
+- `--force`, `--mirror`, `--tags`, `--all`, `--set-upstream`, `-u`,
+  `--delete`, `--force-with-lease`, `--prune` are never constructed and
+  are also rejected by `_PUSH_FORBIDDEN_FLAGS` (defense in depth).
+- `subprocess.run(shell=False, env={"PATH": …})` — no extra env, no GPG
+  prompts.
+
+### GitHub client
+
+A single stdlib-only `UrllibGitHubClient` exposes exactly one method:
+
+```
+create_draft_pull_request(owner, repo, title, body, head, base, draft, token)
+```
+
+It POSTs to `/repos/{owner}/{repo}/pulls` and maps HTTP responses to
+typed exceptions: `GitHubAuthError` (401/403), `GitHubNotFoundError`
+(404), `GitHubValidationError` (422 — e.g. PR already exists), and
+`GitHubError` for everything else. No listing, commenting, merging,
+labeling, assigning, requesting reviews, or fetching.
+
+### Records
+
+`PullRequestDraft` gains five additive nullable fields populated only by
+the publication service: `workspace_id`, `workspace_branch_id`,
+`github_owner`, `github_repo`, `last_published_at`. The existing
+`status`/`provider`/`external_pr_url`/`external_pr_number` fields are
+also updated. `PullRequestDraftUpdate` is **not** extended — these
+fields cannot be set via PATCH.
+
+### Artifacts
+
+- `github_pr_creation_summary` — JSON of the publication outcome (owner,
+  repo, head, base, draft, external_pr_url, external_pr_number, state,
+  push exit code / stdout tail / stderr tail). Push and response output
+  is **token-redacted**.
+
+### Audit actions
+
+`github_pr_creation_requested`, `github_branch_pushed`,
+`github_pr_created`, `github_pr_creation_failed`,
+`github_pr_creation_blocked`.
+
+### Token handling
+
+The PAT travels through exactly one path: config → request handler →
+publication service → (a) push argv URL and (b) GitHub client request
+header. It is never persisted, never echoed in API responses, never
+included in audit details, and never stored in artifacts. A single
+`_redact_token(text, token)` helper scrubs stdout/stderr and the
+`x-access-token:TOKEN@` URL form before anything is written.
+
+### Explicit non-goals (Task 38)
+
+- No merge, close, comment, label, assign, request-review, list-PRs.
+- No deploy or release automation.
+- No webhook ingestion, no GitHub App install.
+- No CI provider polling.
+- No arbitrary GitHub API surface (one method only).
+- No arbitrary git push variants (no force/mirror/tags/refspec).
+- No push to non-ForgeLoop or protected branches.
+- No auto-resync of `external_pr_url` after manual GitHub UI edits.
+- GitLab/Bitbucket providers are rejected at validation.
+
 ## What comes next
 
-- **Task 38 — GitHub PR creation.** Will use the `WorkspaceBranch` +
-  `GitCommitRecord` produced here to push remote and open a PR.
 - **Task 39 — Review feedback loop.**
 
-Human review remains required between Tasks 36/37 and Tasks 38+. Anything
-beyond Task 37 requires an explicit approved task.
+Human review remains required between Task 38 and Task 39.

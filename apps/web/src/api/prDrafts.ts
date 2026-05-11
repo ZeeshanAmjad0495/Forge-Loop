@@ -1,5 +1,7 @@
 import { request } from './client'
 import type {
+  GitHubDraftCreate,
+  GitHubDraftCreationResponse,
   PullRequestDraft,
   PullRequestDraftCreate,
   PullRequestDraftUpdate,
@@ -29,4 +31,15 @@ export function updatePullRequestDraft(
 
 export function approvePullRequestDraft(prDraftId: string): Promise<PullRequestDraft> {
   return request<PullRequestDraft>('POST', `/pr-drafts/${prDraftId}/approve`)
+}
+
+export function createGitHubDraftPr(
+  prDraftId: string,
+  body: GitHubDraftCreate,
+): Promise<GitHubDraftCreationResponse> {
+  return request<GitHubDraftCreationResponse>(
+    'POST',
+    `/pr-drafts/${prDraftId}/create-github-draft`,
+    body,
+  )
 }

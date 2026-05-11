@@ -67,3 +67,14 @@ def test_git_workflow_defaults_are_safe():
     assert config.GIT_MAX_DIFF_BYTES == 200000
     assert config.GIT_COMMIT_MESSAGE_MAX_LEN == 2000
     assert config.GIT_BINARY == "git"
+
+
+def test_github_defaults_are_safe():
+    assert config.GITHUB_INTEGRATION_ENABLED is False
+    assert config.GITHUB_PUSH_ENABLED is False
+    assert config.GITHUB_TOKEN == ""
+    assert config.GITHUB_API_BASE_URL == "https://api.github.com"
+    assert config.GITHUB_DEFAULT_REMOTE == "origin"
+    assert config.GITHUB_PR_DRAFT_DEFAULT is True
+    assert config.GITHUB_REQUEST_TIMEOUT_SECONDS == 30
+    assert config.GITHUB_MAX_RESPONSE_BYTES == 200000

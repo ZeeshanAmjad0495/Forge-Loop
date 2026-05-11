@@ -103,8 +103,8 @@ def test_is_safe_commit_path_rejects_secrets_and_traversal():
 
 
 def test_check_top_level_rejects_disallowed_command():
-    with pytest.raises(GitOperationError):
-        _check_top_level(["push"])
+    # Task 38 narrowly added "push" to the allow-list for the PR
+    # publication flow; everything else stays rejected.
     with pytest.raises(GitOperationError):
         _check_top_level(["fetch", "origin"])
     with pytest.raises(GitOperationError):
@@ -113,6 +113,10 @@ def test_check_top_level_rejects_disallowed_command():
         _check_top_level(["reset", "--hard"])
     with pytest.raises(GitOperationError):
         _check_top_level(["checkout", "-f"])
+    with pytest.raises(GitOperationError):
+        _check_top_level(["remote", "set-url", "origin", "x"])
+    with pytest.raises(GitOperationError):
+        _check_top_level(["pull", "origin"])
 
 
 def test_check_top_level_accepts_allowlisted():
@@ -126,11 +130,13 @@ def test_check_top_level_accepts_allowlisted():
         "-c", "user.email=forgeloop@local",
         "commit", "-m", "msg",
     ])
+    # Task 38: push is allowed (the publication service further restricts argv shape).
+    _check_top_level(["push", "origin", "forgeloop/dev-task/abc"])
 
 
 def test_check_top_level_rejects_disallowed_after_minus_c():
     with pytest.raises(GitOperationError):
-        _check_top_level(["-c", "user.name=x", "push"])
+        _check_top_level(["-c", "user.name=x", "fetch"])
 
 
 def test_check_top_level_rejects_malformed_minus_c():

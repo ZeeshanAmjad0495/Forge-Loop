@@ -52,6 +52,39 @@ export interface PullRequestDraft {
   created_at: string
   updated_at: string
   approved_at: string | null
+  workspace_id?: string | null
+  workspace_branch_id?: string | null
+  github_owner?: string | null
+  github_repo?: string | null
+  last_published_at?: string | null
+}
+
+export interface GitHubDraftCreate {
+  workspace_id: string
+  workspace_branch_id: string
+  approval_id?: string | null
+  remote_name?: string
+  push_branch?: boolean
+  draft?: boolean
+}
+
+export interface GitHubPublicationSummary {
+  pushed: boolean
+  remote_name: string | null
+  pushed_branch: string | null
+  push_exit_code: number | null
+  github_owner: string
+  github_repo: string
+  external_pr_url: string
+  external_pr_number: number
+  head: string
+  base: string
+  draft: boolean
+}
+
+export interface GitHubDraftCreationResponse {
+  pr_draft: PullRequestDraft
+  publication_summary: GitHubPublicationSummary
 }
 
 export type PullRequestReviewProvider = 'kody' | 'manual' | 'custom'

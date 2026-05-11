@@ -5,6 +5,8 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from ..auth import require_auth
 from ..models import (
+    GitHubDraftCreate,
+    GitHubDraftCreationResponse,
     PullRequestDraft,
     PullRequestDraftCreate,
     PullRequestDraftUpdate,
@@ -14,6 +16,7 @@ from ..pr_draft import (
     derive_source_branch,
     is_allowed_status_transition,
 )
+from ..services import pr_publication
 from ..repositories_state import (
     audit_writer,
     check_run_repo,
@@ -220,6 +223,19 @@ def patch_pr_draft(
         details={"pr_draft_id": draft.id, "changed_fields": list(patch.keys())},
     )
     return updated
+
+
+@router.post(
+    "/pr-drafts/{pr_draft_id}/create-github-draft",
+    response_model=GitHubDraftCreationResponse,
+    status_code=201,
+)
+def create_github_draft_pr(
+    pr_draft_id: str,
+    body: GitHubDraftCreate,
+    current_user: str = Depends(require_auth),
+):
+    return pr_publication.publish_github_draft(pr_draft_id, body, current_user)
 
 
 @router.post("/pr-drafts/{pr_draft_id}/approve", response_model=PullRequestDraft)

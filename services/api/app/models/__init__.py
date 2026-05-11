@@ -102,6 +102,9 @@ from .memory import (
 )
 from .planning import PlanningRunCreate, PlanningRunResponse
 from .pr import (
+    GitHubDraftCreate,
+    GitHubDraftCreationResponse,
+    GitHubPublicationSummary,
     PullRequestDraft,
     PullRequestDraftCreate,
     PullRequestDraftProvider,
@@ -244,6 +247,9 @@ __all__ = [
     "GitCommitCreate",
     "GitCommitRecord",
     "GitCommitStatus",
+    "GitHubDraftCreate",
+    "GitHubDraftCreationResponse",
+    "GitHubPublicationSummary",
     "GitInspectionResponse",
     "Incident",
     "IncidentAnalysis",

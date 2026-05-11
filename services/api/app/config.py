@@ -69,6 +69,16 @@ GIT_MAX_DIFF_BYTES = int(os.getenv("GIT_MAX_DIFF_BYTES", "200000"))
 GIT_COMMIT_MESSAGE_MAX_LEN = int(os.getenv("GIT_COMMIT_MESSAGE_MAX_LEN", "2000"))
 GIT_BINARY = os.getenv("GIT_BINARY", "git")
 
+# --- Task 38: GitHub draft PR creation ---
+GITHUB_INTEGRATION_ENABLED = os.getenv("GITHUB_INTEGRATION_ENABLED", "false").lower() == "true"
+GITHUB_PUSH_ENABLED = os.getenv("GITHUB_PUSH_ENABLED", "false").lower() == "true"
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
+GITHUB_API_BASE_URL = os.getenv("GITHUB_API_BASE_URL", "https://api.github.com")
+GITHUB_DEFAULT_REMOTE = os.getenv("GITHUB_DEFAULT_REMOTE", "origin")
+GITHUB_PR_DRAFT_DEFAULT = os.getenv("GITHUB_PR_DRAFT_DEFAULT", "true").lower() == "true"
+GITHUB_REQUEST_TIMEOUT_SECONDS = int(os.getenv("GITHUB_REQUEST_TIMEOUT_SECONDS", "30"))
+GITHUB_MAX_RESPONSE_BYTES = int(os.getenv("GITHUB_MAX_RESPONSE_BYTES", "200000"))
+
 
 def validate_startup_config() -> None:
     if AUTH_ENABLED and not AUTH_TOKEN_SECRET:

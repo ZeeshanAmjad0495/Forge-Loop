@@ -58,6 +58,43 @@ class PullRequestDraft(BaseModel):
     created_at: datetime
     updated_at: datetime
     approved_at: datetime | None = None
+    # Task 38: additive fields populated by the GitHub publication service.
+    workspace_id: str | None = None
+    workspace_branch_id: str | None = None
+    github_owner: str | None = None
+    github_repo: str | None = None
+    last_published_at: datetime | None = None
+
+
+# Task 38: GitHub draft PR creation request/response.
+
+
+class GitHubDraftCreate(BaseModel):
+    workspace_id: str
+    workspace_branch_id: str
+    approval_id: str | None = None
+    remote_name: str = "origin"
+    push_branch: bool = True
+    draft: bool = True
+
+
+class GitHubPublicationSummary(BaseModel):
+    pushed: bool
+    remote_name: str | None = None
+    pushed_branch: str | None = None
+    push_exit_code: int | None = None
+    github_owner: str
+    github_repo: str
+    external_pr_url: str
+    external_pr_number: int
+    head: str
+    base: str
+    draft: bool
+
+
+class GitHubDraftCreationResponse(BaseModel):
+    pr_draft: "PullRequestDraft"
+    publication_summary: GitHubPublicationSummary
 
 
 PullRequestReviewProvider = Literal["kody", "manual", "custom"]

@@ -27,6 +27,7 @@ class Artifact(BaseModel):
         "openhands_execution_changed_paths",
         "git_inspection_summary",
         "git_commit_summary",
+        "github_pr_creation_summary",
     ]
     content: str
     created_at: datetime
