@@ -28,6 +28,25 @@ WORKSPACE_ALLOW_OUTSIDE_ROOT = os.getenv("WORKSPACE_ALLOW_OUTSIDE_ROOT", "false"
 _cors_raw = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
 CORS_ALLOWED_ORIGINS: list[str] = [o.strip() for o in _cors_raw.split(",") if o.strip()]
 
+COMMAND_RUNNER_ENABLED = os.getenv("COMMAND_RUNNER_ENABLED", "false").lower() == "true"
+COMMAND_RUNNER_MAX_TIMEOUT_SECONDS = int(os.getenv("COMMAND_RUNNER_MAX_TIMEOUT_SECONDS", "300"))
+COMMAND_RUNNER_MAX_OUTPUT_BYTES = int(os.getenv("COMMAND_RUNNER_MAX_OUTPUT_BYTES", "200000"))
+
+_DEFAULT_ALLOWED_COMMANDS = "python,python3,pytest,npm,node,npx,ruff,mypy"
+_DEFAULT_BLOCKED_COMMANDS = (
+    "sudo,su,rm,rmdir,chmod,chown,curl,wget,ssh,scp,rsync,"
+    "git,gh,docker,docker-compose,terraform,kubectl,gcloud,"
+    "aws,az,openhands,aider,cline,opencode"
+)
+_allowed_raw = os.getenv("COMMAND_RUNNER_ALLOWED_COMMANDS", _DEFAULT_ALLOWED_COMMANDS)
+_blocked_raw = os.getenv("COMMAND_RUNNER_BLOCKED_COMMANDS", _DEFAULT_BLOCKED_COMMANDS)
+COMMAND_RUNNER_ALLOWED_COMMANDS: list[str] = [
+    s.strip() for s in _allowed_raw.split(",") if s.strip()
+]
+COMMAND_RUNNER_BLOCKED_COMMANDS: list[str] = [
+    s.strip() for s in _blocked_raw.split(",") if s.strip()
+]
+
 
 def validate_startup_config() -> None:
     if AUTH_ENABLED and not AUTH_TOKEN_SECRET:

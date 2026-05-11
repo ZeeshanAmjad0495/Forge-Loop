@@ -30,6 +30,17 @@ from .checks import (
     CheckSeverity,
     CheckType,
 )
+from .commands import (
+    CommandDefinition,
+    CommandDefinitionCreate,
+    CommandDefinitionUpdate,
+    CommandRun,
+    CommandRunConclusion,
+    CommandRunCreate,
+    CommandRunStatus,
+    CommandRunTargetType,
+    CommandType,
+)
 from .ci import (
     CIAnalysis,
     CIAnalysisConclusion,
@@ -184,6 +195,15 @@ __all__ = [
     "CIEventCreate",
     "CIEventProvider",
     "CIEventStatus",
+    "CommandDefinition",
+    "CommandDefinitionCreate",
+    "CommandDefinitionUpdate",
+    "CommandRun",
+    "CommandRunConclusion",
+    "CommandRunCreate",
+    "CommandRunStatus",
+    "CommandRunTargetType",
+    "CommandType",
     "CodeRepository",
     "CodeRepositoryCreate",
     "CodeRepositoryProvider",

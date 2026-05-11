@@ -13,6 +13,8 @@ from .models import (
     CIAnalysis,
     CIEvent,
     CodeRepository,
+    CommandDefinition,
+    CommandRun,
     DevTask,
     Epic,
     Incident,
@@ -1349,6 +1351,134 @@ class FirestoreWorkspaceRepository:
         return [Workspace(**d.to_dict()) for d in docs]
 
 
+class CommandDefinitionRepository(Protocol):
+    def save(self, definition: CommandDefinition) -> None: ...
+    def get(self, definition_id: str) -> CommandDefinition | None: ...
+    def update(self, definition: CommandDefinition) -> None: ...
+    def list_by_project(self, project_id: str) -> list[CommandDefinition]: ...
+    def list_by_workspace(self, workspace_id: str) -> list[CommandDefinition]: ...
+
+
+class InMemoryCommandDefinitionRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, CommandDefinition] = {}
+
+    def save(self, definition: CommandDefinition) -> None:
+        self._store[definition.id] = definition
+
+    def get(self, definition_id: str) -> CommandDefinition | None:
+        return self._store.get(definition_id)
+
+    def update(self, definition: CommandDefinition) -> None:
+        self._store[definition.id] = definition
+
+    def list_by_project(self, project_id: str) -> list[CommandDefinition]:
+        return [d for d in self._store.values() if d.project_id == project_id]
+
+    def list_by_workspace(self, workspace_id: str) -> list[CommandDefinition]:
+        return [d for d in self._store.values() if d.workspace_id == workspace_id]
+
+    def clear(self) -> None:
+        self._store.clear()
+
+
+class FirestoreCommandDefinitionRepository:
+    def __init__(self, client, collection_name: str = "command_definitions") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, definition: CommandDefinition) -> None:
+        self._collection.document(definition.id).set(definition.model_dump(mode="python"))
+
+    def get(self, definition_id: str) -> CommandDefinition | None:
+        snap = self._collection.document(definition_id).get()
+        if not snap.exists:
+            return None
+        return CommandDefinition(**snap.to_dict())
+
+    def update(self, definition: CommandDefinition) -> None:
+        self._collection.document(definition.id).set(definition.model_dump(mode="python"))
+
+    def list_by_project(self, project_id: str) -> list[CommandDefinition]:
+        docs = self._collection.where("project_id", "==", project_id).stream()
+        return [CommandDefinition(**d.to_dict()) for d in docs]
+
+    def list_by_workspace(self, workspace_id: str) -> list[CommandDefinition]:
+        docs = self._collection.where("workspace_id", "==", workspace_id).stream()
+        return [CommandDefinition(**d.to_dict()) for d in docs]
+
+
+class CommandRunRepository(Protocol):
+    def save(self, run: CommandRun) -> None: ...
+    def get(self, run_id: str) -> CommandRun | None: ...
+    def update(self, run: CommandRun) -> None: ...
+    def list_by_project(self, project_id: str) -> list[CommandRun]: ...
+    def list_by_workspace(self, workspace_id: str) -> list[CommandRun]: ...
+    def list_by_target(self, target_type: str, target_id: str) -> list[CommandRun]: ...
+
+
+class InMemoryCommandRunRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, CommandRun] = {}
+
+    def save(self, run: CommandRun) -> None:
+        self._store[run.id] = run
+
+    def get(self, run_id: str) -> CommandRun | None:
+        return self._store.get(run_id)
+
+    def update(self, run: CommandRun) -> None:
+        self._store[run.id] = run
+
+    def list_by_project(self, project_id: str) -> list[CommandRun]:
+        return [r for r in self._store.values() if r.project_id == project_id]
+
+    def list_by_workspace(self, workspace_id: str) -> list[CommandRun]:
+        return [r for r in self._store.values() if r.workspace_id == workspace_id]
+
+    def list_by_target(self, target_type: str, target_id: str) -> list[CommandRun]:
+        return [
+            r
+            for r in self._store.values()
+            if r.target_type == target_type and r.target_id == target_id
+        ]
+
+    def clear(self) -> None:
+        self._store.clear()
+
+
+class FirestoreCommandRunRepository:
+    def __init__(self, client, collection_name: str = "command_runs") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, run: CommandRun) -> None:
+        self._collection.document(run.id).set(run.model_dump(mode="python"))
+
+    def get(self, run_id: str) -> CommandRun | None:
+        snap = self._collection.document(run_id).get()
+        if not snap.exists:
+            return None
+        return CommandRun(**snap.to_dict())
+
+    def update(self, run: CommandRun) -> None:
+        self._collection.document(run.id).set(run.model_dump(mode="python"))
+
+    def list_by_project(self, project_id: str) -> list[CommandRun]:
+        docs = self._collection.where("project_id", "==", project_id).stream()
+        return [CommandRun(**d.to_dict()) for d in docs]
+
+    def list_by_workspace(self, workspace_id: str) -> list[CommandRun]:
+        docs = self._collection.where("workspace_id", "==", workspace_id).stream()
+        return [CommandRun(**d.to_dict()) for d in docs]
+
+    def list_by_target(self, target_type: str, target_id: str) -> list[CommandRun]:
+        docs = (
+            self._collection.where("target_type", "==", target_type)
+            .where("target_id", "==", target_id)
+            .stream()
+        )
+        return [CommandRun(**d.to_dict()) for d in docs]
+
+
 @dataclass(frozen=True)
 class Repositories:
     """Named container for the wired-up repository singletons.
@@ -1392,6 +1522,8 @@ class Repositories:
     memory_learning_run: MemoryLearningRunRepository
     memory_candidate: ProjectMemoryCandidateRepository
     workspace: WorkspaceRepository
+    command_definition: CommandDefinitionRepository
+    command_run: CommandRunRepository
 
 
 def get_repositories() -> Repositories:
@@ -1424,6 +1556,8 @@ def get_repositories() -> Repositories:
             memory_learning_run=InMemoryMemoryLearningRunRepository(),
             memory_candidate=InMemoryProjectMemoryCandidateRepository(),
             workspace=InMemoryWorkspaceRepository(),
+            command_definition=InMemoryCommandDefinitionRepository(),
+            command_run=InMemoryCommandRunRepository(),
         )
     if config.REPOSITORY_PROVIDER == "firestore":
         from google.cloud import firestore
@@ -1460,6 +1594,8 @@ def get_repositories() -> Repositories:
             memory_learning_run=FirestoreMemoryLearningRunRepository(client),
             memory_candidate=FirestoreProjectMemoryCandidateRepository(client),
             workspace=FirestoreWorkspaceRepository(client),
+            command_definition=FirestoreCommandDefinitionRepository(client),
+            command_run=FirestoreCommandRunRepository(client),
         )
     raise ValueError(
         f"Unknown REPOSITORY_PROVIDER: {config.REPOSITORY_PROVIDER!r}. Supported: memory, firestore"

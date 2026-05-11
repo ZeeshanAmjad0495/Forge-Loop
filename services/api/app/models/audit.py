@@ -59,6 +59,13 @@ AuditAction = Literal[
     "workspace_inspected",
     "workspace_archived",
     "workspace_invalid",
+    "command_definition_created",
+    "command_definition_updated",
+    "command_run_requested",
+    "command_run_blocked",
+    "command_run_completed",
+    "command_run_failed",
+    "command_run_timed_out",
 ]
 
 

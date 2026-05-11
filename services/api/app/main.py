@@ -49,6 +49,7 @@ from .routes import (
     checks,
     ci,
     code_repositories,
+    commands,
     dev_tasks,
     epics,
     health,
@@ -105,6 +106,7 @@ app.include_router(ci.router)
 app.include_router(incidents.router)
 app.include_router(memory.router)
 app.include_router(workspaces.router)
+app.include_router(commands.router)
 
 
 __all__ = [

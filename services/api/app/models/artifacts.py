@@ -22,6 +22,7 @@ class Artifact(BaseModel):
         "incident_analysis",
         "memory_learning_summary",
         "memory_candidate_batch",
+        "command_run_output",
     ]
     content: str
     created_at: datetime

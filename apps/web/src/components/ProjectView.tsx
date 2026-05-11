@@ -5,6 +5,7 @@ import {
   listProjectAuditEvents,
   listProjectCodeRepositories,
   listProjectTickets,
+  listProjectWorkspaces,
 } from '../api'
 import type {
   Approval,
@@ -14,12 +15,14 @@ import type {
   ProviderInfo,
   Requirement,
   Ticket,
+  Workspace,
 } from '../types'
 import { ProjectContextPanel } from './panels/ProjectContextPanel'
 import { RequirementsPanel } from './panels/RequirementsPanel'
 import { EpicsPanel } from './panels/TasksPanel'
 import { CodeRepositoriesPanel } from './panels/CodeRepositoriesPanel'
 import { WorkspacesPanel } from './panels/WorkspacesPanel'
+import { CommandRunnerPanel } from './panels/CommandRunnerPanel'
 import { ChecksPanel } from './panels/CheckRunsPanel'
 import { ToolRunnersPanel } from './panels/ToolRunnersPanel'
 import { PullRequestDraftsPanel } from './panels/PrDraftsPanel'
@@ -63,6 +66,7 @@ export function ProjectView({
   }
 
   const [codeRepos, setCodeRepos] = useState<CodeRepository[]>([])
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([])
 
   useEffect(() => {
     listProjectTickets(project.id)
@@ -70,6 +74,9 @@ export function ProjectView({
       .catch(err => setTicketError((err as Error).message))
     listProjectCodeRepositories(project.id)
       .then(setCodeRepos)
+      .catch(() => { /* non-critical */ })
+    listProjectWorkspaces(project.id)
+      .then(setWorkspaces)
       .catch(() => { /* non-critical */ })
     loadGovernance()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -191,6 +198,9 @@ export function ProjectView({
 
       <hr style={{ margin: '24px 0', borderColor: '#333' }} />
       <WorkspacesPanel projectId={project.id} codeRepos={codeRepos} />
+
+      <hr style={{ margin: '24px 0', borderColor: '#333' }} />
+      <CommandRunnerPanel projectId={project.id} workspaces={workspaces} />
 
       <hr style={{ margin: '24px 0', borderColor: '#333' }} />
       <ChecksPanel projectId={project.id} codeRepos={codeRepos} />
