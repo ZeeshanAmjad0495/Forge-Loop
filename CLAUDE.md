@@ -10,7 +10,7 @@ ForgeLoop is the control plane. It should not rebuild coding agents from scratch
 
 ## Current Build State
 
-Releases 1, 2, and 3 are implemented.
+Releases 1–6 are implemented (all 32 tasks complete).
 
 Implemented capabilities include:
 
@@ -30,19 +30,28 @@ Implemented capabilities include:
 - Structured requirements intake and requirement analysis
 - Task/subtask decomposition and task lifecycle management
 - Human approval gates and audit events
+- Repo connection + repo safety profile
+- Deterministic QA/security check definitions and check runs (Semgrep, Trivy, Gitleaks, axe-core, Playwright, etc.)
+- Langfuse tracing (prompt versions, cost, token records)
+- ToolRunner abstraction + OpenHandsRunner (dry-run foundation)
+- PR draft workflow (task output → PR draft tracking)
+- Kodus/Kody PR review integration (tracking + adapter foundation)
+- CI failure ingestion and advisory analysis
+- Production/incident ticket workflow and advisory triage
+- Project memory learning loop (human-supervised candidate flow)
 
-The current active work is Release 4.
+All 32 core tasks are complete. Next work is Release 7 (LaunchPilot) or explicit follow-on tasks.
 
 ## Active Roadmap
 
-The active engineering roadmap is fixed at 32 tasks across 6 releases.
+The active engineering roadmap is fixed at 32 tasks across 6 releases. All releases are complete.
 
 - Release 1: Core planning platform — complete
 - Release 2: Provider + usability + project context — complete
 - Release 3: Requirements + task planning engine — complete
-- Release 4: Golden path + deterministic QA
-- Release 5: Tool runner + PR workflow (OpenHands primary)
-- Release 6: CI + incident + learning loop
+- Release 4: Golden path + deterministic QA — complete
+- Release 5: Tool runner + PR workflow (OpenHands primary) — complete
+- Release 6: CI + incident + learning loop — complete
 
 See `docs/roadmap.md` for full scope and `docs/tooling-strategy.md` for tool choices.
 
@@ -88,7 +97,7 @@ Required provider abstractions:
 - `ArtifactStore` — file/blob output storage
 - `SecretProvider` — API keys and credentials
 - `LLMProvider` — text generation (already implemented)
-- `ToolRunner` — external tool invocation (planned, Release 5)
+- `ToolRunner` — external tool invocation (implemented, Release 5)
 - `ObservabilityProvider` — logging, tracing, cost records
 
 Current Firestore and Cloud Run support is the cloud-profile implementation of `RepositoryProvider`. It is optional, not required.
@@ -178,16 +187,10 @@ Next step:
 Do not implement these unless the current task explicitly asks for them:
 
 - GitHub App / webhook integration
-- repo connection / repo safety profile
-- QA tool runners (Semgrep, Playwright, Trivy, etc.)
-- Langfuse integration
-- coding tool runners (OpenHands, Aider, Cline, etc.)
-- PR draft / branch creation
-- Kodus/Kody PR review integration
+- Live monitoring integration (Sentry, Datadog, Cloud Logging polling, OpenTelemetry)
+- Auto-remediation, autonomous deploy, autonomous rollback
+- Slack / email / PagerDuty notifications
 - evaluator/multi-candidate orchestration
-- CI failure ingestion
-- production incident workflows
-- project memory learning loop
 - MCP server
 - Temporal / Kestra / LangGraph
 - vector DB/RAG

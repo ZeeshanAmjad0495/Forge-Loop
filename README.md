@@ -2,9 +2,9 @@
 
 > A human-supervised autonomous SDLC + STLC control plane. ForgeLoop orchestrates the full software delivery lifecycle — from requirements to production — coordinating AI agent runs, enforcing human approvals, and delegating code execution to existing tools.
 
-Releases 1–3 are complete. Tool-runner-driven coding, AI-assisted PR review, and incident triage are on the roadmap but **not yet implemented** — see [Future roadmap](#future-roadmap).
+All 32 core tasks across Releases 1–6 are complete. See [Future roadmap](#future-roadmap) for what comes next.
 
-## What ForgeLoop does today (Releases 1–3)
+## What ForgeLoop does today (Releases 1–6)
 
 1. Accept structured requirements or tickets via API or web UI.
 2. Manage projects with project context and project memory (architecture decisions, standards, prior feedback).
@@ -16,26 +16,36 @@ Releases 1–3 are complete. Tool-runner-driven coding, AI-assisted PR review, a
 8. Record audit events for agent runs, human decisions, and state transitions.
 9. Store everything — in memory locally or in Firestore on GCP.
 10. Expose it all through a REST API and a minimal React frontend.
+11. Connect code repositories and enforce repo safety profiles (branch protection, no-force-push).
+12. Run deterministic QA/security check definitions and record check runs (Semgrep, Trivy, OSV-Scanner, Gitleaks, axe-core, Playwright, native tests).
+13. Trace LLM prompt versions, cost, and token usage per agent run via Langfuse.
+14. Invoke external coding tools via the ToolRunner abstraction (OpenHandsRunner foundation; dry-run mode).
+15. Track PR drafts (title/body from task output, human approval gate, paste-back of external PR URL).
+16. Request and record AI-assisted PR reviews via Kodus/Kody (tracking + adapter foundation).
+17. Ingest CI failure events and produce advisory LLM-assisted `CIAnalysis` records.
+18. Record production incidents and produce advisory `IncidentAnalysis` triage reports; prepare non-persisted remediation work item drafts for human review.
+19. Distill learnings from CI analyses, incident analyses, PR reviews, check runs, and dev tasks into `ProjectMemoryCandidate`s; human approve/reject writes them back into project context.
 
-## What it does not do yet
+## What it does not do (by design)
 
-- Create branches, commits, or pull requests
-- Review pull requests
-- Run multiple planning candidates and pick the best
-- Delegate code execution to coding tools (OpenHands, Aider, Cline, etc.)
-- Run deterministic QA/security tools (Semgrep, Trivy, Playwright, etc.)
-- Triage incidents or analyze production failures / CI failures
-- Integrate with GitHub, Slack, or any external ticketing system
+- Create branches, commits, or pull requests autonomously
+- Merge or deploy without explicit human approval
+- Connect to live monitoring systems (Sentry, Datadog, Cloud Logging polling, OpenTelemetry)
+- Auto-detect or auto-remediate incidents
+- Send Slack, email, or PagerDuty notifications
+- Integrate with GitHub webhooks or CI provider APIs directly
 - Support multiple tenants or billing
-- Generate marketing or product-growth artifacts
+- Generate marketing or product-growth artifacts (see LaunchPilot / Release 7)
 
-See [Future roadmap](#future-roadmap) for which release each item belongs to.
+> **API note:** Repo safety-profile updates use `PATCH /code-repositories/{id}/safety-profile` (not PUT).
+
+See [Future roadmap](#future-roadmap) for planned next steps.
 
 ## Architecture summary
 
 The backend is a FastAPI service running on Cloud Run. It receives tickets, orchestrates the planning agent (against a user-selectable LLM provider), and stores results in Firestore. The frontend is a static React + Vite app that calls the API directly. Infrastructure is managed with Terraform. All agent output is for **human review** — nothing is merged or deployed autonomously.
 
-The longer-term target architecture (Releases 4–6) extends from the Release 3 foundation: DevTasks → ToolRunner execution (OpenHands) → Branch / PR → Kodus/Kody review → Human Review → Merge. All of that is planned but not yet implemented.
+The full delivery pipeline is now implemented through Release 6: Requirements → Planning Brief → DevTasks → ToolRunner (OpenHands, dry-run) → PR Draft → Kodus/Kody Review → Human Approval → Merge. CI failure ingestion, incident triage, and the project memory learning loop are also live. Nothing is merged or deployed autonomously.
 
 See [docs/architecture.md](docs/architecture.md) for full details.
 
@@ -372,7 +382,7 @@ See [docs/demo-flow.md](docs/demo-flow.md) for a step-by-step local demo.
 
 ## Future roadmap
 
-ForgeLoop's long-term direction is a **human-supervised autonomous SDLC + STLC control plane** — it orchestrates the full software delivery lifecycle and delegates code execution to existing tools rather than reimplementing them from scratch. The active engineering scope is fixed at **32 tasks across 6 releases**. None of the items below are implemented yet unless explicitly noted.
+ForgeLoop's long-term direction is a **human-supervised autonomous SDLC + STLC control plane**. The active engineering scope of **32 tasks across 6 releases is now complete**.
 
 ### Release 1 — Planning Platform (Tasks 1–12) — Complete
 
@@ -394,34 +404,30 @@ Ticket creation, planning agent with mock provider, DeepSeek integration, Firest
 - Human approval gates at planning-to-task transitions
 - Audit event foundation (agent run history, human decisions)
 
-### Release 4 — Golden Path + Deterministic QA (Tasks 22–25)
+### Release 4 — Golden Path + Deterministic QA (Tasks 22–25) — Complete
 
 - Repo connection + repo safety profile (branch protection awareness, no-force-push rules)
 - Deterministic QA/security bundle: Semgrep, OSV-Scanner, Trivy, Gitleaks, axe-core, native test/coverage tools
 - Playwright / browser QA lane (Playwright Test Agents as primary E2E tool)
 - Langfuse tracing: prompt versions, cost records, token usage per agent run
 
-All deterministic checks run before any LLM review step. Results are stored as QA artifacts.
-
-### Release 5 — Tool Runner + PR Workflow (Tasks 26–29)
+### Release 5 — Tool Runner + PR Workflow (Tasks 26–29) — Complete
 
 - ToolRunner abstraction (single interface for invoking external coding tools)
-- OpenHandsRunner as the primary coding runner (first and only runner until validated)
-- PR draft workflow (task output → branch → PR draft)
-- Kodus/Kody PR review integration
+- OpenHandsRunner as the primary coding runner (foundation; dry-run mode)
+- PR draft workflow (task output → PR draft tracking, human approval gate)
+- Kodus/Kody PR review integration (tracking + adapter foundation)
 
-OpenHands is the first and primary runner. Aider and Cline are local/manual fallbacks only. Multi-candidate orchestration is deferred until the single-runner workflow is stable.
+### Release 6 — CI + Incident + Learning Loop (Tasks 30–32) — Complete
 
-### Release 6 — CI + Incident + Learning Loop (Tasks 30–32)
-
-- CI failure ingestion and analysis (connect CI events → ForgeLoop tickets)
-- Production/incident ticket workflow (failure → triage → remediation brief)
-- Project memory learning loop (outcomes, QA results, production events update project memory)
+- CI failure ingestion and advisory LLM analysis
+- Production/incident ticket workflow (manual ingestion → triage → advisory remediation draft)
+- Project memory learning loop (human-supervised candidate distillation and approval)
 
 ### Release 7 — LaunchPilot / Marketing (Future, parked)
 
-**Not part of the active 32-task roadmap.** This release is subsumed by LaunchPilot, a ForgeLoop Studio module. Plan separately after Release 6 is complete. Possible scope: landing page copy, product positioning, marketing campaign planner, social post generator, cold outreach drafts, user feedback collector, competitor/research tracker.
+**Not part of the active 32-task roadmap.** Subsumed by LaunchPilot, a ForgeLoop Studio module. Plan separately. Possible scope: landing page copy, product positioning, marketing campaign planner, social post generator, cold outreach drafts.
 
-### Always out of scope (for the current 32-task roadmap)
+### Always out of scope
 
-Pub/Sub/Eventarc, Kubernetes, Slack integration, multi-tenancy/billing, complex dashboard, background workers, vector DB / RAG, MCP server, Temporal/Kestra/LangGraph (only adopt if a specific need appears), long-running agent workflows.
+Pub/Sub/Eventarc, Kubernetes, live monitoring integration, auto-remediation, Slack/email notifications, multi-tenancy/billing, complex dashboard, background workers, vector DB / RAG, MCP server, Temporal/Kestra/LangGraph.

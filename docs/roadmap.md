@@ -61,7 +61,7 @@ The original broad plan for Releases 4–6 has been narrowed based on deep resea
 
 ---
 
-## Release 4 — Golden Path + Deterministic QA (Tasks 22–25)
+## Release 4 — Golden Path + Deterministic QA (Tasks 22–25) — Complete
 
 Scope:
 
@@ -76,7 +76,7 @@ See `docs/qa-strategy.md` and `docs/tooling-strategy.md`.
 
 ---
 
-## Release 5 — Tool Runner + PR Workflow (Tasks 26–29)
+## Release 5 — Tool Runner + PR Workflow (Tasks 26–29) — Complete
 
 Scope:
 
