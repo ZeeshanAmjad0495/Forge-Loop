@@ -13,6 +13,8 @@ from .models import (
     CodeRepository,
     DevTask,
     Epic,
+    Incident,
+    IncidentAnalysis,
     Project,
     ProjectContext,
     PullRequestDraft,
@@ -1028,6 +1030,86 @@ class FirestoreCIAnalysisRepository:
         return sorted(matches, key=lambda a: a.created_at, reverse=True)
 
 
+class IncidentRepository(Protocol):
+    def save(self, incident: Incident) -> None: ...
+    def get(self, incident_id: str) -> Incident | None: ...
+    def list_by_project(self, project_id: str) -> list[Incident]: ...
+
+
+class InMemoryIncidentRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, Incident] = {}
+
+    def save(self, incident: Incident) -> None:
+        self._store[incident.id] = incident
+
+    def get(self, incident_id: str) -> Incident | None:
+        return self._store.get(incident_id)
+
+    def list_by_project(self, project_id: str) -> list[Incident]:
+        matches = [i for i in self._store.values() if i.project_id == project_id]
+        return sorted(matches, key=lambda i: i.created_at, reverse=True)
+
+
+class FirestoreIncidentRepository:
+    def __init__(self, client, collection_name: str = "incidents") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, incident: Incident) -> None:
+        self._collection.document(incident.id).set(incident.model_dump(mode="python"))
+
+    def get(self, incident_id: str) -> Incident | None:
+        snap = self._collection.document(incident_id).get()
+        if not snap.exists:
+            return None
+        return Incident(**snap.to_dict())
+
+    def list_by_project(self, project_id: str) -> list[Incident]:
+        docs = self._collection.where("project_id", "==", project_id).stream()
+        matches = [Incident(**d.to_dict()) for d in docs]
+        return sorted(matches, key=lambda i: i.created_at, reverse=True)
+
+
+class IncidentAnalysisRepository(Protocol):
+    def save(self, analysis: IncidentAnalysis) -> None: ...
+    def get(self, analysis_id: str) -> IncidentAnalysis | None: ...
+    def list_by_incident(self, incident_id: str) -> list[IncidentAnalysis]: ...
+
+
+class InMemoryIncidentAnalysisRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, IncidentAnalysis] = {}
+
+    def save(self, analysis: IncidentAnalysis) -> None:
+        self._store[analysis.id] = analysis
+
+    def get(self, analysis_id: str) -> IncidentAnalysis | None:
+        return self._store.get(analysis_id)
+
+    def list_by_incident(self, incident_id: str) -> list[IncidentAnalysis]:
+        matches = [a for a in self._store.values() if a.incident_id == incident_id]
+        return sorted(matches, key=lambda a: a.created_at, reverse=True)
+
+
+class FirestoreIncidentAnalysisRepository:
+    def __init__(self, client, collection_name: str = "incident_analyses") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, analysis: IncidentAnalysis) -> None:
+        self._collection.document(analysis.id).set(analysis.model_dump(mode="python"))
+
+    def get(self, analysis_id: str) -> IncidentAnalysis | None:
+        snap = self._collection.document(analysis_id).get()
+        if not snap.exists:
+            return None
+        return IncidentAnalysis(**snap.to_dict())
+
+    def list_by_incident(self, incident_id: str) -> list[IncidentAnalysis]:
+        docs = self._collection.where("incident_id", "==", incident_id).stream()
+        matches = [IncidentAnalysis(**d.to_dict()) for d in docs]
+        return sorted(matches, key=lambda a: a.created_at, reverse=True)
+
+
 def get_repositories() -> tuple[
     TicketRepository,
     AgentRunRepository,
@@ -1051,6 +1133,8 @@ def get_repositories() -> tuple[
     PullRequestReviewRepository,
     CIEventRepository,
     CIAnalysisRepository,
+    IncidentRepository,
+    IncidentAnalysisRepository,
 ]:
     if config.REPOSITORY_PROVIDER == "memory":
         return (
@@ -1076,6 +1160,8 @@ def get_repositories() -> tuple[
             InMemoryPullRequestReviewRepository(),
             InMemoryCIEventRepository(),
             InMemoryCIAnalysisRepository(),
+            InMemoryIncidentRepository(),
+            InMemoryIncidentAnalysisRepository(),
         )
     if config.REPOSITORY_PROVIDER == "firestore":
         from google.cloud import firestore
@@ -1107,6 +1193,8 @@ def get_repositories() -> tuple[
             FirestorePullRequestReviewRepository(client),
             FirestoreCIEventRepository(client),
             FirestoreCIAnalysisRepository(client),
+            FirestoreIncidentRepository(client),
+            FirestoreIncidentAnalysisRepository(client),
         )
     raise ValueError(
         f"Unknown REPOSITORY_PROVIDER: {config.REPOSITORY_PROVIDER!r}. Supported: memory, firestore"

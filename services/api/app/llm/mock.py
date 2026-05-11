@@ -169,6 +169,72 @@ Open a dev task to investigate and fix the failing test; do not auto-merge.
 yes — failures require a human owner before any remediation.
 """
 
+_MOCK_INCIDENT_TRIAGE_RESPONSE = """\
+# Incident Triage Brief
+
+## 1. Incident Summary
+
+The incident describes an operational problem that needs human triage. The
+exact production state is not known from the supplied evidence and must be
+confirmed by an on-call engineer before any remediation.
+
+## 2. Impact Assessment
+
+Impact appears scoped to the affected area listed on the incident. Confirm
+blast radius (users, regions, dependent services) before acting.
+
+## 3. Likely Root Causes
+
+- A recent code change altered behaviour of the affected component.
+- A configuration drift between the working environment and production.
+- An external dependency or upstream service is degraded.
+
+## 4. Uncertainty / Missing Evidence
+
+- Full production logs covering the failure window are not attached.
+- Recent deploys, config changes, and feature flag flips are not listed.
+- Metrics and dashboards have not been linked.
+
+## 5. Immediate Safe Actions
+
+- Acknowledge the incident and assign a human owner.
+- Capture a short timeline of what changed in the last 24 hours.
+- Preserve current production state; do not auto-restart.
+
+## 6. Remediation Plan
+
+- Identify the change set most likely responsible.
+- Prepare a small, reviewable fix on a branch (human-driven, not automated).
+- Plan a controlled rollback path before any forward fix is deployed.
+
+## 7. Prevention Actions
+
+- Add a regression test covering the failure mode.
+- Add monitoring / alerting on the affected signal if not already present.
+- Update project memory with the incident and resolution after closure.
+
+## 8. Affected Areas
+
+- The component or service named in the incident.
+- Adjacent components consuming its output.
+
+## 9. Suggested ForgeLoop Follow-up Work Item
+
+Open a remediation dev task linked to this incident, requiring human approval
+before any coding runner picks it up. Do not auto-merge or auto-deploy.
+
+## 10. Human Approval Points
+
+- Approval to begin remediation work.
+- Approval of the proposed fix before merge.
+- Approval of any deployment or rollback action.
+
+## 11. Failure Category
+
+needs_human_review — pending confirmation from production logs and recent
+change history.
+"""
+
 _MOCK_ANALYSIS_RESPONSE = json.dumps(
     {
         "summary": "Implement the changes described in the ticket.",
@@ -206,6 +272,8 @@ class MockLLMProvider:
             return _MOCK_ANALYSIS_RESPONSE
         if "CI Failure Analysis" in prompt:
             return _MOCK_CI_FAILURE_ANALYSIS_RESPONSE
+        if "Incident Triage Brief" in prompt:
+            return _MOCK_INCIDENT_TRIAGE_RESPONSE
         return """\
 # Implementation Brief
 

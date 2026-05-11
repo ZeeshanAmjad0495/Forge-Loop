@@ -56,6 +56,12 @@ import type {
   CIAnalysisCreate,
   CIEvent,
   CIEventCreate,
+  Incident,
+  IncidentAnalysis,
+  IncidentAnalysisCreate,
+  IncidentCreate,
+  IncidentUpdate,
+  RemediationWorkItemDraft,
 } from './types'
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
@@ -807,4 +813,84 @@ export async function getCIAnalysis(analysisId: string): Promise<CIAnalysis> {
     headers: authHeaders(),
   })
   return handleResponse<CIAnalysis>(res)
+}
+
+// Production / incident workflow (Task 31)
+
+export async function recordIncident(
+  projectId: string,
+  body: IncidentCreate,
+): Promise<Incident> {
+  const res = await fetch(`${BASE}/projects/${projectId}/incidents`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(body),
+  })
+  return handleResponse<Incident>(res)
+}
+
+export async function listProjectIncidents(projectId: string): Promise<Incident[]> {
+  const res = await fetch(`${BASE}/projects/${projectId}/incidents`, {
+    headers: authHeaders(),
+  })
+  return handleResponse<Incident[]>(res)
+}
+
+export async function getIncident(incidentId: string): Promise<Incident> {
+  const res = await fetch(`${BASE}/incidents/${incidentId}`, {
+    headers: authHeaders(),
+  })
+  return handleResponse<Incident>(res)
+}
+
+export async function updateIncident(
+  incidentId: string,
+  body: IncidentUpdate,
+): Promise<Incident> {
+  const res = await fetch(`${BASE}/incidents/${incidentId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(body),
+  })
+  return handleResponse<Incident>(res)
+}
+
+export async function createIncidentAnalysis(
+  incidentId: string,
+  body: IncidentAnalysisCreate = {},
+): Promise<IncidentAnalysis> {
+  const res = await fetch(`${BASE}/incidents/${incidentId}/analysis`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(body),
+  })
+  return handleResponse<IncidentAnalysis>(res)
+}
+
+export async function listIncidentAnalyses(
+  incidentId: string,
+): Promise<IncidentAnalysis[]> {
+  const res = await fetch(`${BASE}/incidents/${incidentId}/analyses`, {
+    headers: authHeaders(),
+  })
+  return handleResponse<IncidentAnalysis[]>(res)
+}
+
+export async function getIncidentAnalysis(
+  analysisId: string,
+): Promise<IncidentAnalysis> {
+  const res = await fetch(`${BASE}/incident-analyses/${analysisId}`, {
+    headers: authHeaders(),
+  })
+  return handleResponse<IncidentAnalysis>(res)
+}
+
+export async function prepareIncidentRemediation(
+  incidentId: string,
+): Promise<RemediationWorkItemDraft> {
+  const res = await fetch(`${BASE}/incidents/${incidentId}/prepare-remediation`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+  })
+  return handleResponse<RemediationWorkItemDraft>(res)
 }

@@ -118,6 +118,12 @@ Externally observed CI failures can be recorded into ForgeLoop as `CIEvent`s alo
 
 ---
 
+## Production incident evidence (Task 31)
+
+Production incidents and operational issues can be recorded into ForgeLoop as `Incident`s, optionally linked to a code repository, `CIEvent`, PR draft, dev task, or subtask. An `IncidentAnalysis` can be requested per incident; it invokes the configured LLM provider with a structured triage/remediation prompt and stores a parsed diagnostic (summary, impact, likely root causes, immediate safe actions, remediation plan, prevention actions, recommended follow-up action, failure category). Analyses are advisory only — they do not claim production was changed, do not recommend direct deployment or rollback, and never include secrets or customer data. An optional `prepare-remediation` endpoint returns a non-persisted remediation work item draft; any DevTask creation remains a human action and requires the existing approval gate before any coding runner picks it up. Live monitoring integration (Cloud Logging, Sentry, Datadog, etc.) is out of scope; ingestion is manual or programmatic via the ForgeLoop API.
+
+---
+
 ## Current State
 
 QA pipeline is not yet implemented. It is planned for Release 4 (Golden Path + Deterministic QA).

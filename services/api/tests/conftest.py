@@ -11,6 +11,8 @@ from app.main import (
     ci_analysis_repo,
     ci_event_repo,
     code_repo_repo,
+    incident_analysis_repo,
+    incident_repo,
     dev_task_repo,
     epic_repo,
     project_context_repo,
@@ -51,6 +53,8 @@ def clear_repos():
         pr_review_repo,
         ci_event_repo,
         ci_analysis_repo,
+        incident_repo,
+        incident_analysis_repo,
     ):
         if hasattr(r, "_store"):
             r._store.clear()
