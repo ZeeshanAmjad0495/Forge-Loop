@@ -43,10 +43,12 @@ from .repositories_state import (
     workspace_repo,
 )
 from .routes import (
+    agent_failures,
     approvals,
     artifact_summaries,
     audit,
     auth,
+    benchmarks,
     budgets,
     checks,
     ci,
@@ -54,8 +56,11 @@ from .routes import (
     commands,
     context_packs,
     cost_records,
+    cost_reporting,
     dev_tasks,
     epics,
+    evaluation_trials,
+    feedback_analytics,
     git_workflow,
     health,
     incidents,
@@ -68,6 +73,7 @@ from .routes import (
     pr_drafts,
     pr_reviews,
     projects,
+    quality_metrics,
     prompt_cache,
     requirements,
     review_feedback,
@@ -125,6 +131,12 @@ app.include_router(model_routing.router)
 app.include_router(prompt_cache.router)
 app.include_router(budgets.router)
 app.include_router(swarm_policies.router)
+app.include_router(evaluation_trials.router)
+app.include_router(quality_metrics.router)
+app.include_router(feedback_analytics.router)
+app.include_router(agent_failures.router)
+app.include_router(cost_reporting.router)
+app.include_router(benchmarks.router)
 app.include_router(workspaces.router)
 app.include_router(commands.router)
 app.include_router(git_workflow.router)

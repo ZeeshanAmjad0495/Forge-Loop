@@ -17,7 +17,11 @@ from pydantic import BaseModel
 
 from . import config
 from .models import (
+    AgentFailureRecord,
     AgentRun,
+    BenchmarkRun,
+    BenchmarkRunResult,
+    BenchmarkScenario,
     Approval,
     Artifact,
     ArtifactSummary,
@@ -39,9 +43,12 @@ from .models import (
     IncidentAnalysis,
     MemoryLearningRun,
     Project,
+    ProjectBuildTrial,
+    ProjectBuildTrialStage,
     ProjectContext,
     ProjectMemoryCandidate,
     PromptContextCacheEntry,
+    QualityMetricSnapshot,
     PullRequestDraft,
     PullRequestReview,
     RepoSafetyProfile,
@@ -532,6 +539,87 @@ class MongoRevisionWorkItemRepository(MongoDocumentRepository[RevisionWorkItem])
         return _sorted_desc(self.list_by_field("project_id", project_id))
 
 
+class MongoBenchmarkScenarioRepository(MongoDocumentRepository[BenchmarkScenario]):
+    collection_name = "benchmark_scenarios"
+    model_cls = BenchmarkScenario
+
+    def list_all(self) -> list[BenchmarkScenario]:
+        return _sorted_desc(super().list_all())
+
+    def list_by_project(self, project_id: str) -> list[BenchmarkScenario]:
+        return _sorted_desc(self.list_by_field("project_id", project_id))
+
+
+class MongoBenchmarkRunRepository(MongoDocumentRepository[BenchmarkRun]):
+    collection_name = "benchmark_runs"
+    model_cls = BenchmarkRun
+
+    def list_by_scenario(self, scenario_id: str) -> list[BenchmarkRun]:
+        return _sorted_desc(self.list_by_field("scenario_id", scenario_id))
+
+    def list_by_project(self, project_id: str) -> list[BenchmarkRun]:
+        return _sorted_desc(self.list_by_field("project_id", project_id))
+
+
+class MongoBenchmarkRunResultRepository(MongoDocumentRepository[BenchmarkRunResult]):
+    collection_name = "benchmark_run_results"
+    model_cls = BenchmarkRunResult
+
+    def list_by_run(self, benchmark_run_id: str) -> list[BenchmarkRunResult]:
+        items = self.list_by_field("benchmark_run_id", benchmark_run_id)
+        return sorted(items, key=lambda r: r.created_at)
+
+
+class MongoAgentFailureRecordRepository(MongoDocumentRepository[AgentFailureRecord]):
+    collection_name = "agent_failure_records"
+    model_cls = AgentFailureRecord
+
+    def list_by_project(self, project_id: str) -> list[AgentFailureRecord]:
+        return _sorted_desc(self.list_by_field("project_id", project_id))
+
+    def list_by_source(
+        self, source_type: str, source_id: str
+    ) -> list[AgentFailureRecord]:
+        return _sorted_desc(
+            self.list_by_fields({"source_type": source_type, "source_id": source_id})
+        )
+
+    def list_by_trial(self, trial_id: str) -> list[AgentFailureRecord]:
+        return _sorted_desc(self.list_by_field("trial_id", trial_id))
+
+
+class MongoQualityMetricSnapshotRepository(
+    MongoDocumentRepository[QualityMetricSnapshot]
+):
+    collection_name = "quality_metric_snapshots"
+    model_cls = QualityMetricSnapshot
+
+    def list_by_project(self, project_id: str) -> list[QualityMetricSnapshot]:
+        return _sorted_desc(self.list_by_field("project_id", project_id))
+
+    def list_by_trial(self, trial_id: str) -> list[QualityMetricSnapshot]:
+        return _sorted_desc(self.list_by_field("trial_id", trial_id))
+
+
+class MongoProjectBuildTrialRepository(MongoDocumentRepository[ProjectBuildTrial]):
+    collection_name = "project_build_trials"
+    model_cls = ProjectBuildTrial
+
+    def list_by_project(self, project_id: str) -> list[ProjectBuildTrial]:
+        return _sorted_desc(self.list_by_field("project_id", project_id))
+
+
+class MongoProjectBuildTrialStageRepository(
+    MongoDocumentRepository[ProjectBuildTrialStage]
+):
+    collection_name = "project_build_trial_stages"
+    model_cls = ProjectBuildTrialStage
+
+    def list_by_trial(self, trial_id: str) -> list[ProjectBuildTrialStage]:
+        items = self.list_by_field("trial_id", trial_id)
+        return sorted(items, key=lambda s: s.created_at)
+
+
 class MongoSwarmPolicyRepository(MongoDocumentRepository[SwarmPolicy]):
     collection_name = "swarm_policies"
     model_cls = SwarmPolicy
@@ -755,6 +843,53 @@ _INDEX_PLAN: dict[str, list[Any]] = {
         "created_at",
         [("source_type", 1), ("source_id", 1)],
     ],
+    "project_build_trials": [
+        "project_id",
+        "status",
+        "verdict",
+        "trial_type",
+        "created_at",
+    ],
+    "project_build_trial_stages": [
+        "trial_id",
+        "project_id",
+        "stage_type",
+        "status",
+        "created_at",
+    ],
+    "quality_metric_snapshots": [
+        "project_id",
+        "trial_id",
+        "source_type",
+        "created_at",
+    ],
+    "agent_failure_records": [
+        "project_id",
+        "trial_id",
+        "category",
+        "severity",
+        "status",
+        "created_at",
+        [("source_type", 1), ("source_id", 1)],
+    ],
+    "benchmark_scenarios": [
+        "project_id",
+        "scenario_type",
+        "enabled",
+        "created_at",
+    ],
+    "benchmark_runs": [
+        "scenario_id",
+        "project_id",
+        "status",
+        "created_at",
+    ],
+    "benchmark_run_results": [
+        "benchmark_run_id",
+        "scenario_id",
+        "status",
+        "created_at",
+    ],
 }
 
 
@@ -850,4 +985,11 @@ def build_mongo_repositories():
         prompt_cache=MongoPromptContextCacheRepository(db),
         budget_policy=MongoBudgetPolicyRepository(db),
         swarm_policy=MongoSwarmPolicyRepository(db),
+        project_build_trial=MongoProjectBuildTrialRepository(db),
+        project_build_trial_stage=MongoProjectBuildTrialStageRepository(db),
+        quality_metric_snapshot=MongoQualityMetricSnapshotRepository(db),
+        agent_failure_record=MongoAgentFailureRecordRepository(db),
+        benchmark_scenario=MongoBenchmarkScenarioRepository(db),
+        benchmark_run=MongoBenchmarkRunRepository(db),
+        benchmark_run_result=MongoBenchmarkRunResultRepository(db),
     )

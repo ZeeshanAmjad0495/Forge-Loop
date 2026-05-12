@@ -52,5 +52,12 @@ artifact_summary_repo = repos.artifact_summary
 prompt_cache_repo = repos.prompt_cache
 budget_policy_repo = repos.budget_policy
 swarm_policy_repo = repos.swarm_policy
+project_build_trial_repo = repos.project_build_trial
+project_build_trial_stage_repo = repos.project_build_trial_stage
+quality_metric_snapshot_repo = repos.quality_metric_snapshot
+agent_failure_record_repo = repos.agent_failure_record
+benchmark_scenario_repo = repos.benchmark_scenario
+benchmark_run_repo = repos.benchmark_run
+benchmark_run_result_repo = repos.benchmark_run_result
 
 audit_writer = AuditWriter(audit_event_repo)

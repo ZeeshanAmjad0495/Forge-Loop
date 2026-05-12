@@ -5,6 +5,18 @@ Split into domain modules in S5 (post-32 architecture audit). See the S5
 plan for the split rationale.
 """
 
+from .agent_failures import (
+    AgentFailureCategory,
+    AgentFailureDetector,
+    AgentFailureRecord,
+    AgentFailureRecordCreate,
+    AgentFailureRecordResolve,
+    AgentFailureRecordUpdate,
+    AgentFailureSeverity,
+    AgentFailureSourceType,
+    AgentFailureStatus,
+    AgentFailureSummary,
+)
 from .agents import AgentRun
 from .approvals import (
     Approval,
@@ -22,6 +34,19 @@ from .artifact_summaries import (
 from .artifacts import Artifact
 from .audit import AuditAction, AuditActorType, AuditEvent
 from .auth import LoginRequest, LoginResponse, MeResponse
+from .benchmarks import (
+    BenchmarkRun,
+    BenchmarkRunCreate,
+    BenchmarkRunResult,
+    BenchmarkRunResultCreate,
+    BenchmarkRunResultStatus,
+    BenchmarkRunStatus,
+    BenchmarkRunUpdate,
+    BenchmarkScenario,
+    BenchmarkScenarioCreate,
+    BenchmarkScenarioType,
+    BenchmarkScenarioUpdate,
+)
 from .budgets import (
     BudgetCheckRequest,
     BudgetPeriod,
@@ -91,6 +116,21 @@ from .cost_records import (
     CostRecordWorkflowType,
 )
 from .epics import Epic, EpicCreate, EpicPriority, EpicStatus, EpicUpdate
+from .evaluation_trials import (
+    ProjectBuildTrial,
+    ProjectBuildTrialComplete,
+    ProjectBuildTrialCreate,
+    ProjectBuildTrialStage,
+    ProjectBuildTrialStageCreate,
+    ProjectBuildTrialStageStatus,
+    ProjectBuildTrialStageType,
+    ProjectBuildTrialStageUpdate,
+    ProjectBuildTrialStatus,
+    ProjectBuildTrialSummary,
+    ProjectBuildTrialType,
+    ProjectBuildTrialUpdate,
+    ProjectBuildTrialVerdict,
+)
 from .git_workflow import (
     GitCommitCreate,
     GitCommitRecord,
@@ -148,6 +188,7 @@ from .pr import (
     PullRequestReviewUpdate,
 )
 from .prompt_cache import PromptContextCacheEntry, PromptContextCacheType
+from .quality_metrics import QualityMetricSnapshot, QualityMetricsResponse
 from .projects import Project, ProjectContext, ProjectContextUpdate, ProjectCreate
 from .providers import ProviderInfo, ProvidersResponse
 from .review_feedback import (
@@ -237,6 +278,16 @@ from .tool_runs import (
 )
 
 __all__ = [
+    "AgentFailureCategory",
+    "AgentFailureDetector",
+    "AgentFailureRecord",
+    "AgentFailureRecordCreate",
+    "AgentFailureRecordResolve",
+    "AgentFailureRecordUpdate",
+    "AgentFailureSeverity",
+    "AgentFailureSourceType",
+    "AgentFailureStatus",
+    "AgentFailureSummary",
     "AgentRun",
     "Approval",
     "ApprovalCreate",
@@ -249,6 +300,17 @@ __all__ = [
     "ArtifactSummaryStatus",
     "ArtifactSummaryType",
     "AssigneeType",
+    "BenchmarkRun",
+    "BenchmarkRunCreate",
+    "BenchmarkRunResult",
+    "BenchmarkRunResultCreate",
+    "BenchmarkRunResultStatus",
+    "BenchmarkRunStatus",
+    "BenchmarkRunUpdate",
+    "BenchmarkScenario",
+    "BenchmarkScenarioCreate",
+    "BenchmarkScenarioType",
+    "BenchmarkScenarioUpdate",
     "BudgetCheckRequest",
     "BudgetPeriod",
     "BudgetPolicy",
@@ -355,9 +417,24 @@ __all__ = [
     "PlanningRunCreate",
     "PlanningRunResponse",
     "Project",
+    "ProjectBuildTrial",
+    "ProjectBuildTrialComplete",
+    "ProjectBuildTrialCreate",
+    "ProjectBuildTrialStage",
+    "ProjectBuildTrialStageCreate",
+    "ProjectBuildTrialStageStatus",
+    "ProjectBuildTrialStageType",
+    "ProjectBuildTrialStageUpdate",
+    "ProjectBuildTrialStatus",
+    "ProjectBuildTrialSummary",
+    "ProjectBuildTrialType",
+    "ProjectBuildTrialUpdate",
+    "ProjectBuildTrialVerdict",
     "PromptContextCacheEntry",
     "PromptContextCacheType",
     "ProjectContext",
+    "QualityMetricSnapshot",
+    "QualityMetricsResponse",
     "ProjectContextUpdate",
     "ProjectCreate",
     "ProjectMemoryCandidate",

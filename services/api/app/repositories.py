@@ -4,7 +4,11 @@ from typing import Protocol
 
 from . import config
 from .models import (
+    AgentFailureRecord,
     AgentRun,
+    BenchmarkRun,
+    BenchmarkRunResult,
+    BenchmarkScenario,
     Approval,
     AuditEvent,
     Artifact,
@@ -26,7 +30,10 @@ from .models import (
     IncidentAnalysis,
     MemoryLearningRun,
     Project,
+    ProjectBuildTrial,
+    ProjectBuildTrialStage,
     PromptContextCacheEntry,
+    QualityMetricSnapshot,
     ProjectMemoryCandidate,
     ProjectContext,
     PullRequestDraft,
@@ -1741,6 +1748,414 @@ class FirestoreRevisionWorkItemRepository:
         return sorted(items, key=lambda r: r.created_at, reverse=True)
 
 
+class BenchmarkScenarioRepository(Protocol):
+    def save(self, scenario: BenchmarkScenario) -> None: ...
+    def get(self, scenario_id: str) -> BenchmarkScenario | None: ...
+    def update(self, scenario: BenchmarkScenario) -> None: ...
+    def list_all(self) -> list[BenchmarkScenario]: ...
+    def list_by_project(self, project_id: str) -> list[BenchmarkScenario]: ...
+
+
+class InMemoryBenchmarkScenarioRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, BenchmarkScenario] = {}
+
+    def save(self, scenario: BenchmarkScenario) -> None:
+        self._store[scenario.id] = scenario
+
+    def get(self, scenario_id: str) -> BenchmarkScenario | None:
+        return self._store.get(scenario_id)
+
+    def update(self, scenario: BenchmarkScenario) -> None:
+        self._store[scenario.id] = scenario
+
+    def list_all(self) -> list[BenchmarkScenario]:
+        return sorted(self._store.values(), key=lambda s: s.created_at, reverse=True)
+
+    def list_by_project(self, project_id: str) -> list[BenchmarkScenario]:
+        items = [s for s in self._store.values() if s.project_id == project_id]
+        return sorted(items, key=lambda s: s.created_at, reverse=True)
+
+    def clear(self) -> None:
+        self._store.clear()
+
+
+class FirestoreBenchmarkScenarioRepository:
+    def __init__(self, client, collection_name: str = "benchmark_scenarios") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, scenario: BenchmarkScenario) -> None:
+        self._collection.document(scenario.id).set(scenario.model_dump(mode="python"))
+
+    def get(self, scenario_id: str) -> BenchmarkScenario | None:
+        snap = self._collection.document(scenario_id).get()
+        if not snap.exists:
+            return None
+        return BenchmarkScenario(**snap.to_dict())
+
+    def update(self, scenario: BenchmarkScenario) -> None:
+        self._collection.document(scenario.id).set(scenario.model_dump(mode="python"))
+
+    def list_all(self) -> list[BenchmarkScenario]:
+        items = [BenchmarkScenario(**d.to_dict()) for d in self._collection.stream()]
+        return sorted(items, key=lambda s: s.created_at, reverse=True)
+
+    def list_by_project(self, project_id: str) -> list[BenchmarkScenario]:
+        docs = self._collection.where("project_id", "==", project_id).stream()
+        items = [BenchmarkScenario(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda s: s.created_at, reverse=True)
+
+
+class BenchmarkRunRepository(Protocol):
+    def save(self, run: BenchmarkRun) -> None: ...
+    def get(self, run_id: str) -> BenchmarkRun | None: ...
+    def update(self, run: BenchmarkRun) -> None: ...
+    def list_by_scenario(self, scenario_id: str) -> list[BenchmarkRun]: ...
+    def list_by_project(self, project_id: str) -> list[BenchmarkRun]: ...
+
+
+class InMemoryBenchmarkRunRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, BenchmarkRun] = {}
+
+    def save(self, run: BenchmarkRun) -> None:
+        self._store[run.id] = run
+
+    def get(self, run_id: str) -> BenchmarkRun | None:
+        return self._store.get(run_id)
+
+    def update(self, run: BenchmarkRun) -> None:
+        self._store[run.id] = run
+
+    def list_by_scenario(self, scenario_id: str) -> list[BenchmarkRun]:
+        items = [r for r in self._store.values() if r.scenario_id == scenario_id]
+        return sorted(items, key=lambda r: r.created_at, reverse=True)
+
+    def list_by_project(self, project_id: str) -> list[BenchmarkRun]:
+        items = [r for r in self._store.values() if r.project_id == project_id]
+        return sorted(items, key=lambda r: r.created_at, reverse=True)
+
+    def clear(self) -> None:
+        self._store.clear()
+
+
+class FirestoreBenchmarkRunRepository:
+    def __init__(self, client, collection_name: str = "benchmark_runs") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, run: BenchmarkRun) -> None:
+        self._collection.document(run.id).set(run.model_dump(mode="python"))
+
+    def get(self, run_id: str) -> BenchmarkRun | None:
+        snap = self._collection.document(run_id).get()
+        if not snap.exists:
+            return None
+        return BenchmarkRun(**snap.to_dict())
+
+    def update(self, run: BenchmarkRun) -> None:
+        self._collection.document(run.id).set(run.model_dump(mode="python"))
+
+    def list_by_scenario(self, scenario_id: str) -> list[BenchmarkRun]:
+        docs = self._collection.where("scenario_id", "==", scenario_id).stream()
+        items = [BenchmarkRun(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda r: r.created_at, reverse=True)
+
+    def list_by_project(self, project_id: str) -> list[BenchmarkRun]:
+        docs = self._collection.where("project_id", "==", project_id).stream()
+        items = [BenchmarkRun(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda r: r.created_at, reverse=True)
+
+
+class BenchmarkRunResultRepository(Protocol):
+    def save(self, result: BenchmarkRunResult) -> None: ...
+    def get(self, result_id: str) -> BenchmarkRunResult | None: ...
+    def list_by_run(self, benchmark_run_id: str) -> list[BenchmarkRunResult]: ...
+
+
+class InMemoryBenchmarkRunResultRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, BenchmarkRunResult] = {}
+
+    def save(self, result: BenchmarkRunResult) -> None:
+        self._store[result.id] = result
+
+    def get(self, result_id: str) -> BenchmarkRunResult | None:
+        return self._store.get(result_id)
+
+    def list_by_run(self, benchmark_run_id: str) -> list[BenchmarkRunResult]:
+        items = [
+            r for r in self._store.values() if r.benchmark_run_id == benchmark_run_id
+        ]
+        return sorted(items, key=lambda r: r.created_at)
+
+    def clear(self) -> None:
+        self._store.clear()
+
+
+class FirestoreBenchmarkRunResultRepository:
+    def __init__(
+        self, client, collection_name: str = "benchmark_run_results"
+    ) -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, result: BenchmarkRunResult) -> None:
+        self._collection.document(result.id).set(result.model_dump(mode="python"))
+
+    def get(self, result_id: str) -> BenchmarkRunResult | None:
+        snap = self._collection.document(result_id).get()
+        if not snap.exists:
+            return None
+        return BenchmarkRunResult(**snap.to_dict())
+
+    def list_by_run(self, benchmark_run_id: str) -> list[BenchmarkRunResult]:
+        docs = (
+            self._collection.where("benchmark_run_id", "==", benchmark_run_id).stream()
+        )
+        items = [BenchmarkRunResult(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda r: r.created_at)
+
+
+class AgentFailureRecordRepository(Protocol):
+    def save(self, record: AgentFailureRecord) -> None: ...
+    def get(self, record_id: str) -> AgentFailureRecord | None: ...
+    def update(self, record: AgentFailureRecord) -> None: ...
+    def list_by_project(self, project_id: str) -> list[AgentFailureRecord]: ...
+    def list_by_source(
+        self, source_type: str, source_id: str
+    ) -> list[AgentFailureRecord]: ...
+    def list_by_trial(self, trial_id: str) -> list[AgentFailureRecord]: ...
+
+
+class InMemoryAgentFailureRecordRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, AgentFailureRecord] = {}
+
+    def save(self, record: AgentFailureRecord) -> None:
+        self._store[record.id] = record
+
+    def get(self, record_id: str) -> AgentFailureRecord | None:
+        return self._store.get(record_id)
+
+    def update(self, record: AgentFailureRecord) -> None:
+        self._store[record.id] = record
+
+    def list_by_project(self, project_id: str) -> list[AgentFailureRecord]:
+        items = [r for r in self._store.values() if r.project_id == project_id]
+        return sorted(items, key=lambda r: r.created_at, reverse=True)
+
+    def list_by_source(
+        self, source_type: str, source_id: str
+    ) -> list[AgentFailureRecord]:
+        items = [
+            r
+            for r in self._store.values()
+            if r.source_type == source_type and r.source_id == source_id
+        ]
+        return sorted(items, key=lambda r: r.created_at, reverse=True)
+
+    def list_by_trial(self, trial_id: str) -> list[AgentFailureRecord]:
+        items = [r for r in self._store.values() if r.trial_id == trial_id]
+        return sorted(items, key=lambda r: r.created_at, reverse=True)
+
+    def clear(self) -> None:
+        self._store.clear()
+
+
+class FirestoreAgentFailureRecordRepository:
+    def __init__(self, client, collection_name: str = "agent_failure_records") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, record: AgentFailureRecord) -> None:
+        self._collection.document(record.id).set(record.model_dump(mode="python"))
+
+    def get(self, record_id: str) -> AgentFailureRecord | None:
+        snap = self._collection.document(record_id).get()
+        if not snap.exists:
+            return None
+        return AgentFailureRecord(**snap.to_dict())
+
+    def update(self, record: AgentFailureRecord) -> None:
+        self._collection.document(record.id).set(record.model_dump(mode="python"))
+
+    def list_by_project(self, project_id: str) -> list[AgentFailureRecord]:
+        docs = self._collection.where("project_id", "==", project_id).stream()
+        items = [AgentFailureRecord(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda r: r.created_at, reverse=True)
+
+    def list_by_source(
+        self, source_type: str, source_id: str
+    ) -> list[AgentFailureRecord]:
+        docs = (
+            self._collection.where("source_type", "==", source_type)
+            .where("source_id", "==", source_id)
+            .stream()
+        )
+        items = [AgentFailureRecord(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda r: r.created_at, reverse=True)
+
+    def list_by_trial(self, trial_id: str) -> list[AgentFailureRecord]:
+        docs = self._collection.where("trial_id", "==", trial_id).stream()
+        items = [AgentFailureRecord(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda r: r.created_at, reverse=True)
+
+
+class QualityMetricSnapshotRepository(Protocol):
+    def save(self, snapshot: QualityMetricSnapshot) -> None: ...
+    def get(self, snapshot_id: str) -> QualityMetricSnapshot | None: ...
+    def list_by_project(self, project_id: str) -> list[QualityMetricSnapshot]: ...
+    def list_by_trial(self, trial_id: str) -> list[QualityMetricSnapshot]: ...
+
+
+class InMemoryQualityMetricSnapshotRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, QualityMetricSnapshot] = {}
+
+    def save(self, snapshot: QualityMetricSnapshot) -> None:
+        self._store[snapshot.id] = snapshot
+
+    def get(self, snapshot_id: str) -> QualityMetricSnapshot | None:
+        return self._store.get(snapshot_id)
+
+    def list_by_project(self, project_id: str) -> list[QualityMetricSnapshot]:
+        items = [s for s in self._store.values() if s.project_id == project_id]
+        return sorted(items, key=lambda s: s.created_at, reverse=True)
+
+    def list_by_trial(self, trial_id: str) -> list[QualityMetricSnapshot]:
+        items = [s for s in self._store.values() if s.trial_id == trial_id]
+        return sorted(items, key=lambda s: s.created_at, reverse=True)
+
+    def clear(self) -> None:
+        self._store.clear()
+
+
+class FirestoreQualityMetricSnapshotRepository:
+    def __init__(
+        self, client, collection_name: str = "quality_metric_snapshots"
+    ) -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, snapshot: QualityMetricSnapshot) -> None:
+        self._collection.document(snapshot.id).set(snapshot.model_dump(mode="python"))
+
+    def get(self, snapshot_id: str) -> QualityMetricSnapshot | None:
+        snap = self._collection.document(snapshot_id).get()
+        if not snap.exists:
+            return None
+        return QualityMetricSnapshot(**snap.to_dict())
+
+    def list_by_project(self, project_id: str) -> list[QualityMetricSnapshot]:
+        docs = self._collection.where("project_id", "==", project_id).stream()
+        items = [QualityMetricSnapshot(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda s: s.created_at, reverse=True)
+
+    def list_by_trial(self, trial_id: str) -> list[QualityMetricSnapshot]:
+        docs = self._collection.where("trial_id", "==", trial_id).stream()
+        items = [QualityMetricSnapshot(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda s: s.created_at, reverse=True)
+
+
+class ProjectBuildTrialRepository(Protocol):
+    def save(self, trial: ProjectBuildTrial) -> None: ...
+    def get(self, trial_id: str) -> ProjectBuildTrial | None: ...
+    def update(self, trial: ProjectBuildTrial) -> None: ...
+    def list_by_project(self, project_id: str) -> list[ProjectBuildTrial]: ...
+
+
+class InMemoryProjectBuildTrialRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, ProjectBuildTrial] = {}
+
+    def save(self, trial: ProjectBuildTrial) -> None:
+        self._store[trial.id] = trial
+
+    def get(self, trial_id: str) -> ProjectBuildTrial | None:
+        return self._store.get(trial_id)
+
+    def update(self, trial: ProjectBuildTrial) -> None:
+        self._store[trial.id] = trial
+
+    def list_by_project(self, project_id: str) -> list[ProjectBuildTrial]:
+        items = [t for t in self._store.values() if t.project_id == project_id]
+        return sorted(items, key=lambda t: t.created_at, reverse=True)
+
+    def clear(self) -> None:
+        self._store.clear()
+
+
+class FirestoreProjectBuildTrialRepository:
+    def __init__(self, client, collection_name: str = "project_build_trials") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, trial: ProjectBuildTrial) -> None:
+        self._collection.document(trial.id).set(trial.model_dump(mode="python"))
+
+    def get(self, trial_id: str) -> ProjectBuildTrial | None:
+        snap = self._collection.document(trial_id).get()
+        if not snap.exists:
+            return None
+        return ProjectBuildTrial(**snap.to_dict())
+
+    def update(self, trial: ProjectBuildTrial) -> None:
+        self._collection.document(trial.id).set(trial.model_dump(mode="python"))
+
+    def list_by_project(self, project_id: str) -> list[ProjectBuildTrial]:
+        docs = self._collection.where("project_id", "==", project_id).stream()
+        items = [ProjectBuildTrial(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda t: t.created_at, reverse=True)
+
+
+class ProjectBuildTrialStageRepository(Protocol):
+    def save(self, stage: ProjectBuildTrialStage) -> None: ...
+    def get(self, stage_id: str) -> ProjectBuildTrialStage | None: ...
+    def update(self, stage: ProjectBuildTrialStage) -> None: ...
+    def list_by_trial(self, trial_id: str) -> list[ProjectBuildTrialStage]: ...
+
+
+class InMemoryProjectBuildTrialStageRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, ProjectBuildTrialStage] = {}
+
+    def save(self, stage: ProjectBuildTrialStage) -> None:
+        self._store[stage.id] = stage
+
+    def get(self, stage_id: str) -> ProjectBuildTrialStage | None:
+        return self._store.get(stage_id)
+
+    def update(self, stage: ProjectBuildTrialStage) -> None:
+        self._store[stage.id] = stage
+
+    def list_by_trial(self, trial_id: str) -> list[ProjectBuildTrialStage]:
+        items = [s for s in self._store.values() if s.trial_id == trial_id]
+        return sorted(items, key=lambda s: s.created_at)
+
+    def clear(self) -> None:
+        self._store.clear()
+
+
+class FirestoreProjectBuildTrialStageRepository:
+    def __init__(
+        self, client, collection_name: str = "project_build_trial_stages"
+    ) -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, stage: ProjectBuildTrialStage) -> None:
+        self._collection.document(stage.id).set(stage.model_dump(mode="python"))
+
+    def get(self, stage_id: str) -> ProjectBuildTrialStage | None:
+        snap = self._collection.document(stage_id).get()
+        if not snap.exists:
+            return None
+        return ProjectBuildTrialStage(**snap.to_dict())
+
+    def update(self, stage: ProjectBuildTrialStage) -> None:
+        self._collection.document(stage.id).set(stage.model_dump(mode="python"))
+
+    def list_by_trial(self, trial_id: str) -> list[ProjectBuildTrialStage]:
+        docs = self._collection.where("trial_id", "==", trial_id).stream()
+        items = [ProjectBuildTrialStage(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda s: s.created_at)
+
+
 class SwarmPolicyRepository(Protocol):
     def save(self, policy: SwarmPolicy) -> None: ...
     def get(self, policy_id: str) -> SwarmPolicy | None: ...
@@ -2224,6 +2639,13 @@ class Repositories:
     prompt_cache: PromptContextCacheRepository
     budget_policy: BudgetPolicyRepository
     swarm_policy: SwarmPolicyRepository
+    project_build_trial: ProjectBuildTrialRepository
+    project_build_trial_stage: ProjectBuildTrialStageRepository
+    quality_metric_snapshot: QualityMetricSnapshotRepository
+    agent_failure_record: AgentFailureRecordRepository
+    benchmark_scenario: BenchmarkScenarioRepository
+    benchmark_run: BenchmarkRunRepository
+    benchmark_run_result: BenchmarkRunResultRepository
 
 
 def get_repositories() -> Repositories:
@@ -2268,6 +2690,13 @@ def get_repositories() -> Repositories:
             prompt_cache=InMemoryPromptContextCacheRepository(),
             budget_policy=InMemoryBudgetPolicyRepository(),
             swarm_policy=InMemorySwarmPolicyRepository(),
+            project_build_trial=InMemoryProjectBuildTrialRepository(),
+            project_build_trial_stage=InMemoryProjectBuildTrialStageRepository(),
+            quality_metric_snapshot=InMemoryQualityMetricSnapshotRepository(),
+            agent_failure_record=InMemoryAgentFailureRecordRepository(),
+            benchmark_scenario=InMemoryBenchmarkScenarioRepository(),
+            benchmark_run=InMemoryBenchmarkRunRepository(),
+            benchmark_run_result=InMemoryBenchmarkRunResultRepository(),
         )
     if config.REPOSITORY_PROVIDER == "firestore":
         from google.cloud import firestore
@@ -2316,6 +2745,13 @@ def get_repositories() -> Repositories:
             prompt_cache=FirestorePromptContextCacheRepository(client),
             budget_policy=FirestoreBudgetPolicyRepository(client),
             swarm_policy=FirestoreSwarmPolicyRepository(client),
+            project_build_trial=FirestoreProjectBuildTrialRepository(client),
+            project_build_trial_stage=FirestoreProjectBuildTrialStageRepository(client),
+            quality_metric_snapshot=FirestoreQualityMetricSnapshotRepository(client),
+            agent_failure_record=FirestoreAgentFailureRecordRepository(client),
+            benchmark_scenario=FirestoreBenchmarkScenarioRepository(client),
+            benchmark_run=FirestoreBenchmarkRunRepository(client),
+            benchmark_run_result=FirestoreBenchmarkRunResultRepository(client),
         )
     if config.REPOSITORY_PROVIDER == "local_document":
         if config.LOCAL_DOCUMENT_DB_PROVIDER != "mongodb":

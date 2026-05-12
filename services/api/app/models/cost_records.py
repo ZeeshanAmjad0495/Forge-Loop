@@ -15,6 +15,7 @@ CostRecordSourceType = Literal[
     "artifact_summary",
     "context_pack",
     "model_route",
+    "build_trial",
     "manual",
     "custom",
 ]
