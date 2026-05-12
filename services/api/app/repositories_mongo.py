@@ -50,7 +50,9 @@ from .models import (
     Project,
     ProjectBuildTrial,
     ProjectBuildTrialStage,
+    ProjectPack,
     ProjectRetrospective,
+    ProjectTemplate,
     ProjectContext,
     ProjectMemoryCandidate,
     PromptContextCacheEntry,
@@ -69,6 +71,11 @@ from .models import (
     Ticket,
     ToolRun,
     ToolRunnerDefinition,
+    AuditExportRequest,
+    BackupExport,
+    BackupImport,
+    WorkflowTemplate,
+    WorkSafePolicy,
     Workspace,
     WorkspaceBranch,
 )
@@ -800,6 +807,97 @@ class MongoImprovementProposalRepository(
         )
 
 
+class MongoBackupExportRepository(MongoDocumentRepository[BackupExport]):
+    collection_name = "backup_exports"
+    model_cls = BackupExport
+
+    def list_all(self) -> list[BackupExport]:
+        return _sorted_desc(super().list_all())
+
+    def list_by_project(self, project_id: str) -> list[BackupExport]:
+        return _sorted_desc(self.list_by_field("project_id", project_id))
+
+
+class MongoBackupImportRepository(MongoDocumentRepository[BackupImport]):
+    collection_name = "backup_imports"
+    model_cls = BackupImport
+
+    def list_all(self) -> list[BackupImport]:
+        return _sorted_desc(super().list_all())
+
+    def list_by_project(self, project_id: str) -> list[BackupImport]:
+        return _sorted_desc(self.list_by_field("project_id", project_id))
+
+
+class MongoWorkSafePolicyRepository(MongoDocumentRepository[WorkSafePolicy]):
+    collection_name = "work_safe_policies"
+    model_cls = WorkSafePolicy
+
+    def list_all(self) -> list[WorkSafePolicy]:
+        return _sorted_desc(super().list_all())
+
+    def list_by_project(self, project_id: str) -> list[WorkSafePolicy]:
+        return _sorted_desc(self.list_by_field("project_id", project_id))
+
+    def list_global(self) -> list[WorkSafePolicy]:
+        return _sorted_desc(self.list_by_field("project_id", None))
+
+
+class MongoAuditExportRequestRepository(
+    MongoDocumentRepository[AuditExportRequest]
+):
+    collection_name = "audit_export_requests"
+    model_cls = AuditExportRequest
+
+    def list_all(self) -> list[AuditExportRequest]:
+        return _sorted_desc(super().list_all())
+
+    def list_by_project(self, project_id: str) -> list[AuditExportRequest]:
+        return _sorted_desc(self.list_by_field("project_id", project_id))
+
+
+class MongoProjectPackRepository(MongoDocumentRepository[ProjectPack]):
+    collection_name = "project_packs"
+    model_cls = ProjectPack
+
+    def list_all(self) -> list[ProjectPack]:
+        return _sorted_desc(super().list_all())
+
+    def get_by_slug(self, slug: str) -> ProjectPack | None:
+        doc = self._collection.find_one({"slug": slug})
+        if doc is None:
+            return None
+        return from_mongo_document(doc, ProjectPack)
+
+
+class MongoWorkflowTemplateRepository(MongoDocumentRepository[WorkflowTemplate]):
+    collection_name = "workflow_templates"
+    model_cls = WorkflowTemplate
+
+    def list_all(self) -> list[WorkflowTemplate]:
+        return _sorted_desc(super().list_all())
+
+    def get_by_slug(self, slug: str) -> WorkflowTemplate | None:
+        doc = self._collection.find_one({"slug": slug})
+        if doc is None:
+            return None
+        return from_mongo_document(doc, WorkflowTemplate)
+
+
+class MongoProjectTemplateRepository(MongoDocumentRepository[ProjectTemplate]):
+    collection_name = "project_templates"
+    model_cls = ProjectTemplate
+
+    def list_all(self) -> list[ProjectTemplate]:
+        return _sorted_desc(super().list_all())
+
+    def get_by_slug(self, slug: str) -> ProjectTemplate | None:
+        doc = self._collection.find_one({"slug": slug})
+        if doc is None:
+            return None
+        return from_mongo_document(doc, ProjectTemplate)
+
+
 class MongoProjectRetrospectiveRepository(
     MongoDocumentRepository[ProjectRetrospective]
 ):
@@ -1080,6 +1178,48 @@ _INDEX_PLAN: dict[str, list[Any]] = {
         "status",
         "created_at",
     ],
+    "project_templates": [
+        "slug",
+        "template_type",
+        "status",
+        "created_at",
+    ],
+    "workflow_templates": [
+        "slug",
+        "workflow_type",
+        "status",
+        "created_at",
+    ],
+    "project_packs": [
+        "slug",
+        "domain",
+        "status",
+        "created_at",
+    ],
+    "work_safe_policies": [
+        "project_id",
+        "status",
+        "policy_level",
+        "created_at",
+    ],
+    "audit_export_requests": [
+        "project_id",
+        "status",
+        "format",
+        "created_at",
+    ],
+    "backup_exports": [
+        "project_id",
+        "status",
+        "export_type",
+        "created_at",
+    ],
+    "backup_imports": [
+        "project_id",
+        "status",
+        "mode",
+        "created_at",
+    ],
 }
 
 
@@ -1190,4 +1330,11 @@ def build_mongo_repositories():
         experiment_plan=MongoExperimentPlanRepository(db),
         experiment_run=MongoExperimentRunRepository(db),
         project_retrospective=MongoProjectRetrospectiveRepository(db),
+        project_template=MongoProjectTemplateRepository(db),
+        workflow_template=MongoWorkflowTemplateRepository(db),
+        project_pack=MongoProjectPackRepository(db),
+        work_safe_policy=MongoWorkSafePolicyRepository(db),
+        audit_export_request=MongoAuditExportRequestRepository(db),
+        backup_export=MongoBackupExportRepository(db),
+        backup_import=MongoBackupImportRepository(db),
     )

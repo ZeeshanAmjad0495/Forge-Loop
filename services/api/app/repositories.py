@@ -36,7 +36,9 @@ from .models import (
     MemoryLearningRun,
     Project,
     ProjectBuildTrial,
+    ProjectPack,
     ProjectRetrospective,
+    ProjectTemplate,
     ProjectBuildTrialStage,
     PromptContextCacheEntry,
     QualityMetricSnapshot,
@@ -56,6 +58,11 @@ from .models import (
     Ticket,
     ToolRun,
     ToolRunnerDefinition,
+    AuditExportRequest,
+    BackupExport,
+    BackupImport,
+    WorkflowTemplate,
+    WorkSafePolicy,
     Workspace,
     WorkspaceBranch,
 )
@@ -2966,6 +2973,440 @@ class FirestoreArchitectureReviewRepository:
         return sorted(items, key=lambda r: r.created_at, reverse=True)
 
 
+class BackupExportRepository(Protocol):
+    def save(self, export: BackupExport) -> None: ...
+    def get(self, export_id: str) -> BackupExport | None: ...
+    def update(self, export: BackupExport) -> None: ...
+    def list_all(self) -> list[BackupExport]: ...
+    def list_by_project(self, project_id: str) -> list[BackupExport]: ...
+
+
+class InMemoryBackupExportRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, BackupExport] = {}
+
+    def save(self, export: BackupExport) -> None:
+        self._store[export.id] = export
+
+    def get(self, export_id: str) -> BackupExport | None:
+        return self._store.get(export_id)
+
+    def update(self, export: BackupExport) -> None:
+        self._store[export.id] = export
+
+    def list_all(self) -> list[BackupExport]:
+        return sorted(self._store.values(), key=lambda e: e.created_at, reverse=True)
+
+    def list_by_project(self, project_id: str) -> list[BackupExport]:
+        items = [e for e in self._store.values() if e.project_id == project_id]
+        return sorted(items, key=lambda e: e.created_at, reverse=True)
+
+    def clear(self) -> None:
+        self._store.clear()
+
+
+class FirestoreBackupExportRepository:
+    def __init__(self, client, collection_name: str = "backup_exports") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, export: BackupExport) -> None:
+        self._collection.document(export.id).set(export.model_dump(mode="python"))
+
+    def get(self, export_id: str) -> BackupExport | None:
+        snap = self._collection.document(export_id).get()
+        if not snap.exists:
+            return None
+        return BackupExport(**snap.to_dict())
+
+    def update(self, export: BackupExport) -> None:
+        self._collection.document(export.id).set(export.model_dump(mode="python"))
+
+    def list_all(self) -> list[BackupExport]:
+        docs = self._collection.stream()
+        items = [BackupExport(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda e: e.created_at, reverse=True)
+
+    def list_by_project(self, project_id: str) -> list[BackupExport]:
+        docs = self._collection.where("project_id", "==", project_id).stream()
+        items = [BackupExport(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda e: e.created_at, reverse=True)
+
+
+class BackupImportRepository(Protocol):
+    def save(self, item: BackupImport) -> None: ...
+    def get(self, import_id: str) -> BackupImport | None: ...
+    def update(self, item: BackupImport) -> None: ...
+    def list_all(self) -> list[BackupImport]: ...
+    def list_by_project(self, project_id: str) -> list[BackupImport]: ...
+
+
+class InMemoryBackupImportRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, BackupImport] = {}
+
+    def save(self, item: BackupImport) -> None:
+        self._store[item.id] = item
+
+    def get(self, import_id: str) -> BackupImport | None:
+        return self._store.get(import_id)
+
+    def update(self, item: BackupImport) -> None:
+        self._store[item.id] = item
+
+    def list_all(self) -> list[BackupImport]:
+        return sorted(self._store.values(), key=lambda i: i.created_at, reverse=True)
+
+    def list_by_project(self, project_id: str) -> list[BackupImport]:
+        items = [i for i in self._store.values() if i.project_id == project_id]
+        return sorted(items, key=lambda i: i.created_at, reverse=True)
+
+    def clear(self) -> None:
+        self._store.clear()
+
+
+class FirestoreBackupImportRepository:
+    def __init__(self, client, collection_name: str = "backup_imports") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, item: BackupImport) -> None:
+        self._collection.document(item.id).set(item.model_dump(mode="python"))
+
+    def get(self, import_id: str) -> BackupImport | None:
+        snap = self._collection.document(import_id).get()
+        if not snap.exists:
+            return None
+        return BackupImport(**snap.to_dict())
+
+    def update(self, item: BackupImport) -> None:
+        self._collection.document(item.id).set(item.model_dump(mode="python"))
+
+    def list_all(self) -> list[BackupImport]:
+        docs = self._collection.stream()
+        items = [BackupImport(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda i: i.created_at, reverse=True)
+
+    def list_by_project(self, project_id: str) -> list[BackupImport]:
+        docs = self._collection.where("project_id", "==", project_id).stream()
+        items = [BackupImport(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda i: i.created_at, reverse=True)
+
+
+class WorkSafePolicyRepository(Protocol):
+    def save(self, policy: WorkSafePolicy) -> None: ...
+    def get(self, policy_id: str) -> WorkSafePolicy | None: ...
+    def update(self, policy: WorkSafePolicy) -> None: ...
+    def list_all(self) -> list[WorkSafePolicy]: ...
+    def list_by_project(self, project_id: str) -> list[WorkSafePolicy]: ...
+    def list_global(self) -> list[WorkSafePolicy]: ...
+
+
+class InMemoryWorkSafePolicyRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, WorkSafePolicy] = {}
+
+    def save(self, policy: WorkSafePolicy) -> None:
+        self._store[policy.id] = policy
+
+    def get(self, policy_id: str) -> WorkSafePolicy | None:
+        return self._store.get(policy_id)
+
+    def update(self, policy: WorkSafePolicy) -> None:
+        self._store[policy.id] = policy
+
+    def list_all(self) -> list[WorkSafePolicy]:
+        return sorted(self._store.values(), key=lambda p: p.created_at, reverse=True)
+
+    def list_by_project(self, project_id: str) -> list[WorkSafePolicy]:
+        items = [p for p in self._store.values() if p.project_id == project_id]
+        return sorted(items, key=lambda p: p.created_at, reverse=True)
+
+    def list_global(self) -> list[WorkSafePolicy]:
+        items = [p for p in self._store.values() if p.project_id is None]
+        return sorted(items, key=lambda p: p.created_at, reverse=True)
+
+    def clear(self) -> None:
+        self._store.clear()
+
+
+class FirestoreWorkSafePolicyRepository:
+    def __init__(self, client, collection_name: str = "work_safe_policies") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, policy: WorkSafePolicy) -> None:
+        self._collection.document(policy.id).set(policy.model_dump(mode="python"))
+
+    def get(self, policy_id: str) -> WorkSafePolicy | None:
+        snap = self._collection.document(policy_id).get()
+        if not snap.exists:
+            return None
+        return WorkSafePolicy(**snap.to_dict())
+
+    def update(self, policy: WorkSafePolicy) -> None:
+        self._collection.document(policy.id).set(policy.model_dump(mode="python"))
+
+    def list_all(self) -> list[WorkSafePolicy]:
+        docs = self._collection.stream()
+        items = [WorkSafePolicy(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda p: p.created_at, reverse=True)
+
+    def list_by_project(self, project_id: str) -> list[WorkSafePolicy]:
+        docs = self._collection.where("project_id", "==", project_id).stream()
+        items = [WorkSafePolicy(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda p: p.created_at, reverse=True)
+
+    def list_global(self) -> list[WorkSafePolicy]:
+        docs = self._collection.where("project_id", "==", None).stream()
+        items = [WorkSafePolicy(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda p: p.created_at, reverse=True)
+
+
+class AuditExportRequestRepository(Protocol):
+    def save(self, request: AuditExportRequest) -> None: ...
+    def get(self, request_id: str) -> AuditExportRequest | None: ...
+    def update(self, request: AuditExportRequest) -> None: ...
+    def list_all(self) -> list[AuditExportRequest]: ...
+    def list_by_project(self, project_id: str) -> list[AuditExportRequest]: ...
+
+
+class InMemoryAuditExportRequestRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, AuditExportRequest] = {}
+
+    def save(self, request: AuditExportRequest) -> None:
+        self._store[request.id] = request
+
+    def get(self, request_id: str) -> AuditExportRequest | None:
+        return self._store.get(request_id)
+
+    def update(self, request: AuditExportRequest) -> None:
+        self._store[request.id] = request
+
+    def list_all(self) -> list[AuditExportRequest]:
+        return sorted(self._store.values(), key=lambda r: r.created_at, reverse=True)
+
+    def list_by_project(self, project_id: str) -> list[AuditExportRequest]:
+        items = [r for r in self._store.values() if r.project_id == project_id]
+        return sorted(items, key=lambda r: r.created_at, reverse=True)
+
+    def clear(self) -> None:
+        self._store.clear()
+
+
+class FirestoreAuditExportRequestRepository:
+    def __init__(
+        self, client, collection_name: str = "audit_export_requests"
+    ) -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, request: AuditExportRequest) -> None:
+        self._collection.document(request.id).set(request.model_dump(mode="python"))
+
+    def get(self, request_id: str) -> AuditExportRequest | None:
+        snap = self._collection.document(request_id).get()
+        if not snap.exists:
+            return None
+        return AuditExportRequest(**snap.to_dict())
+
+    def update(self, request: AuditExportRequest) -> None:
+        self._collection.document(request.id).set(request.model_dump(mode="python"))
+
+    def list_all(self) -> list[AuditExportRequest]:
+        docs = self._collection.stream()
+        items = [AuditExportRequest(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda r: r.created_at, reverse=True)
+
+    def list_by_project(self, project_id: str) -> list[AuditExportRequest]:
+        docs = self._collection.where("project_id", "==", project_id).stream()
+        items = [AuditExportRequest(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda r: r.created_at, reverse=True)
+
+
+class ProjectPackRepository(Protocol):
+    def save(self, pack: ProjectPack) -> None: ...
+    def get(self, pack_id: str) -> ProjectPack | None: ...
+    def update(self, pack: ProjectPack) -> None: ...
+    def list_all(self) -> list[ProjectPack]: ...
+    def get_by_slug(self, slug: str) -> ProjectPack | None: ...
+
+
+class InMemoryProjectPackRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, ProjectPack] = {}
+
+    def save(self, pack: ProjectPack) -> None:
+        self._store[pack.id] = pack
+
+    def get(self, pack_id: str) -> ProjectPack | None:
+        return self._store.get(pack_id)
+
+    def update(self, pack: ProjectPack) -> None:
+        self._store[pack.id] = pack
+
+    def list_all(self) -> list[ProjectPack]:
+        return sorted(self._store.values(), key=lambda p: p.created_at, reverse=True)
+
+    def get_by_slug(self, slug: str) -> ProjectPack | None:
+        for p in self._store.values():
+            if p.slug == slug:
+                return p
+        return None
+
+    def clear(self) -> None:
+        self._store.clear()
+
+
+class FirestoreProjectPackRepository:
+    def __init__(self, client, collection_name: str = "project_packs") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, pack: ProjectPack) -> None:
+        self._collection.document(pack.id).set(pack.model_dump(mode="python"))
+
+    def get(self, pack_id: str) -> ProjectPack | None:
+        snap = self._collection.document(pack_id).get()
+        if not snap.exists:
+            return None
+        return ProjectPack(**snap.to_dict())
+
+    def update(self, pack: ProjectPack) -> None:
+        self._collection.document(pack.id).set(pack.model_dump(mode="python"))
+
+    def list_all(self) -> list[ProjectPack]:
+        docs = self._collection.stream()
+        items = [ProjectPack(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda p: p.created_at, reverse=True)
+
+    def get_by_slug(self, slug: str) -> ProjectPack | None:
+        docs = list(self._collection.where("slug", "==", slug).stream())
+        if not docs:
+            return None
+        return ProjectPack(**docs[0].to_dict())
+
+
+class WorkflowTemplateRepository(Protocol):
+    def save(self, template: WorkflowTemplate) -> None: ...
+    def get(self, template_id: str) -> WorkflowTemplate | None: ...
+    def update(self, template: WorkflowTemplate) -> None: ...
+    def list_all(self) -> list[WorkflowTemplate]: ...
+    def get_by_slug(self, slug: str) -> WorkflowTemplate | None: ...
+
+
+class InMemoryWorkflowTemplateRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, WorkflowTemplate] = {}
+
+    def save(self, template: WorkflowTemplate) -> None:
+        self._store[template.id] = template
+
+    def get(self, template_id: str) -> WorkflowTemplate | None:
+        return self._store.get(template_id)
+
+    def update(self, template: WorkflowTemplate) -> None:
+        self._store[template.id] = template
+
+    def list_all(self) -> list[WorkflowTemplate]:
+        return sorted(self._store.values(), key=lambda t: t.created_at, reverse=True)
+
+    def get_by_slug(self, slug: str) -> WorkflowTemplate | None:
+        for t in self._store.values():
+            if t.slug == slug:
+                return t
+        return None
+
+    def clear(self) -> None:
+        self._store.clear()
+
+
+class FirestoreWorkflowTemplateRepository:
+    def __init__(self, client, collection_name: str = "workflow_templates") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, template: WorkflowTemplate) -> None:
+        self._collection.document(template.id).set(template.model_dump(mode="python"))
+
+    def get(self, template_id: str) -> WorkflowTemplate | None:
+        snap = self._collection.document(template_id).get()
+        if not snap.exists:
+            return None
+        return WorkflowTemplate(**snap.to_dict())
+
+    def update(self, template: WorkflowTemplate) -> None:
+        self._collection.document(template.id).set(template.model_dump(mode="python"))
+
+    def list_all(self) -> list[WorkflowTemplate]:
+        docs = self._collection.stream()
+        items = [WorkflowTemplate(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda t: t.created_at, reverse=True)
+
+    def get_by_slug(self, slug: str) -> WorkflowTemplate | None:
+        docs = list(self._collection.where("slug", "==", slug).stream())
+        if not docs:
+            return None
+        return WorkflowTemplate(**docs[0].to_dict())
+
+
+class ProjectTemplateRepository(Protocol):
+    def save(self, template: ProjectTemplate) -> None: ...
+    def get(self, template_id: str) -> ProjectTemplate | None: ...
+    def update(self, template: ProjectTemplate) -> None: ...
+    def list_all(self) -> list[ProjectTemplate]: ...
+    def get_by_slug(self, slug: str) -> ProjectTemplate | None: ...
+
+
+class InMemoryProjectTemplateRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, ProjectTemplate] = {}
+
+    def save(self, template: ProjectTemplate) -> None:
+        self._store[template.id] = template
+
+    def get(self, template_id: str) -> ProjectTemplate | None:
+        return self._store.get(template_id)
+
+    def update(self, template: ProjectTemplate) -> None:
+        self._store[template.id] = template
+
+    def list_all(self) -> list[ProjectTemplate]:
+        return sorted(self._store.values(), key=lambda t: t.created_at, reverse=True)
+
+    def get_by_slug(self, slug: str) -> ProjectTemplate | None:
+        for t in self._store.values():
+            if t.slug == slug:
+                return t
+        return None
+
+    def clear(self) -> None:
+        self._store.clear()
+
+
+class FirestoreProjectTemplateRepository:
+    def __init__(self, client, collection_name: str = "project_templates") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, template: ProjectTemplate) -> None:
+        self._collection.document(template.id).set(template.model_dump(mode="python"))
+
+    def get(self, template_id: str) -> ProjectTemplate | None:
+        snap = self._collection.document(template_id).get()
+        if not snap.exists:
+            return None
+        return ProjectTemplate(**snap.to_dict())
+
+    def update(self, template: ProjectTemplate) -> None:
+        self._collection.document(template.id).set(template.model_dump(mode="python"))
+
+    def list_all(self) -> list[ProjectTemplate]:
+        docs = self._collection.stream()
+        items = [ProjectTemplate(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda t: t.created_at, reverse=True)
+
+    def get_by_slug(self, slug: str) -> ProjectTemplate | None:
+        docs = list(self._collection.where("slug", "==", slug).stream())
+        if not docs:
+            return None
+        return ProjectTemplate(**docs[0].to_dict())
+
+
 class ProjectRetrospectiveRepository(Protocol):
     def save(self, retro: ProjectRetrospective) -> None: ...
     def get(self, retro_id: str) -> ProjectRetrospective | None: ...
@@ -3245,6 +3686,13 @@ class Repositories:
     experiment_plan: ExperimentPlanRepository
     experiment_run: ExperimentRunRepository
     project_retrospective: ProjectRetrospectiveRepository
+    project_template: ProjectTemplateRepository
+    workflow_template: WorkflowTemplateRepository
+    project_pack: ProjectPackRepository
+    work_safe_policy: WorkSafePolicyRepository
+    audit_export_request: AuditExportRequestRepository
+    backup_export: BackupExportRepository
+    backup_import: BackupImportRepository
 
 
 def get_repositories() -> Repositories:
@@ -3304,6 +3752,13 @@ def get_repositories() -> Repositories:
             experiment_plan=InMemoryExperimentPlanRepository(),
             experiment_run=InMemoryExperimentRunRepository(),
             project_retrospective=InMemoryProjectRetrospectiveRepository(),
+            project_template=InMemoryProjectTemplateRepository(),
+            workflow_template=InMemoryWorkflowTemplateRepository(),
+            project_pack=InMemoryProjectPackRepository(),
+            work_safe_policy=InMemoryWorkSafePolicyRepository(),
+            audit_export_request=InMemoryAuditExportRequestRepository(),
+            backup_export=InMemoryBackupExportRepository(),
+            backup_import=InMemoryBackupImportRepository(),
         )
     if config.REPOSITORY_PROVIDER == "firestore":
         from google.cloud import firestore
@@ -3369,6 +3824,13 @@ def get_repositories() -> Repositories:
             experiment_plan=FirestoreExperimentPlanRepository(client),
             experiment_run=FirestoreExperimentRunRepository(client),
             project_retrospective=FirestoreProjectRetrospectiveRepository(client),
+            project_template=FirestoreProjectTemplateRepository(client),
+            workflow_template=FirestoreWorkflowTemplateRepository(client),
+            project_pack=FirestoreProjectPackRepository(client),
+            work_safe_policy=FirestoreWorkSafePolicyRepository(client),
+            audit_export_request=FirestoreAuditExportRequestRepository(client),
+            backup_export=FirestoreBackupExportRepository(client),
+            backup_import=FirestoreBackupImportRepository(client),
         )
     if config.REPOSITORY_PROVIDER == "local_document":
         if config.LOCAL_DOCUMENT_DB_PROVIDER != "mongodb":

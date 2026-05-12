@@ -37,6 +37,7 @@ class Artifact(BaseModel):
         "research_brief",
         "architecture_review",
         "project_retrospective",
+        "backup_export",
     ]
     content: str
     created_at: datetime

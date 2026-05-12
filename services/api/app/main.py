@@ -51,6 +51,7 @@ from .routes import (
     artifact_summaries,
     audit,
     auth,
+    backups,
     benchmarks,
     budgets,
     checks,
@@ -76,6 +77,8 @@ from .routes import (
     planning,
     pr_drafts,
     pr_reviews,
+    project_packs,
+    project_templates,
     projects,
     quality_metrics,
     prompt_cache,
@@ -90,6 +93,8 @@ from .routes import (
     task_decomposition,
     tickets,
     tool_runners,
+    work_safe_policies,
+    workflow_templates,
     workspaces,
 )
 from .services.runtime_profile import startup_log_line
@@ -159,6 +164,11 @@ app.include_router(improvement_proposals.router)
 app.include_router(architecture_decisions.router)
 app.include_router(experiments.router)
 app.include_router(retrospectives.router)
+app.include_router(project_templates.router)
+app.include_router(workflow_templates.router)
+app.include_router(project_packs.router)
+app.include_router(work_safe_policies.router)
+app.include_router(backups.router)
 
 
 __all__ = [

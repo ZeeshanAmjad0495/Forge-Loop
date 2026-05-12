@@ -67,5 +67,12 @@ architecture_decision_repo = repos.architecture_decision
 experiment_plan_repo = repos.experiment_plan
 experiment_run_repo = repos.experiment_run
 project_retrospective_repo = repos.project_retrospective
+project_template_repo = repos.project_template
+workflow_template_repo = repos.workflow_template
+project_pack_repo = repos.project_pack
+work_safe_policy_repo = repos.work_safe_policy
+audit_export_request_repo = repos.audit_export_request
+backup_export_repo = repos.backup_export
+backup_import_repo = repos.backup_import
 
 audit_writer = AuditWriter(audit_event_repo)
