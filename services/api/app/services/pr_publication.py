@@ -238,7 +238,8 @@ class PrPublicationService:
                 details={"reason": "integration_disabled"},
             )
             raise HTTPException(status_code=409, detail="GITHUB_INTEGRATION_DISABLED")
-        token = (_config.GITHUB_TOKEN or "").strip()
+        from . import secrets as _secrets
+        token = (_secrets.get_secret("GITHUB_TOKEN") or _config.GITHUB_TOKEN or "").strip()
         if not token:
             raise HTTPException(status_code=409, detail="GITHUB_TOKEN_NOT_CONFIGURED")
 

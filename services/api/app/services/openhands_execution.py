@@ -28,6 +28,7 @@ from fastapi import HTTPException
 from pydantic import BaseModel
 
 from .. import config as _config
+from . import artifact_storage as _storage
 from ..models import (
     Approval,
     Artifact,
@@ -517,14 +518,12 @@ class OpenHandsExecutionService:
         output_artifact_id: str | None = None
         if output_text:
             output_artifact_id = str(uuid.uuid4())
-            self.artifact_repo.save(Artifact(
-                id=output_artifact_id,
-                ticket_id=None,
-                requirement_id=None,
-                agent_run_id=None,
+            self.artifact_repo.save(_storage.store_artifact(
+                artifact_id=output_artifact_id,
                 artifact_type="openhands_execution_output",
                 content=output_text,
                 created_at=completed_at,
+                project_id=project.id,
             ))
 
         # Changed-paths artifact.

@@ -64,16 +64,21 @@ from .routes import (
     projects,
     requirements,
     review_feedback,
+    runtime,
     subtasks,
     task_decomposition,
     tickets,
     tool_runners,
     workspaces,
 )
+from .services.runtime_profile import startup_log_line
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     config.validate_startup_config()
+    import logging
+
+    logging.getLogger(__name__).info(startup_log_line())
     yield
 
 
@@ -111,6 +116,7 @@ app.include_router(workspaces.router)
 app.include_router(commands.router)
 app.include_router(git_workflow.router)
 app.include_router(review_feedback.router)
+app.include_router(runtime.router)
 
 
 __all__ = [

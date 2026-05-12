@@ -1,5 +1,16 @@
 import os
 
+# --- Release 8: Runtime profile ---
+FORGELOOP_RUNTIME_PROFILE = os.getenv("FORGELOOP_RUNTIME_PROFILE", "local").strip().lower()
+
+# --- Release 8 Task 43: Artifact storage ---
+ARTIFACT_STORAGE_PROVIDER = os.getenv("ARTIFACT_STORAGE_PROVIDER", "database").strip().lower()
+ARTIFACT_FILESYSTEM_ROOT = os.getenv("ARTIFACT_FILESYSTEM_ROOT", "./.forgeloop/artifacts")
+ARTIFACT_MAX_INLINE_BYTES = int(os.getenv("ARTIFACT_MAX_INLINE_BYTES", "200000"))
+
+# --- Release 8 Task 44: Secret provider ---
+SECRET_PROVIDER = os.getenv("SECRET_PROVIDER", "env").strip().lower()
+
 GCP_PROJECT_ID = os.getenv("GCP_PROJECT_ID", "")
 FIRESTORE_DATABASE = os.getenv("FIRESTORE_DATABASE", "(default)")
 ENVIRONMENT = os.getenv("ENVIRONMENT", "local")

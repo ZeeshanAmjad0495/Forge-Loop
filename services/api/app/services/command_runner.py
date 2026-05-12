@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Callable
 
 from .. import config
+from . import artifact_storage as _storage
 from ..models import (
     Artifact,
     CommandDefinition,
@@ -456,7 +457,7 @@ class CommandRunnerService:
         cap = self._per_stream_cap()
         stdout_t = _truncate(stdout or "", cap)
         stderr_t = _truncate(stderr or "", cap)
-        artifact_id = self._maybe_save_artifact(stdout, stderr, now)
+        artifact_id = self._maybe_save_artifact(stdout, stderr, now, project_id=run.project_id)
         updated = run.model_copy(
             update={
                 "status": "timed_out",
@@ -500,7 +501,7 @@ class CommandRunnerService:
         exit_code = int(result.returncode)
         conclusion = "success" if exit_code == 0 else "failure"
         status = "completed" if exit_code == 0 else "failed"
-        artifact_id = self._maybe_save_artifact(stdout, stderr, now)
+        artifact_id = self._maybe_save_artifact(stdout, stderr, now, project_id=run.project_id)
         updated = run.model_copy(
             update={
                 "status": status,
@@ -532,7 +533,12 @@ class CommandRunnerService:
         return updated
 
     def _maybe_save_artifact(
-        self, stdout: str, stderr: str, now: datetime
+        self,
+        stdout: str,
+        stderr: str,
+        now: datetime,
+        *,
+        project_id: str | None = None,
     ) -> str | None:
         if not (stdout or stderr):
             return None
@@ -546,14 +552,12 @@ class CommandRunnerService:
             combined += "=== stderr ===\n" + stderr
         if len(combined) > cap and cap > 0:
             combined = combined[: max(0, cap - len(TRUNCATION_MARKER))] + TRUNCATION_MARKER
-        artifact = Artifact(
-            id=str(uuid.uuid4()),
-            ticket_id=None,
-            requirement_id=None,
-            agent_run_id=None,
+        artifact = _storage.store_artifact(
+            artifact_id=str(uuid.uuid4()),
             artifact_type="command_run_output",
             content=combined,
             created_at=now,
+            project_id=project_id,
         )
         self.artifact_repo.save(artifact)
         return artifact.id

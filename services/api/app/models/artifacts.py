@@ -4,6 +4,9 @@ from typing import Literal
 from pydantic import BaseModel
 
 
+ArtifactStorageProvider = Literal["database", "filesystem"]
+
+
 class Artifact(BaseModel):
     id: str
     ticket_id: str | None = None
@@ -34,3 +37,9 @@ class Artifact(BaseModel):
     ]
     content: str
     created_at: datetime
+
+    # --- Release 8 Task 43: optional storage metadata (backward compatible) ---
+    storage_provider: ArtifactStorageProvider = "database"
+    storage_path: str | None = None
+    content_size_bytes: int | None = None
+    content_sha256: str | None = None
