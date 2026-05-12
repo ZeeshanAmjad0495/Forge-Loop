@@ -13,9 +13,24 @@ from .approvals import (
     ApprovalTargetType,
     ApprovalUpdate,
 )
+from .artifact_summaries import (
+    ArtifactSummary,
+    ArtifactSummaryCreate,
+    ArtifactSummaryStatus,
+    ArtifactSummaryType,
+)
 from .artifacts import Artifact
 from .audit import AuditAction, AuditActorType, AuditEvent
 from .auth import LoginRequest, LoginResponse, MeResponse
+from .budgets import (
+    BudgetCheckRequest,
+    BudgetPeriod,
+    BudgetPolicy,
+    BudgetPolicyCreate,
+    BudgetPolicyUpdate,
+    BudgetStatus,
+    BudgetStatusValue,
+)
 from .checks import (
     CheckDefinition,
     CheckDefinitionCreate,
@@ -64,6 +79,17 @@ from .code_repositories import (
     RepoSafetyProfileUpsert,
 )
 from .core import AssigneeType
+from .context_packs import (
+    ContextPack,
+    ContextPackCreate,
+    ContextPackPurpose,
+)
+from .cost_records import (
+    CostRecord,
+    CostRecordCreate,
+    CostRecordSourceType,
+    CostRecordWorkflowType,
+)
 from .epics import Epic, EpicCreate, EpicPriority, EpicStatus, EpicUpdate
 from .git_workflow import (
     GitCommitCreate,
@@ -121,6 +147,7 @@ from .pr import (
     PullRequestReviewStatus,
     PullRequestReviewUpdate,
 )
+from .prompt_cache import PromptContextCacheEntry, PromptContextCacheType
 from .projects import Project, ProjectContext, ProjectContextUpdate, ProjectCreate
 from .providers import ProviderInfo, ProvidersResponse
 from .review_feedback import (
@@ -152,6 +179,14 @@ from .requirements import (
     RequirementSource,
     RequirementStatus,
     RequirementUpdate,
+)
+from .swarm import (
+    SwarmBudgetCheckRequest,
+    SwarmBudgetCheckResponse,
+    SwarmPolicy,
+    SwarmPolicyCreate,
+    SwarmPolicyUpdate,
+    SwarmType,
 )
 from .tasks import (
     DevTask,
@@ -209,7 +244,18 @@ __all__ = [
     "ApprovalTargetType",
     "ApprovalUpdate",
     "Artifact",
+    "ArtifactSummary",
+    "ArtifactSummaryCreate",
+    "ArtifactSummaryStatus",
+    "ArtifactSummaryType",
     "AssigneeType",
+    "BudgetCheckRequest",
+    "BudgetPeriod",
+    "BudgetPolicy",
+    "BudgetPolicyCreate",
+    "BudgetPolicyUpdate",
+    "BudgetStatus",
+    "BudgetStatusValue",
     "AuditAction",
     "AuditActorType",
     "AuditEvent",
@@ -245,6 +291,13 @@ __all__ = [
     "CommandRunStatus",
     "CommandRunTargetType",
     "CommandType",
+    "ContextPack",
+    "ContextPackCreate",
+    "ContextPackPurpose",
+    "CostRecord",
+    "CostRecordCreate",
+    "CostRecordSourceType",
+    "CostRecordWorkflowType",
     "CodeRepository",
     "CodeRepositoryCreate",
     "CodeRepositoryProvider",
@@ -302,6 +355,8 @@ __all__ = [
     "PlanningRunCreate",
     "PlanningRunResponse",
     "Project",
+    "PromptContextCacheEntry",
+    "PromptContextCacheType",
     "ProjectContext",
     "ProjectContextUpdate",
     "ProjectCreate",
@@ -356,6 +411,12 @@ __all__ = [
     "Subtask",
     "SubtaskStatus",
     "SubtaskUpdate",
+    "SwarmBudgetCheckRequest",
+    "SwarmBudgetCheckResponse",
+    "SwarmPolicy",
+    "SwarmPolicyCreate",
+    "SwarmPolicyUpdate",
+    "SwarmType",
     "TaskDecompositionResponse",
     "TaskDecompositionRunCreate",
     "Ticket",

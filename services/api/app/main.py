@@ -44,12 +44,16 @@ from .repositories_state import (
 )
 from .routes import (
     approvals,
+    artifact_summaries,
     audit,
     auth,
+    budgets,
     checks,
     ci,
     code_repositories,
     commands,
+    context_packs,
+    cost_records,
     dev_tasks,
     epics,
     git_workflow,
@@ -57,15 +61,19 @@ from .routes import (
     incidents,
     llm,
     memory,
+    memory_retrieval,
+    model_routing,
     openhands,
     planning,
     pr_drafts,
     pr_reviews,
     projects,
+    prompt_cache,
     requirements,
     review_feedback,
     runtime,
     subtasks,
+    swarm_policies,
     task_decomposition,
     tickets,
     tool_runners,
@@ -112,11 +120,19 @@ app.include_router(pr_reviews.router)
 app.include_router(ci.router)
 app.include_router(incidents.router)
 app.include_router(memory.router)
+app.include_router(memory_retrieval.router)
+app.include_router(model_routing.router)
+app.include_router(prompt_cache.router)
+app.include_router(budgets.router)
+app.include_router(swarm_policies.router)
 app.include_router(workspaces.router)
 app.include_router(commands.router)
 app.include_router(git_workflow.router)
 app.include_router(review_feedback.router)
 app.include_router(runtime.router)
+app.include_router(cost_records.router)
+app.include_router(context_packs.router)
+app.include_router(artifact_summaries.router)
 
 
 __all__ = [

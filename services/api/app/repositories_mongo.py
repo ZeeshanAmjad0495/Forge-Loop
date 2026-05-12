@@ -20,7 +20,9 @@ from .models import (
     AgentRun,
     Approval,
     Artifact,
+    ArtifactSummary,
     AuditEvent,
+    BudgetPolicy,
     CheckDefinition,
     CheckRun,
     CIAnalysis,
@@ -28,6 +30,8 @@ from .models import (
     CodeRepository,
     CommandDefinition,
     CommandRun,
+    ContextPack,
+    CostRecord,
     DevTask,
     Epic,
     GitCommitRecord,
@@ -37,6 +41,7 @@ from .models import (
     Project,
     ProjectContext,
     ProjectMemoryCandidate,
+    PromptContextCacheEntry,
     PullRequestDraft,
     PullRequestReview,
     RepoSafetyProfile,
@@ -45,6 +50,7 @@ from .models import (
     ReviewFeedback,
     RevisionWorkItem,
     Subtask,
+    SwarmPolicy,
     Ticket,
     ToolRun,
     ToolRunnerDefinition,
@@ -526,6 +532,115 @@ class MongoRevisionWorkItemRepository(MongoDocumentRepository[RevisionWorkItem])
         return _sorted_desc(self.list_by_field("project_id", project_id))
 
 
+class MongoSwarmPolicyRepository(MongoDocumentRepository[SwarmPolicy]):
+    collection_name = "swarm_policies"
+    model_cls = SwarmPolicy
+
+    def list_by_project(self, project_id: str) -> list[SwarmPolicy]:
+        return _sorted_desc(self.list_by_field("project_id", project_id))
+
+
+class MongoBudgetPolicyRepository(MongoDocumentRepository[BudgetPolicy]):
+    collection_name = "budget_policies"
+    model_cls = BudgetPolicy
+
+    def list_by_project(self, project_id: str) -> list[BudgetPolicy]:
+        return _sorted_desc(self.list_by_field("project_id", project_id))
+
+
+class MongoPromptContextCacheRepository(
+    MongoDocumentRepository[PromptContextCacheEntry]
+):
+    collection_name = "prompt_context_cache"
+    model_cls = PromptContextCacheEntry
+
+    def get_by_key(self, cache_key: str) -> PromptContextCacheEntry | None:
+        doc = self._collection.find_one({"cache_key": cache_key})
+        if doc is None:
+            return None
+        return from_mongo_document(doc, PromptContextCacheEntry)
+
+    def list_by_project(self, project_id: str) -> list[PromptContextCacheEntry]:
+        return _sorted_desc(self.list_by_field("project_id", project_id))
+
+    def list_by_source(
+        self, source_type: str, source_id: str
+    ) -> list[PromptContextCacheEntry]:
+        return _sorted_desc(
+            self.list_by_fields({"source_type": source_type, "source_id": source_id})
+        )
+
+    def delete(self, entry_id: str) -> None:
+        self._collection.delete_one({"_id": entry_id})
+
+
+class MongoArtifactSummaryRepository(MongoDocumentRepository[ArtifactSummary]):
+    collection_name = "artifact_summaries"
+    model_cls = ArtifactSummary
+
+    def list_by_artifact(self, artifact_id: str) -> list[ArtifactSummary]:
+        return _sorted_desc(self.list_by_field("artifact_id", artifact_id))
+
+    def list_by_project(self, project_id: str) -> list[ArtifactSummary]:
+        return _sorted_desc(self.list_by_field("project_id", project_id))
+
+
+class MongoContextPackRepository(MongoDocumentRepository[ContextPack]):
+    collection_name = "context_packs"
+    model_cls = ContextPack
+
+    def list_by_project(self, project_id: str) -> list[ContextPack]:
+        return _sorted_desc(self.list_by_field("project_id", project_id))
+
+    def list_by_source(self, source_type: str, source_id: str) -> list[ContextPack]:
+        return _sorted_desc(
+            self.list_by_fields(
+                {"source_type": source_type, "source_id": source_id}
+            )
+        )
+
+    def list_by_target(self, target_type: str, target_id: str) -> list[ContextPack]:
+        return _sorted_desc(
+            self.list_by_fields(
+                {"target_type": target_type, "target_id": target_id}
+            )
+        )
+
+
+class MongoCostRecordRepository(MongoDocumentRepository[CostRecord]):
+    collection_name = "cost_records"
+    model_cls = CostRecord
+
+    def list_by_project(self, project_id: str) -> list[CostRecord]:
+        return _sorted_desc(self.list_by_field("project_id", project_id))
+
+    def list_by_source(self, source_type: str, source_id: str) -> list[CostRecord]:
+        return _sorted_desc(
+            self.list_by_fields(
+                {"source_type": source_type, "source_id": source_id}
+            )
+        )
+
+    def list_by_provider_model(
+        self, project_id: str, provider: str | None = None, model: str | None = None
+    ) -> list[CostRecord]:
+        filters: dict[str, Any] = {"project_id": project_id}
+        if provider is not None:
+            filters["provider"] = provider
+        if model is not None:
+            filters["model"] = model
+        return _sorted_desc(self.list_by_fields(filters))
+
+    def list_by_workflow(
+        self, project_id: str, workflow_type: str
+    ) -> list[CostRecord]:
+        return _sorted_desc(
+            self.list_by_fields(
+                {"project_id": project_id, "workflow_type": workflow_type}
+            )
+        )
+
+
 # ---------------------------------------------------------------------------
 # Index management
 # ---------------------------------------------------------------------------
@@ -598,6 +713,47 @@ _INDEX_PLAN: dict[str, list[Any]] = {
         "project_id",
         "review_feedback_id",
         "status",
+    ],
+    "cost_records": [
+        "project_id",
+        "workflow_type",
+        "provider",
+        "model",
+        "created_at",
+        [("source_type", 1), ("source_id", 1)],
+    ],
+    "context_packs": [
+        "project_id",
+        "purpose",
+        "created_at",
+        [("source_type", 1), ("source_id", 1)],
+        [("target_type", 1), ("target_id", 1)],
+    ],
+    "artifact_summaries": [
+        "project_id",
+        "artifact_id",
+        "summary_type",
+        "created_at",
+    ],
+    "budget_policies": [
+        "project_id",
+        "workflow_type",
+        "provider",
+        "enabled",
+        "created_at",
+    ],
+    "swarm_policies": [
+        "project_id",
+        "swarm_type",
+        "enabled",
+        "created_at",
+    ],
+    "prompt_context_cache": [
+        "project_id",
+        "cache_key",
+        "cache_type",
+        "created_at",
+        [("source_type", 1), ("source_id", 1)],
     ],
 }
 
@@ -688,4 +844,10 @@ def build_mongo_repositories():
         git_commit_record=MongoGitCommitRecordRepository(db),
         review_feedback=MongoReviewFeedbackRepository(db),
         revision_work_item=MongoRevisionWorkItemRepository(db),
+        cost_record=MongoCostRecordRepository(db),
+        context_pack=MongoContextPackRepository(db),
+        artifact_summary=MongoArtifactSummaryRepository(db),
+        prompt_cache=MongoPromptContextCacheRepository(db),
+        budget_policy=MongoBudgetPolicyRepository(db),
+        swarm_policy=MongoSwarmPolicyRepository(db),
     )

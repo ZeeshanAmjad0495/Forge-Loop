@@ -22,6 +22,31 @@ KIMI_API_KEY = os.getenv("KIMI_API_KEY", "")
 KIMI_BASE_URL = os.getenv("KIMI_BASE_URL", "https://api.moonshot.ai/v1")
 REPOSITORY_PROVIDER = os.getenv("REPOSITORY_PROVIDER", "memory")
 
+# --- Release 9: Model routing ---
+MODEL_ROUTING_ENABLED = os.getenv("MODEL_ROUTING_ENABLED", "true").lower() == "true"
+DEFAULT_REASONING_PROVIDER = os.getenv("DEFAULT_REASONING_PROVIDER", "deepseek")
+LONG_CONTEXT_PROVIDER = os.getenv("LONG_CONTEXT_PROVIDER", "kimi")
+LOCAL_SUPPORT_PROVIDER = os.getenv("LOCAL_SUPPORT_PROVIDER", "ollama")
+TEST_PROVIDER = os.getenv("TEST_PROVIDER", "mock")
+MODEL_ROUTING_LONG_CONTEXT_TOKENS = int(
+    os.getenv("MODEL_ROUTING_LONG_CONTEXT_TOKENS", "32000")
+)
+OLLAMA_ENABLED = os.getenv("OLLAMA_ENABLED", "false").lower() == "true"
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+OLLAMA_DEFAULT_MODEL = os.getenv("OLLAMA_DEFAULT_MODEL", "qwen2.5-coder:3b")
+OLLAMA_TIMEOUT_SECONDS = int(os.getenv("OLLAMA_TIMEOUT_SECONDS", "60"))
+OPENAI_COMPATIBLE_ENABLED = os.getenv("OPENAI_COMPATIBLE_ENABLED", "false").lower() == "true"
+OPENAI_COMPATIBLE_BASE_URL = os.getenv("OPENAI_COMPATIBLE_BASE_URL", "")
+OPENAI_COMPATIBLE_API_KEY = os.getenv("OPENAI_COMPATIBLE_API_KEY", "")
+OPENAI_COMPATIBLE_MODEL = os.getenv("OPENAI_COMPATIBLE_MODEL", "")
+OPENAI_COMPATIBLE_PROVIDER_NAME = os.getenv(
+    "OPENAI_COMPATIBLE_PROVIDER_NAME", "openai_compatible"
+)
+OPENAI_COMPATIBLE_TIMEOUT_SECONDS = int(os.getenv("OPENAI_COMPATIBLE_TIMEOUT_SECONDS", "60"))
+OPENAI_COMPATIBLE_MAX_CONTEXT_TOKENS = int(
+    os.getenv("OPENAI_COMPATIBLE_MAX_CONTEXT_TOKENS", "32000")
+)
+
 # --- Task 40A: Local document database provider (MongoDB) ---
 LOCAL_DOCUMENT_DB_PROVIDER = os.getenv("LOCAL_DOCUMENT_DB_PROVIDER", "mongodb")
 MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017")

@@ -46,5 +46,11 @@ workspace_branch_repo = repos.workspace_branch
 git_commit_record_repo = repos.git_commit_record
 review_feedback_repo = repos.review_feedback
 revision_work_item_repo = repos.revision_work_item
+cost_record_repo = repos.cost_record
+context_pack_repo = repos.context_pack
+artifact_summary_repo = repos.artifact_summary
+prompt_cache_repo = repos.prompt_cache
+budget_policy_repo = repos.budget_policy
+swarm_policy_repo = repos.swarm_policy
 
 audit_writer = AuditWriter(audit_event_repo)

@@ -8,6 +8,8 @@ from .models import (
     Approval,
     AuditEvent,
     Artifact,
+    ArtifactSummary,
+    BudgetPolicy,
     CheckDefinition,
     CheckRun,
     CIAnalysis,
@@ -15,6 +17,8 @@ from .models import (
     CodeRepository,
     CommandDefinition,
     CommandRun,
+    ContextPack,
+    CostRecord,
     DevTask,
     Epic,
     GitCommitRecord,
@@ -22,6 +26,7 @@ from .models import (
     IncidentAnalysis,
     MemoryLearningRun,
     Project,
+    PromptContextCacheEntry,
     ProjectMemoryCandidate,
     ProjectContext,
     PullRequestDraft,
@@ -32,6 +37,7 @@ from .models import (
     ReviewFeedback,
     RevisionWorkItem,
     Subtask,
+    SwarmPolicy,
     Ticket,
     ToolRun,
     ToolRunnerDefinition,
@@ -1735,6 +1741,434 @@ class FirestoreRevisionWorkItemRepository:
         return sorted(items, key=lambda r: r.created_at, reverse=True)
 
 
+class SwarmPolicyRepository(Protocol):
+    def save(self, policy: SwarmPolicy) -> None: ...
+    def get(self, policy_id: str) -> SwarmPolicy | None: ...
+    def update(self, policy: SwarmPolicy) -> None: ...
+    def list_by_project(self, project_id: str) -> list[SwarmPolicy]: ...
+
+
+class InMemorySwarmPolicyRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, SwarmPolicy] = {}
+
+    def save(self, policy: SwarmPolicy) -> None:
+        self._store[policy.id] = policy
+
+    def get(self, policy_id: str) -> SwarmPolicy | None:
+        return self._store.get(policy_id)
+
+    def update(self, policy: SwarmPolicy) -> None:
+        self._store[policy.id] = policy
+
+    def list_by_project(self, project_id: str) -> list[SwarmPolicy]:
+        items = [p for p in self._store.values() if p.project_id == project_id]
+        return sorted(items, key=lambda p: p.created_at, reverse=True)
+
+    def clear(self) -> None:
+        self._store.clear()
+
+
+class FirestoreSwarmPolicyRepository:
+    def __init__(self, client, collection_name: str = "swarm_policies") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, policy: SwarmPolicy) -> None:
+        self._collection.document(policy.id).set(policy.model_dump(mode="python"))
+
+    def get(self, policy_id: str) -> SwarmPolicy | None:
+        snap = self._collection.document(policy_id).get()
+        if not snap.exists:
+            return None
+        return SwarmPolicy(**snap.to_dict())
+
+    def update(self, policy: SwarmPolicy) -> None:
+        self._collection.document(policy.id).set(policy.model_dump(mode="python"))
+
+    def list_by_project(self, project_id: str) -> list[SwarmPolicy]:
+        docs = self._collection.where("project_id", "==", project_id).stream()
+        items = [SwarmPolicy(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda p: p.created_at, reverse=True)
+
+
+class BudgetPolicyRepository(Protocol):
+    def save(self, policy: BudgetPolicy) -> None: ...
+    def get(self, policy_id: str) -> BudgetPolicy | None: ...
+    def update(self, policy: BudgetPolicy) -> None: ...
+    def list_by_project(self, project_id: str) -> list[BudgetPolicy]: ...
+
+
+class InMemoryBudgetPolicyRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, BudgetPolicy] = {}
+
+    def save(self, policy: BudgetPolicy) -> None:
+        self._store[policy.id] = policy
+
+    def get(self, policy_id: str) -> BudgetPolicy | None:
+        return self._store.get(policy_id)
+
+    def update(self, policy: BudgetPolicy) -> None:
+        self._store[policy.id] = policy
+
+    def list_by_project(self, project_id: str) -> list[BudgetPolicy]:
+        items = [p for p in self._store.values() if p.project_id == project_id]
+        return sorted(items, key=lambda p: p.created_at, reverse=True)
+
+    def clear(self) -> None:
+        self._store.clear()
+
+
+class FirestoreBudgetPolicyRepository:
+    def __init__(self, client, collection_name: str = "budget_policies") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, policy: BudgetPolicy) -> None:
+        self._collection.document(policy.id).set(policy.model_dump(mode="python"))
+
+    def get(self, policy_id: str) -> BudgetPolicy | None:
+        snap = self._collection.document(policy_id).get()
+        if not snap.exists:
+            return None
+        return BudgetPolicy(**snap.to_dict())
+
+    def update(self, policy: BudgetPolicy) -> None:
+        self._collection.document(policy.id).set(policy.model_dump(mode="python"))
+
+    def list_by_project(self, project_id: str) -> list[BudgetPolicy]:
+        docs = self._collection.where("project_id", "==", project_id).stream()
+        items = [BudgetPolicy(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda p: p.created_at, reverse=True)
+
+
+class PromptContextCacheRepository(Protocol):
+    def save(self, entry: PromptContextCacheEntry) -> None: ...
+    def get(self, entry_id: str) -> PromptContextCacheEntry | None: ...
+    def get_by_key(self, cache_key: str) -> PromptContextCacheEntry | None: ...
+    def list_by_project(self, project_id: str) -> list[PromptContextCacheEntry]: ...
+    def list_by_source(
+        self, source_type: str, source_id: str
+    ) -> list[PromptContextCacheEntry]: ...
+    def delete(self, entry_id: str) -> None: ...
+
+
+class InMemoryPromptContextCacheRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, PromptContextCacheEntry] = {}
+
+    def save(self, entry: PromptContextCacheEntry) -> None:
+        self._store[entry.id] = entry
+
+    def get(self, entry_id: str) -> PromptContextCacheEntry | None:
+        return self._store.get(entry_id)
+
+    def get_by_key(self, cache_key: str) -> PromptContextCacheEntry | None:
+        for e in self._store.values():
+            if e.cache_key == cache_key:
+                return e
+        return None
+
+    def list_by_project(self, project_id: str) -> list[PromptContextCacheEntry]:
+        items = [e for e in self._store.values() if e.project_id == project_id]
+        return sorted(items, key=lambda e: e.created_at, reverse=True)
+
+    def list_by_source(
+        self, source_type: str, source_id: str
+    ) -> list[PromptContextCacheEntry]:
+        items = [
+            e
+            for e in self._store.values()
+            if e.source_type == source_type and e.source_id == source_id
+        ]
+        return sorted(items, key=lambda e: e.created_at, reverse=True)
+
+    def delete(self, entry_id: str) -> None:
+        self._store.pop(entry_id, None)
+
+    def clear(self) -> None:
+        self._store.clear()
+
+
+class FirestorePromptContextCacheRepository:
+    def __init__(self, client, collection_name: str = "prompt_context_cache") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, entry: PromptContextCacheEntry) -> None:
+        self._collection.document(entry.id).set(entry.model_dump(mode="python"))
+
+    def get(self, entry_id: str) -> PromptContextCacheEntry | None:
+        snap = self._collection.document(entry_id).get()
+        if not snap.exists:
+            return None
+        return PromptContextCacheEntry(**snap.to_dict())
+
+    def get_by_key(self, cache_key: str) -> PromptContextCacheEntry | None:
+        docs = list(self._collection.where("cache_key", "==", cache_key).limit(1).stream())
+        if not docs:
+            return None
+        return PromptContextCacheEntry(**docs[0].to_dict())
+
+    def list_by_project(self, project_id: str) -> list[PromptContextCacheEntry]:
+        docs = self._collection.where("project_id", "==", project_id).stream()
+        items = [PromptContextCacheEntry(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda e: e.created_at, reverse=True)
+
+    def list_by_source(
+        self, source_type: str, source_id: str
+    ) -> list[PromptContextCacheEntry]:
+        docs = (
+            self._collection.where("source_type", "==", source_type)
+            .where("source_id", "==", source_id)
+            .stream()
+        )
+        items = [PromptContextCacheEntry(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda e: e.created_at, reverse=True)
+
+    def delete(self, entry_id: str) -> None:
+        self._collection.document(entry_id).delete()
+
+
+class ArtifactSummaryRepository(Protocol):
+    def save(self, summary: ArtifactSummary) -> None: ...
+    def get(self, summary_id: str) -> ArtifactSummary | None: ...
+    def list_by_artifact(self, artifact_id: str) -> list[ArtifactSummary]: ...
+    def list_by_project(self, project_id: str) -> list[ArtifactSummary]: ...
+
+
+class InMemoryArtifactSummaryRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, ArtifactSummary] = {}
+
+    def save(self, summary: ArtifactSummary) -> None:
+        self._store[summary.id] = summary
+
+    def get(self, summary_id: str) -> ArtifactSummary | None:
+        return self._store.get(summary_id)
+
+    def list_by_artifact(self, artifact_id: str) -> list[ArtifactSummary]:
+        items = [s for s in self._store.values() if s.artifact_id == artifact_id]
+        return sorted(items, key=lambda s: s.created_at, reverse=True)
+
+    def list_by_project(self, project_id: str) -> list[ArtifactSummary]:
+        items = [s for s in self._store.values() if s.project_id == project_id]
+        return sorted(items, key=lambda s: s.created_at, reverse=True)
+
+    def clear(self) -> None:
+        self._store.clear()
+
+
+class FirestoreArtifactSummaryRepository:
+    def __init__(self, client, collection_name: str = "artifact_summaries") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, summary: ArtifactSummary) -> None:
+        self._collection.document(summary.id).set(summary.model_dump(mode="python"))
+
+    def get(self, summary_id: str) -> ArtifactSummary | None:
+        snap = self._collection.document(summary_id).get()
+        if not snap.exists:
+            return None
+        return ArtifactSummary(**snap.to_dict())
+
+    def list_by_artifact(self, artifact_id: str) -> list[ArtifactSummary]:
+        docs = self._collection.where("artifact_id", "==", artifact_id).stream()
+        items = [ArtifactSummary(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda s: s.created_at, reverse=True)
+
+    def list_by_project(self, project_id: str) -> list[ArtifactSummary]:
+        docs = self._collection.where("project_id", "==", project_id).stream()
+        items = [ArtifactSummary(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda s: s.created_at, reverse=True)
+
+
+class ContextPackRepository(Protocol):
+    def save(self, pack: ContextPack) -> None: ...
+    def get(self, pack_id: str) -> ContextPack | None: ...
+    def list_by_project(self, project_id: str) -> list[ContextPack]: ...
+    def list_by_source(self, source_type: str, source_id: str) -> list[ContextPack]: ...
+    def list_by_target(self, target_type: str, target_id: str) -> list[ContextPack]: ...
+
+
+class InMemoryContextPackRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, ContextPack] = {}
+
+    def save(self, pack: ContextPack) -> None:
+        self._store[pack.id] = pack
+
+    def get(self, pack_id: str) -> ContextPack | None:
+        return self._store.get(pack_id)
+
+    def list_by_project(self, project_id: str) -> list[ContextPack]:
+        items = [p for p in self._store.values() if p.project_id == project_id]
+        return sorted(items, key=lambda p: p.created_at, reverse=True)
+
+    def list_by_source(self, source_type: str, source_id: str) -> list[ContextPack]:
+        items = [
+            p
+            for p in self._store.values()
+            if p.source_type == source_type and p.source_id == source_id
+        ]
+        return sorted(items, key=lambda p: p.created_at, reverse=True)
+
+    def list_by_target(self, target_type: str, target_id: str) -> list[ContextPack]:
+        items = [
+            p
+            for p in self._store.values()
+            if p.target_type == target_type and p.target_id == target_id
+        ]
+        return sorted(items, key=lambda p: p.created_at, reverse=True)
+
+    def clear(self) -> None:
+        self._store.clear()
+
+
+class FirestoreContextPackRepository:
+    def __init__(self, client, collection_name: str = "context_packs") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, pack: ContextPack) -> None:
+        self._collection.document(pack.id).set(pack.model_dump(mode="python"))
+
+    def get(self, pack_id: str) -> ContextPack | None:
+        snap = self._collection.document(pack_id).get()
+        if not snap.exists:
+            return None
+        return ContextPack(**snap.to_dict())
+
+    def list_by_project(self, project_id: str) -> list[ContextPack]:
+        docs = self._collection.where("project_id", "==", project_id).stream()
+        items = [ContextPack(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda p: p.created_at, reverse=True)
+
+    def list_by_source(self, source_type: str, source_id: str) -> list[ContextPack]:
+        docs = (
+            self._collection.where("source_type", "==", source_type)
+            .where("source_id", "==", source_id)
+            .stream()
+        )
+        items = [ContextPack(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda p: p.created_at, reverse=True)
+
+    def list_by_target(self, target_type: str, target_id: str) -> list[ContextPack]:
+        docs = (
+            self._collection.where("target_type", "==", target_type)
+            .where("target_id", "==", target_id)
+            .stream()
+        )
+        items = [ContextPack(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda p: p.created_at, reverse=True)
+
+
+class CostRecordRepository(Protocol):
+    def save(self, record: CostRecord) -> None: ...
+    def get(self, record_id: str) -> CostRecord | None: ...
+    def list_by_project(self, project_id: str) -> list[CostRecord]: ...
+    def list_by_source(self, source_type: str, source_id: str) -> list[CostRecord]: ...
+    def list_by_provider_model(
+        self, project_id: str, provider: str | None = None, model: str | None = None
+    ) -> list[CostRecord]: ...
+    def list_by_workflow(
+        self, project_id: str, workflow_type: str
+    ) -> list[CostRecord]: ...
+
+
+class InMemoryCostRecordRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, CostRecord] = {}
+
+    def save(self, record: CostRecord) -> None:
+        self._store[record.id] = record
+
+    def get(self, record_id: str) -> CostRecord | None:
+        return self._store.get(record_id)
+
+    def list_by_project(self, project_id: str) -> list[CostRecord]:
+        items = [r for r in self._store.values() if r.project_id == project_id]
+        return sorted(items, key=lambda r: r.created_at, reverse=True)
+
+    def list_by_source(self, source_type: str, source_id: str) -> list[CostRecord]:
+        items = [
+            r
+            for r in self._store.values()
+            if r.source_type == source_type and r.source_id == source_id
+        ]
+        return sorted(items, key=lambda r: r.created_at, reverse=True)
+
+    def list_by_provider_model(
+        self, project_id: str, provider: str | None = None, model: str | None = None
+    ) -> list[CostRecord]:
+        items = [r for r in self._store.values() if r.project_id == project_id]
+        if provider is not None:
+            items = [r for r in items if r.provider == provider]
+        if model is not None:
+            items = [r for r in items if r.model == model]
+        return sorted(items, key=lambda r: r.created_at, reverse=True)
+
+    def list_by_workflow(
+        self, project_id: str, workflow_type: str
+    ) -> list[CostRecord]:
+        items = [
+            r
+            for r in self._store.values()
+            if r.project_id == project_id and r.workflow_type == workflow_type
+        ]
+        return sorted(items, key=lambda r: r.created_at, reverse=True)
+
+    def clear(self) -> None:
+        self._store.clear()
+
+
+class FirestoreCostRecordRepository:
+    def __init__(self, client, collection_name: str = "cost_records") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, record: CostRecord) -> None:
+        self._collection.document(record.id).set(record.model_dump(mode="python"))
+
+    def get(self, record_id: str) -> CostRecord | None:
+        snap = self._collection.document(record_id).get()
+        if not snap.exists:
+            return None
+        return CostRecord(**snap.to_dict())
+
+    def list_by_project(self, project_id: str) -> list[CostRecord]:
+        docs = self._collection.where("project_id", "==", project_id).stream()
+        items = [CostRecord(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda r: r.created_at, reverse=True)
+
+    def list_by_source(self, source_type: str, source_id: str) -> list[CostRecord]:
+        docs = (
+            self._collection.where("source_type", "==", source_type)
+            .where("source_id", "==", source_id)
+            .stream()
+        )
+        items = [CostRecord(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda r: r.created_at, reverse=True)
+
+    def list_by_provider_model(
+        self, project_id: str, provider: str | None = None, model: str | None = None
+    ) -> list[CostRecord]:
+        q = self._collection.where("project_id", "==", project_id)
+        if provider is not None:
+            q = q.where("provider", "==", provider)
+        if model is not None:
+            q = q.where("model", "==", model)
+        items = [CostRecord(**d.to_dict()) for d in q.stream()]
+        return sorted(items, key=lambda r: r.created_at, reverse=True)
+
+    def list_by_workflow(
+        self, project_id: str, workflow_type: str
+    ) -> list[CostRecord]:
+        docs = (
+            self._collection.where("project_id", "==", project_id)
+            .where("workflow_type", "==", workflow_type)
+            .stream()
+        )
+        items = [CostRecord(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda r: r.created_at, reverse=True)
+
+
 @dataclass(frozen=True)
 class Repositories:
     """Named container for the wired-up repository singletons.
@@ -1784,6 +2218,12 @@ class Repositories:
     git_commit_record: GitCommitRecordRepository
     review_feedback: ReviewFeedbackRepository
     revision_work_item: RevisionWorkItemRepository
+    cost_record: CostRecordRepository
+    context_pack: ContextPackRepository
+    artifact_summary: ArtifactSummaryRepository
+    prompt_cache: PromptContextCacheRepository
+    budget_policy: BudgetPolicyRepository
+    swarm_policy: SwarmPolicyRepository
 
 
 def get_repositories() -> Repositories:
@@ -1822,6 +2262,12 @@ def get_repositories() -> Repositories:
             git_commit_record=InMemoryGitCommitRecordRepository(),
             review_feedback=InMemoryReviewFeedbackRepository(),
             revision_work_item=InMemoryRevisionWorkItemRepository(),
+            cost_record=InMemoryCostRecordRepository(),
+            context_pack=InMemoryContextPackRepository(),
+            artifact_summary=InMemoryArtifactSummaryRepository(),
+            prompt_cache=InMemoryPromptContextCacheRepository(),
+            budget_policy=InMemoryBudgetPolicyRepository(),
+            swarm_policy=InMemorySwarmPolicyRepository(),
         )
     if config.REPOSITORY_PROVIDER == "firestore":
         from google.cloud import firestore
@@ -1864,6 +2310,12 @@ def get_repositories() -> Repositories:
             git_commit_record=FirestoreGitCommitRecordRepository(client),
             review_feedback=FirestoreReviewFeedbackRepository(client),
             revision_work_item=FirestoreRevisionWorkItemRepository(client),
+            cost_record=FirestoreCostRecordRepository(client),
+            context_pack=FirestoreContextPackRepository(client),
+            artifact_summary=FirestoreArtifactSummaryRepository(client),
+            prompt_cache=FirestorePromptContextCacheRepository(client),
+            budget_policy=FirestoreBudgetPolicyRepository(client),
+            swarm_policy=FirestoreSwarmPolicyRepository(client),
         )
     if config.REPOSITORY_PROVIDER == "local_document":
         if config.LOCAL_DOCUMENT_DB_PROVIDER != "mongodb":
