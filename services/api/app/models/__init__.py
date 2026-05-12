@@ -18,6 +18,21 @@ from .agent_failures import (
     AgentFailureSummary,
 )
 from .agents import AgentRun
+from .adr import (
+    ADRStatus,
+    ArchitectureDecisionRecord,
+    ArchitectureDecisionRecordCreate,
+    ArchitectureDecisionRecordUpdate,
+    ArchitectureDecisionSupersedeRequest,
+)
+from .architecture import (
+    ArchitectureReview,
+    ArchitectureReviewCreate,
+    ArchitectureReviewGenerateRequest,
+    ArchitectureReviewStatus,
+    ArchitectureReviewTargetType,
+    ArchitectureReviewUpdate,
+)
 from .approvals import (
     Approval,
     ApprovalCreate,
@@ -131,6 +146,18 @@ from .evaluation_trials import (
     ProjectBuildTrialUpdate,
     ProjectBuildTrialVerdict,
 )
+from .experiments import (
+    ExperimentPlan,
+    ExperimentPlanCreate,
+    ExperimentPlanStatus,
+    ExperimentPlanUpdate,
+    ExperimentRun,
+    ExperimentRunComplete,
+    ExperimentRunCreate,
+    ExperimentRunDecision,
+    ExperimentRunStatus,
+    ExperimentRunUpdate,
+)
 from .git_workflow import (
     GitCommitCreate,
     GitCommitRecord,
@@ -140,6 +167,16 @@ from .git_workflow import (
     WorkspaceBranchCreate,
     WorkspaceBranchResponse,
     WorkspaceBranchStatus,
+)
+from .improvements import (
+    ImprovementProposal,
+    ImprovementProposalCreate,
+    ImprovementProposalPriority,
+    ImprovementProposalRejectRequest,
+    ImprovementProposalSourceType,
+    ImprovementProposalStatus,
+    ImprovementProposalType,
+    ImprovementProposalUpdate,
 )
 from .incidents import (
     Incident,
@@ -191,6 +228,13 @@ from .prompt_cache import PromptContextCacheEntry, PromptContextCacheType
 from .quality_metrics import QualityMetricSnapshot, QualityMetricsResponse
 from .projects import Project, ProjectContext, ProjectContextUpdate, ProjectCreate
 from .providers import ProviderInfo, ProvidersResponse
+from .retrospectives import (
+    ProjectRetrospective,
+    ProjectRetrospectiveCreate,
+    ProjectRetrospectiveGenerateRequest,
+    ProjectRetrospectiveStatus,
+    ProjectRetrospectiveUpdate,
+)
 from .review_feedback import (
     ReviewFeedback,
     ReviewFeedbackCategory,
@@ -208,6 +252,19 @@ from .revision import (
     RevisionWorkItemCreate,
     RevisionWorkItemStatus,
     RevisionWorkItemUpdate,
+)
+from .research import (
+    ResearchBrief,
+    ResearchBriefCreate,
+    ResearchBriefGenerateRequest,
+    ResearchBriefStatus,
+    ResearchBriefType,
+    ResearchBriefUpdate,
+    ResearchSource,
+    ResearchSourceCreate,
+    ResearchSourceTrustLevel,
+    ResearchSourceType,
+    ResearchSourceUpdate,
 )
 from .requirements import (
     Requirement,
@@ -289,6 +346,17 @@ __all__ = [
     "AgentFailureStatus",
     "AgentFailureSummary",
     "AgentRun",
+    "ADRStatus",
+    "ArchitectureDecisionRecord",
+    "ArchitectureDecisionRecordCreate",
+    "ArchitectureDecisionRecordUpdate",
+    "ArchitectureDecisionSupersedeRequest",
+    "ArchitectureReview",
+    "ArchitectureReviewCreate",
+    "ArchitectureReviewGenerateRequest",
+    "ArchitectureReviewStatus",
+    "ArchitectureReviewTargetType",
+    "ArchitectureReviewUpdate",
     "Approval",
     "ApprovalCreate",
     "ApprovalStatus",
@@ -377,6 +445,16 @@ __all__ = [
     "EpicPriority",
     "EpicStatus",
     "EpicUpdate",
+    "ExperimentPlan",
+    "ExperimentPlanCreate",
+    "ExperimentPlanStatus",
+    "ExperimentPlanUpdate",
+    "ExperimentRun",
+    "ExperimentRunComplete",
+    "ExperimentRunCreate",
+    "ExperimentRunDecision",
+    "ExperimentRunStatus",
+    "ExperimentRunUpdate",
     "GitCommitCreate",
     "GitCommitRecord",
     "GitCommitStatus",
@@ -384,6 +462,14 @@ __all__ = [
     "GitHubDraftCreationResponse",
     "GitHubPublicationSummary",
     "GitInspectionResponse",
+    "ImprovementProposal",
+    "ImprovementProposalCreate",
+    "ImprovementProposalPriority",
+    "ImprovementProposalRejectRequest",
+    "ImprovementProposalSourceType",
+    "ImprovementProposalStatus",
+    "ImprovementProposalType",
+    "ImprovementProposalUpdate",
     "Incident",
     "IncidentAnalysis",
     "IncidentAnalysisConclusion",
@@ -430,6 +516,11 @@ __all__ = [
     "ProjectBuildTrialType",
     "ProjectBuildTrialUpdate",
     "ProjectBuildTrialVerdict",
+    "ProjectRetrospective",
+    "ProjectRetrospectiveCreate",
+    "ProjectRetrospectiveGenerateRequest",
+    "ProjectRetrospectiveStatus",
+    "ProjectRetrospectiveUpdate",
     "PromptContextCacheEntry",
     "PromptContextCacheType",
     "ProjectContext",
@@ -474,6 +565,17 @@ __all__ = [
     "RevisionWorkItemCreate",
     "RevisionWorkItemStatus",
     "RevisionWorkItemUpdate",
+    "ResearchBrief",
+    "ResearchBriefCreate",
+    "ResearchBriefGenerateRequest",
+    "ResearchBriefStatus",
+    "ResearchBriefType",
+    "ResearchBriefUpdate",
+    "ResearchSource",
+    "ResearchSourceCreate",
+    "ResearchSourceTrustLevel",
+    "ResearchSourceType",
+    "ResearchSourceUpdate",
     "Requirement",
     "RequirementAnalysis",
     "RequirementAnalysisRunCreate",

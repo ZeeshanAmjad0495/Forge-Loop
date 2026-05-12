@@ -59,5 +59,13 @@ agent_failure_record_repo = repos.agent_failure_record
 benchmark_scenario_repo = repos.benchmark_scenario
 benchmark_run_repo = repos.benchmark_run
 benchmark_run_result_repo = repos.benchmark_run_result
+research_brief_repo = repos.research_brief
+research_source_repo = repos.research_source
+architecture_review_repo = repos.architecture_review
+improvement_proposal_repo = repos.improvement_proposal
+architecture_decision_repo = repos.architecture_decision
+experiment_plan_repo = repos.experiment_plan
+experiment_run_repo = repos.experiment_run
+project_retrospective_repo = repos.project_retrospective
 
 audit_writer = AuditWriter(audit_event_repo)

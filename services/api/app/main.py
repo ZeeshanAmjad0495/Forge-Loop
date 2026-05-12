@@ -45,6 +45,9 @@ from .repositories_state import (
 from .routes import (
     agent_failures,
     approvals,
+    architecture_decisions,
+    architecture_reviews,
+    improvement_proposals,
     artifact_summaries,
     audit,
     auth,
@@ -60,6 +63,7 @@ from .routes import (
     dev_tasks,
     epics,
     evaluation_trials,
+    experiments,
     feedback_analytics,
     git_workflow,
     health,
@@ -76,6 +80,9 @@ from .routes import (
     quality_metrics,
     prompt_cache,
     requirements,
+    research_briefs,
+    research_sources,
+    retrospectives,
     review_feedback,
     runtime,
     subtasks,
@@ -145,6 +152,13 @@ app.include_router(runtime.router)
 app.include_router(cost_records.router)
 app.include_router(context_packs.router)
 app.include_router(artifact_summaries.router)
+app.include_router(research_briefs.router)
+app.include_router(research_sources.router)
+app.include_router(architecture_reviews.router)
+app.include_router(improvement_proposals.router)
+app.include_router(architecture_decisions.router)
+app.include_router(experiments.router)
+app.include_router(retrospectives.router)
 
 
 __all__ = [

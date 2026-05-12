@@ -34,6 +34,9 @@ class Artifact(BaseModel):
         "review_feedback_import_summary",
         "revision_plan_summary",
         "review_feedback_resolution_summary",
+        "research_brief",
+        "architecture_review",
+        "project_retrospective",
     ]
     content: str
     created_at: datetime

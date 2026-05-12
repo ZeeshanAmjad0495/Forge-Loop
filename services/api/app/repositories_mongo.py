@@ -23,6 +23,8 @@ from .models import (
     BenchmarkRunResult,
     BenchmarkScenario,
     Approval,
+    ArchitectureDecisionRecord,
+    ArchitectureReview,
     Artifact,
     ArtifactSummary,
     AuditEvent,
@@ -38,6 +40,9 @@ from .models import (
     CostRecord,
     DevTask,
     Epic,
+    ExperimentPlan,
+    ExperimentRun,
+    ImprovementProposal,
     GitCommitRecord,
     Incident,
     IncidentAnalysis,
@@ -45,6 +50,7 @@ from .models import (
     Project,
     ProjectBuildTrial,
     ProjectBuildTrialStage,
+    ProjectRetrospective,
     ProjectContext,
     ProjectMemoryCandidate,
     PromptContextCacheEntry,
@@ -54,6 +60,8 @@ from .models import (
     RepoSafetyProfile,
     Requirement,
     RequirementAnalysis,
+    ResearchBrief,
+    ResearchSource,
     ReviewFeedback,
     RevisionWorkItem,
     Subtask,
@@ -729,6 +737,136 @@ class MongoCostRecordRepository(MongoDocumentRepository[CostRecord]):
         )
 
 
+class MongoExperimentPlanRepository(MongoDocumentRepository[ExperimentPlan]):
+    collection_name = "experiment_plans"
+    model_cls = ExperimentPlan
+
+    def list_all(self) -> list[ExperimentPlan]:
+        return _sorted_desc(super().list_all())
+
+    def list_by_project(self, project_id: str) -> list[ExperimentPlan]:
+        return _sorted_desc(self.list_by_field("project_id", project_id))
+
+    def list_by_proposal(self, proposal_id: str) -> list[ExperimentPlan]:
+        return _sorted_desc(self.list_by_field("proposal_id", proposal_id))
+
+
+class MongoExperimentRunRepository(MongoDocumentRepository[ExperimentRun]):
+    collection_name = "experiment_runs"
+    model_cls = ExperimentRun
+
+    def list_by_plan(self, plan_id: str) -> list[ExperimentRun]:
+        return _sorted_desc(self.list_by_field("experiment_plan_id", plan_id))
+
+    def list_by_project(self, project_id: str) -> list[ExperimentRun]:
+        return _sorted_desc(self.list_by_field("project_id", project_id))
+
+
+class MongoArchitectureDecisionRecordRepository(
+    MongoDocumentRepository[ArchitectureDecisionRecord]
+):
+    collection_name = "architecture_decisions"
+    model_cls = ArchitectureDecisionRecord
+
+    def list_all(self) -> list[ArchitectureDecisionRecord]:
+        return _sorted_desc(super().list_all())
+
+    def list_by_project(self, project_id: str) -> list[ArchitectureDecisionRecord]:
+        return _sorted_desc(self.list_by_field("project_id", project_id))
+
+    def list_by_proposal(self, proposal_id: str) -> list[ArchitectureDecisionRecord]:
+        return _sorted_desc(self.list_by_field("proposal_id", proposal_id))
+
+
+class MongoImprovementProposalRepository(
+    MongoDocumentRepository[ImprovementProposal]
+):
+    collection_name = "improvement_proposals"
+    model_cls = ImprovementProposal
+
+    def list_all(self) -> list[ImprovementProposal]:
+        return _sorted_desc(super().list_all())
+
+    def list_by_project(self, project_id: str) -> list[ImprovementProposal]:
+        return _sorted_desc(self.list_by_field("project_id", project_id))
+
+    def list_by_source(
+        self, source_type: str, source_id: str
+    ) -> list[ImprovementProposal]:
+        return _sorted_desc(
+            self.list_by_fields(
+                {"source_type": source_type, "source_id": source_id}
+            )
+        )
+
+
+class MongoProjectRetrospectiveRepository(
+    MongoDocumentRepository[ProjectRetrospective]
+):
+    collection_name = "project_retrospectives"
+    model_cls = ProjectRetrospective
+
+    def list_all(self) -> list[ProjectRetrospective]:
+        return _sorted_desc(super().list_all())
+
+    def list_by_project(self, project_id: str) -> list[ProjectRetrospective]:
+        return _sorted_desc(self.list_by_field("project_id", project_id))
+
+    def list_by_trial(self, trial_id: str) -> list[ProjectRetrospective]:
+        return _sorted_desc(self.list_by_field("trial_id", trial_id))
+
+
+class MongoArchitectureReviewRepository(MongoDocumentRepository[ArchitectureReview]):
+    collection_name = "architecture_reviews"
+    model_cls = ArchitectureReview
+
+    def list_all(self) -> list[ArchitectureReview]:
+        return _sorted_desc(super().list_all())
+
+    def list_by_project(self, project_id: str) -> list[ArchitectureReview]:
+        return _sorted_desc(self.list_by_field("project_id", project_id))
+
+    def list_by_target(
+        self, target_type: str, target_id: str
+    ) -> list[ArchitectureReview]:
+        return _sorted_desc(
+            self.list_by_fields(
+                {"target_type": target_type, "target_id": target_id}
+            )
+        )
+
+
+class MongoResearchBriefRepository(MongoDocumentRepository[ResearchBrief]):
+    collection_name = "research_briefs"
+    model_cls = ResearchBrief
+
+    def list_all(self) -> list[ResearchBrief]:
+        return _sorted_desc(super().list_all())
+
+    def list_by_project(self, project_id: str) -> list[ResearchBrief]:
+        return _sorted_desc(self.list_by_field("project_id", project_id))
+
+
+class MongoResearchSourceRepository(MongoDocumentRepository[ResearchSource]):
+    collection_name = "research_sources"
+    model_cls = ResearchSource
+
+    def list_all(self) -> list[ResearchSource]:
+        return _sorted_desc(super().list_all())
+
+    def list_by_project(self, project_id: str) -> list[ResearchSource]:
+        return _sorted_desc(self.list_by_field("project_id", project_id))
+
+    def get_by_cache_key(self, cache_key: str) -> ResearchSource | None:
+        doc = self._collection.find_one({"cache_key": cache_key})
+        if doc is None:
+            return None
+        return from_mongo_document(doc, ResearchSource)
+
+    def delete(self, source_id: str) -> None:
+        self._collection.delete_one({"_id": source_id})
+
+
 # ---------------------------------------------------------------------------
 # Index management
 # ---------------------------------------------------------------------------
@@ -890,6 +1028,58 @@ _INDEX_PLAN: dict[str, list[Any]] = {
         "status",
         "created_at",
     ],
+    "research_briefs": [
+        "project_id",
+        "research_type",
+        "status",
+        "created_at",
+    ],
+    "research_sources": [
+        "project_id",
+        "source_type",
+        "cache_key",
+        "created_at",
+    ],
+    "experiment_plans": [
+        "project_id",
+        "proposal_id",
+        "status",
+        "created_at",
+    ],
+    "experiment_runs": [
+        "experiment_plan_id",
+        "project_id",
+        "status",
+        "created_at",
+    ],
+    "architecture_decisions": [
+        "project_id",
+        "proposal_id",
+        "status",
+        "created_at",
+    ],
+    "improvement_proposals": [
+        "project_id",
+        "source_type",
+        "status",
+        "priority",
+        "proposal_type",
+        "created_at",
+        [("source_type", 1), ("source_id", 1)],
+    ],
+    "architecture_reviews": [
+        "project_id",
+        "target_type",
+        "status",
+        "created_at",
+        [("target_type", 1), ("target_id", 1)],
+    ],
+    "project_retrospectives": [
+        "project_id",
+        "trial_id",
+        "status",
+        "created_at",
+    ],
 }
 
 
@@ -992,4 +1182,12 @@ def build_mongo_repositories():
         benchmark_scenario=MongoBenchmarkScenarioRepository(db),
         benchmark_run=MongoBenchmarkRunRepository(db),
         benchmark_run_result=MongoBenchmarkRunResultRepository(db),
+        research_brief=MongoResearchBriefRepository(db),
+        research_source=MongoResearchSourceRepository(db),
+        architecture_review=MongoArchitectureReviewRepository(db),
+        improvement_proposal=MongoImprovementProposalRepository(db),
+        architecture_decision=MongoArchitectureDecisionRecordRepository(db),
+        experiment_plan=MongoExperimentPlanRepository(db),
+        experiment_run=MongoExperimentRunRepository(db),
+        project_retrospective=MongoProjectRetrospectiveRepository(db),
     )
