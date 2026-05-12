@@ -71,6 +71,14 @@ _openhands_args_raw = os.getenv("OPENHANDS_ALLOWED_ARGS", "")
 OPENHANDS_ALLOWED_ARGS: list[str] = [
     s.strip() for s in _openhands_args_raw.split(",") if s.strip()
 ]
+OPENHANDS_EXECUTOR = os.getenv("OPENHANDS_EXECUTOR", "subprocess").lower()
+OPENHANDS_HTTP_BASE_URL = os.getenv("OPENHANDS_HTTP_BASE_URL", "http://127.0.0.1:3000")
+OPENHANDS_HTTP_POLL_INTERVAL_SECONDS = float(
+    os.getenv("OPENHANDS_HTTP_POLL_INTERVAL_SECONDS", "2")
+)
+OPENHANDS_HTTP_QUIET_AFTER_SECONDS = float(
+    os.getenv("OPENHANDS_HTTP_QUIET_AFTER_SECONDS", "10")
+)
 KODY_REVIEW_ENABLED = os.getenv("KODY_REVIEW_ENABLED", "false").lower() == "true"
 KODY_BASE_URL = os.getenv("KODY_BASE_URL", "")
 KODY_API_KEY = os.getenv("KODY_API_KEY", "")

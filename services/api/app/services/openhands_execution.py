@@ -164,8 +164,360 @@ class SubprocessOpenHandsExecutor:
         )
 
 
+class HttpOpenHandsExecutor:
+    """Bridge executor: forwards an instruction file to a running upstream
+    OpenHands container's HTTP API instead of invoking a CLI subprocess.
+
+    Picked when ``config.OPENHANDS_EXECUTOR=http``. The Protocol surface
+    matches :class:`SubprocessOpenHandsExecutor` so the service code is
+    unchanged: ``command`` is ignored, the instruction file path is found in
+    ``args``, its JSON contents are POSTed as the initial user message to
+    ``POST /api/v1/app-conversations``, events are polled until the
+    conversation goes quiet, and a synthesized ``OpenHandsExecutionResult``
+    is returned. Workspace file mounting between the host and the container
+    is a deployment-level concern (set via docker volumes on
+    ``openhands-app``) — this executor does not manage mounts.
+    """
+
+    def __init__(
+        self,
+        *,
+        base_url: str | None = None,
+        poll_interval_seconds: float | None = None,
+        quiet_after_seconds: float | None = None,
+        http_get=None,
+        http_post=None,
+    ) -> None:
+        self._base_url = (
+            base_url
+            if base_url is not None
+            else _config.OPENHANDS_HTTP_BASE_URL
+        ).rstrip("/")
+        self._poll_interval = (
+            poll_interval_seconds
+            if poll_interval_seconds is not None
+            else _config.OPENHANDS_HTTP_POLL_INTERVAL_SECONDS
+        )
+        self._quiet_after = (
+            quiet_after_seconds
+            if quiet_after_seconds is not None
+            else _config.OPENHANDS_HTTP_QUIET_AFTER_SECONDS
+        )
+        # Allow tests to inject stub HTTP callables.
+        self._http_get = http_get or _http_get_json
+        self._http_post = http_post or _http_post_json
+
+    @staticmethod
+    def _find_instruction_path(args: list[str], cwd: str) -> str | None:
+        for token in args:
+            if not token:
+                continue
+            if token.endswith(".json") and os.path.exists(token):
+                return token
+        return None
+
+    def run(
+        self,
+        *,
+        command: str,
+        args: list[str],
+        cwd: str,
+        timeout_seconds: int,
+        max_output_bytes: int,
+    ) -> OpenHandsExecutionResult:
+        per_stream = max(0, max_output_bytes // 2)
+        started = time.monotonic()
+
+        instruction_path = self._find_instruction_path(args, cwd)
+        if instruction_path is None:
+            return OpenHandsExecutionResult(
+                exit_code=None,
+                stdout="",
+                stderr="",
+                timed_out=False,
+                duration_seconds=time.monotonic() - started,
+                error="instruction file not found in args",
+            )
+
+        try:
+            instruction_text = Path(instruction_path).read_text(encoding="utf-8")
+        except OSError as exc:
+            return OpenHandsExecutionResult(
+                exit_code=None,
+                stdout="",
+                stderr="",
+                timed_out=False,
+                duration_seconds=time.monotonic() - started,
+                error=f"could not read instruction file: {exc}",
+            )
+
+        payload = {
+            "initial_message": {
+                "role": "user",
+                "content": [{"type": "text", "text": instruction_text}],
+                "run": True,
+            }
+        }
+
+        try:
+            created = self._http_post(
+                f"{self._base_url}/api/v1/app-conversations",
+                payload,
+                timeout=min(30, timeout_seconds),
+            )
+        except OpenHandsHttpError as exc:
+            return OpenHandsExecutionResult(
+                exit_code=None,
+                stdout="",
+                stderr=_truncate(str(exc), per_stream),
+                timed_out=False,
+                duration_seconds=time.monotonic() - started,
+                error=f"could not start OpenHands conversation: {exc}",
+            )
+
+        start_task_id = created.get("id") if isinstance(created, dict) else None
+        if not start_task_id:
+            return OpenHandsExecutionResult(
+                exit_code=None,
+                stdout="",
+                stderr=_truncate(json.dumps(created)[:per_stream], per_stream),
+                timed_out=False,
+                duration_seconds=time.monotonic() - started,
+                error="OpenHands did not return a start-task id",
+            )
+
+        # The POST returns a start-task id, not the conversation_id. Resolve
+        # the actual ``app_conversation_id`` once the start-task is READY.
+        conversation_id: str | None = None
+        resolve_deadline = started + min(120.0, max(1, timeout_seconds))
+        while True:
+            try:
+                tasks = self._http_get(
+                    f"{self._base_url}/api/v1/app-conversations/start-tasks/search?limit=20",
+                    timeout=10,
+                )
+            except OpenHandsHttpError as exc:
+                return OpenHandsExecutionResult(
+                    exit_code=None,
+                    stdout="",
+                    stderr=_truncate(str(exc), per_stream),
+                    timed_out=False,
+                    duration_seconds=time.monotonic() - started,
+                    error=f"could not resolve OpenHands start-task: {exc}",
+                )
+            for item in (tasks.get("items", []) if isinstance(tasks, dict) else []):
+                if isinstance(item, dict) and item.get("id") == start_task_id:
+                    conversation_id = item.get("app_conversation_id")
+                    if conversation_id and item.get("status") in {"READY", "FAILED"}:
+                        break
+            if conversation_id:
+                break
+            if time.monotonic() >= resolve_deadline:
+                return OpenHandsExecutionResult(
+                    exit_code=None,
+                    stdout="",
+                    stderr="",
+                    timed_out=True,
+                    duration_seconds=time.monotonic() - started,
+                    error="timed out waiting for OpenHands start-task to become READY",
+                )
+            time.sleep(self._poll_interval)
+
+        # Poll events until count stabilizes for ``quiet_after`` seconds
+        # or the overall deadline expires.
+        events_url = f"{self._base_url}/api/v1/conversation/{conversation_id}/events/search?limit=100"
+        count_url = f"{self._base_url}/api/v1/conversation/{conversation_id}/events/count"
+        last_count = -1
+        last_change = time.monotonic()
+        timed_out = False
+        deadline = started + max(1, timeout_seconds)
+        while True:
+            try:
+                count_resp = self._http_get(count_url, timeout=10)
+            except OpenHandsHttpError as exc:
+                return OpenHandsExecutionResult(
+                    exit_code=None,
+                    stdout="",
+                    stderr=_truncate(str(exc), per_stream),
+                    timed_out=False,
+                    duration_seconds=time.monotonic() - started,
+                    error=f"could not poll OpenHands events: {exc}",
+                )
+            count = _coerce_int(count_resp)
+            now = time.monotonic()
+            if count != last_count:
+                last_count = count
+                last_change = now
+            if last_count > 0 and (now - last_change) >= self._quiet_after:
+                break
+            if now >= deadline:
+                timed_out = True
+                break
+            time.sleep(self._poll_interval)
+
+        # Pull the final events to synthesize stdout/stderr.
+        try:
+            events_resp = self._http_get(events_url, timeout=15)
+        except OpenHandsHttpError as exc:
+            return OpenHandsExecutionResult(
+                exit_code=None if timed_out else 1,
+                stdout="",
+                stderr=_truncate(str(exc), per_stream),
+                timed_out=timed_out,
+                duration_seconds=time.monotonic() - started,
+                error=f"could not fetch OpenHands events: {exc}",
+            )
+
+        events = events_resp.get("items", []) if isinstance(events_resp, dict) else []
+        agent_text, error_text = _summarize_events(events)
+        duration = time.monotonic() - started
+
+        if timed_out:
+            return OpenHandsExecutionResult(
+                exit_code=None,
+                stdout=_truncate(agent_text, per_stream),
+                stderr=_truncate(error_text or "", per_stream),
+                timed_out=True,
+                duration_seconds=duration,
+                error=f"timed out after {timeout_seconds}s",
+            )
+
+        # Synthesize exit code: 0 if we received any agent reply with no
+        # error events, 1 otherwise.
+        exit_code = 0 if (agent_text and not error_text) else 1
+        return OpenHandsExecutionResult(
+            exit_code=exit_code,
+            stdout=_truncate(agent_text, per_stream),
+            stderr=_truncate(error_text or "", per_stream),
+            timed_out=False,
+            duration_seconds=duration,
+            error=None,
+        )
+
+
+class OpenHandsHttpError(Exception):
+    """Raised by the HTTP helpers for any network/HTTP failure."""
+
+
+def _http_post_json(url: str, body: dict, *, timeout: float) -> dict:
+    """Default HTTP POST helper used by HttpOpenHandsExecutor.
+
+    Stdlib-only; tests inject a stub instead of mocking urllib.
+    """
+    import urllib.error
+    import urllib.request
+
+    data = json.dumps(body).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=data,
+        headers={"Content-Type": "application/json", "Accept": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        body_text = ""
+        try:
+            body_text = exc.read().decode("utf-8", errors="replace")
+        except Exception:
+            pass
+        raise OpenHandsHttpError(f"HTTP {exc.code} from {url}: {body_text[:200]}") from exc
+    except urllib.error.URLError as exc:
+        raise OpenHandsHttpError(f"could not reach {url}: {exc.reason}") from exc
+    except (TimeoutError, json.JSONDecodeError) as exc:
+        raise OpenHandsHttpError(f"bad response from {url}: {exc}") from exc
+
+
+def _http_get_json(url: str, *, timeout: float):
+    """Default HTTP GET helper; returns parsed JSON or raw int for count endpoints."""
+    import urllib.error
+    import urllib.request
+
+    req = urllib.request.Request(
+        url,
+        headers={"Accept": "application/json"},
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            text = resp.read().decode("utf-8")
+    except urllib.error.HTTPError as exc:
+        raise OpenHandsHttpError(f"HTTP {exc.code} from {url}") from exc
+    except urllib.error.URLError as exc:
+        raise OpenHandsHttpError(f"could not reach {url}: {exc.reason}") from exc
+    except TimeoutError as exc:
+        raise OpenHandsHttpError(f"timeout fetching {url}: {exc}") from exc
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        # /events/count returns a bare integer
+        try:
+            return int(text.strip())
+        except ValueError:
+            raise OpenHandsHttpError(f"unexpected response from {url}: {text[:200]}")
+
+
+def _coerce_int(value) -> int:
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        try:
+            return int(value.strip())
+        except ValueError:
+            return 0
+    if isinstance(value, dict):
+        for k in ("count", "total"):
+            if k in value:
+                return _coerce_int(value[k])
+    return 0
+
+
+def _summarize_events(events: list) -> tuple[str, str]:
+    """Extract agent reply text and any error text from a v1.x event list."""
+    agent_chunks: list[str] = []
+    error_chunks: list[str] = []
+    for ev in events:
+        if not isinstance(ev, dict):
+            continue
+        kind = ev.get("kind") or ev.get("event_type") or ""
+        source = ev.get("source") or ""
+        if "Message" in kind and source == "agent":
+            # OpenHands 1.x nests text under ``llm_message.content``;
+            # tests/older formats put it at the top-level ``content``.
+            blocks = (
+                (ev.get("llm_message") or {}).get("content")
+                or ev.get("content")
+                or []
+            )
+            for block in blocks:
+                if isinstance(block, dict) and block.get("type") == "text":
+                    text = block.get("text")
+                    if isinstance(text, str) and text:
+                        agent_chunks.append(text)
+        # Some event types carry agent error info.
+        if "Error" in kind or ev.get("status") in {"error", "failed"}:
+            detail = ev.get("error") or ev.get("message") or ev.get("detail") or ""
+            if isinstance(detail, dict):
+                detail = json.dumps(detail)
+            if isinstance(detail, str) and detail:
+                error_chunks.append(detail)
+    return "\n".join(agent_chunks), "\n".join(error_chunks)
+
+
+def _build_default_executor() -> OpenHandsExecutor:
+    """Pick the executor class from config. Defaults to the subprocess
+    executor; ``OPENHANDS_EXECUTOR=http`` selects :class:`HttpOpenHandsExecutor`.
+    """
+    name = (_config.OPENHANDS_EXECUTOR or "subprocess").lower()
+    if name == "http":
+        return HttpOpenHandsExecutor()
+    return SubprocessOpenHandsExecutor()
+
+
 # Module-level singleton — tests monkeypatch this to a fake.
-EXECUTOR: OpenHandsExecutor = SubprocessOpenHandsExecutor()
+EXECUTOR: OpenHandsExecutor = _build_default_executor()
 
 
 def _now() -> datetime:
@@ -663,9 +1015,11 @@ def execute(
 
 __all__ = [
     "EXECUTOR",
+    "HttpOpenHandsExecutor",
     "OpenHandsExecutionResult",
     "OpenHandsExecutionService",
     "OpenHandsExecutor",
+    "OpenHandsHttpError",
     "SubprocessOpenHandsExecutor",
     "execute",
 ]
