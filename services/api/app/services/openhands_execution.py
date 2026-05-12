@@ -382,9 +382,13 @@ class HttpOpenHandsExecutor:
                 error=f"timed out after {timeout_seconds}s",
             )
 
-        # Synthesize exit code: 0 if we received any agent reply with no
-        # error events, 1 otherwise.
-        exit_code = 0 if (agent_text and not error_text) else 1
+        # Synthesize exit code: a conversation that ended without any error
+        # events is treated as success, even if the agent finished silently
+        # via tool actions (file edits, bash) and emitted no final text.
+        # ForgeLoop's workspace-snapshot diff is the authoritative source of
+        # "did the agent change anything" — we should not contradict it just
+        # because the agent didn't send a closing chat message.
+        exit_code = 1 if error_text else 0
         return OpenHandsExecutionResult(
             exit_code=exit_code,
             stdout=_truncate(agent_text, per_stream),

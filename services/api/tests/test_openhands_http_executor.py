@@ -201,6 +201,42 @@ def test_run_times_out_when_events_never_arrive(tmp_path):
     assert "timed out" in (result.error or "")
 
 
+def test_run_returns_exit_code_0_when_agent_completed_silently_via_tools(tmp_path):
+    """If the agent finished via tool actions (file edits, bash, etc.) and
+    emitted no closing text message, we still treat the conversation as a
+    success as long as no error events were seen. ForgeLoop's workspace diff
+    is the authoritative signal for "what changed"; the executor must not
+    contradict it just because the agent didn't send a final chat reply.
+    """
+    instr = _make_instruction_file(tmp_path)
+    silent_events = [
+        {"kind": "MessageEvent", "source": "user",
+         "content": [{"type": "text", "text": "Create OPENHANDS_MOUNT_SMOKE.txt"}]},
+        {"kind": "ActionEvent", "source": "agent",
+         "action": {"kind": "FileEditorAction", "command": "create",
+                    "path": "/workspace/project/OPENHANDS_MOUNT_SMOKE.txt"}},
+        {"kind": "ObservationEvent", "source": "environment",
+         "observation": {"kind": "FileEditorObservation", "is_error": False}},
+    ]
+    stub = _StubHttp(
+        events_count_sequence=[0, 3, 3, 3],
+        events=silent_events,
+    )
+    ex = _executor(stub)
+    result = ex.run(
+        command="ignored",
+        args=[str(instr)],
+        cwd=str(tmp_path),
+        timeout_seconds=5,
+        max_output_bytes=1000,
+    )
+    assert result.exit_code == 0
+    assert result.timed_out is False
+    # No agent text was emitted; stdout may be empty but that's OK
+    assert result.stdout == ""
+    assert result.stderr == ""
+
+
 def test_run_returns_exit_code_1_when_error_event_present(tmp_path):
     instr = _make_instruction_file(tmp_path)
     error_event = {
