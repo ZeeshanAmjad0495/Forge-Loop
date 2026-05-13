@@ -1,6 +1,13 @@
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.task_decomposition_agent import (
+    _PROMPT_INSTRUCTIONS,
+    _build_prompt_for_requirement,
+)
+from datetime import datetime, timezone
+
+from app.models import Requirement
 
 client = TestClient(app)
 
@@ -216,6 +223,46 @@ def test_list_dev_task_subtasks_returns_list():
     assert isinstance(response.json(), list)
 
 
-def test_list_dev_task_subtasks_missing_dev_task_404():
+def test_prompt_instructs_skeleton_isolation():
+    """The shared instruction block must spell out the scope-boundary rules
+    so the decomposer doesn't fold storage/model setup into a "skeleton"
+    task (which is what caused B13).
+    """
+    p = _PROMPT_INSTRUCTIONS
+    assert "skeleton" in p.lower()
+    # Must explicitly forbid storage/database/ORM/CRUD in skeleton tasks
+    for token in ("storage", "database", "ORM", "CRUD"):
+        assert token.lower() in p.lower(), f"prompt missing scope guard for {token!r}"
+    # Must require honoring explicit scope from the requirement
+    assert "scope" in p.lower()
+    # Must include the anti-pattern example so the model sees a concrete
+    # negative example, not just abstract rules.
+    assert "anti-pattern" in p.lower() or "do NOT do this" in p
+
+
+def test_built_prompt_contains_requirement_scope_guards():
+    req = Requirement(
+        id="r1",
+        project_id="p1",
+        title="Build X MVP",
+        problem_statement="ps",
+        business_goal="bg",
+        functional_requirements=[
+            "Skeleton FastAPI app with GET /health and pytest setup",
+            "Storage + Endpoint model",
+            "CRUD endpoints",
+        ],
+        acceptance_criteria=[
+            "Project skeleton with FastAPI /health, pytest, README",
+            "Endpoints can be created/listed",
+        ],
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
+    )
+    prompt = _build_prompt_for_requirement(req, project_context=None, latest_analysis=None)
+    # Scope rules from _PROMPT_INSTRUCTIONS must flow into the per-requirement prompt
+    assert "skeleton" in prompt.lower()
+    assert "database" in prompt.lower()
+    assert "Build X MVP" in prompt
     response = client.get("/dev-tasks/nope/subtasks")
     assert response.status_code == 404

@@ -49,6 +49,19 @@ from . import openhands_workflow, workspace_snapshot
 TRUNCATION_MARKER = "\n...[truncated]"
 TAIL_BYTES = 2000
 
+# Upstream OpenHands conversation execution_status values that mean the
+# agent loop has ended. Anything outside this set (or ``None``) is treated
+# as "still running" — we then defer to the event-count quiet-after
+# heuristic.
+_TERMINAL_EXECUTION_STATUSES = frozenset({
+    "finished",
+    "failed",
+    "cancelled",
+    "stopped",
+    "error",
+    "completed",
+})
+
 
 class OpenHandsExecutionResult(BaseModel):
     exit_code: int | None = None
@@ -68,6 +81,8 @@ class OpenHandsExecutor(Protocol):
         cwd: str,
         timeout_seconds: int,
         max_output_bytes: int,
+        working_directory: str | None = None,
+        title: str | None = None,
     ) -> OpenHandsExecutionResult: ...
 
 
@@ -102,7 +117,12 @@ class SubprocessOpenHandsExecutor:
         cwd: str,
         timeout_seconds: int,
         max_output_bytes: int,
+        working_directory: str | None = None,
+        title: str | None = None,
     ) -> OpenHandsExecutionResult:
+        # working_directory / title are HTTP-bridge concepts; subprocess
+        # executor runs locally with ``cwd`` and ignores them.
+        del working_directory, title
         argv = [command, *args]
         env = {"PATH": os.environ.get("PATH", "")}
         per_stream = max(0, max_output_bytes // 2)
@@ -216,6 +236,29 @@ class HttpOpenHandsExecutor:
                 return token
         return None
 
+    def _poll_execution_status(self, conversation_id: str) -> str | None:
+        """Best-effort lookup of the upstream conversation's
+        ``execution_status``. Returns ``None`` on any failure (network error,
+        non-dict response, missing item, missing field) so the caller can
+        fall back to the event-count quiet-after heuristic without changing
+        prior behavior.
+        """
+        try:
+            resp = self._http_get(
+                f"{self._base_url}/api/v1/app-conversations?ids={conversation_id}",
+                timeout=10,
+            )
+        except OpenHandsHttpError:
+            return None
+        items = resp.get("items") if isinstance(resp, dict) else None
+        if not isinstance(items, list):
+            return None
+        for item in items:
+            if isinstance(item, dict) and item.get("id") == conversation_id:
+                status = item.get("execution_status")
+                return status if isinstance(status, str) else None
+        return None
+
     def run(
         self,
         *,
@@ -224,6 +267,8 @@ class HttpOpenHandsExecutor:
         cwd: str,
         timeout_seconds: int,
         max_output_bytes: int,
+        working_directory: str | None = None,
+        title: str | None = None,
     ) -> OpenHandsExecutionResult:
         per_stream = max(0, max_output_bytes // 2)
         started = time.monotonic()
@@ -251,13 +296,24 @@ class HttpOpenHandsExecutor:
                 error=f"could not read instruction file: {exc}",
             )
 
-        payload = {
+        if working_directory:
+            directive = (
+                f"Your working directory for this task is `{working_directory}`. "
+                "Make all changes inside that directory only. Do not modify "
+                "files outside it. Treat that directory as the repository "
+                "root for the dev task described below.\n\n---\n\n"
+            )
+            instruction_text = directive + instruction_text
+
+        payload: dict = {
             "initial_message": {
                 "role": "user",
                 "content": [{"type": "text", "text": instruction_text}],
                 "run": True,
             }
         }
+        if title:
+            payload["title"] = title
 
         try:
             created = self._http_post(
@@ -323,8 +379,12 @@ class HttpOpenHandsExecutor:
                 )
             time.sleep(self._poll_interval)
 
-        # Poll events until count stabilizes for ``quiet_after`` seconds
-        # or the overall deadline expires.
+        # Poll events until either (a) the upstream conversation reports a
+        # terminal execution_status, or (b) the event count stabilizes for
+        # ``quiet_after`` seconds, or (c) the overall deadline expires.
+        # The execution_status signal is the primary exit condition; the
+        # quiet-after heuristic remains as a fallback so older OpenHands
+        # builds that don't populate the status field still work.
         events_url = f"{self._base_url}/api/v1/conversation/{conversation_id}/events/search?limit=100"
         count_url = f"{self._base_url}/api/v1/conversation/{conversation_id}/events/count"
         last_count = -1
@@ -348,6 +408,11 @@ class HttpOpenHandsExecutor:
             if count != last_count:
                 last_count = count
                 last_change = now
+
+            status = self._poll_execution_status(conversation_id)
+            if status in _TERMINAL_EXECUTION_STATUSES:
+                break
+
             if last_count > 0 and (now - last_change) >= self._quiet_after:
                 break
             if now >= deadline:
@@ -588,6 +653,43 @@ def _resolve_args(instruction_file: str) -> list[str]:
     for token in template:
         args.append(token.replace("{instruction_file}", instruction_file))
     return args
+
+
+def _resolve_container_working_directory(host_root: Path) -> str | None:
+    """Translate a host workspace path into the equivalent path inside the
+    OpenHands sandbox container, based on a configured parent-mount mapping.
+
+    Returns ``None`` when no mapping is configured (so the HTTP bridge sends
+    no working-directory directive — preserves prior behavior). Raises
+    ``HTTPException`` 400 when the mapping is partially configured or the
+    workspace falls outside the host parent mount, so misconfiguration is
+    surfaced loudly rather than silently writing to the wrong directory.
+    """
+    host_parent = (_config.OPENHANDS_HOST_PARENT_MOUNT or "").strip()
+    container_parent = (_config.OPENHANDS_CONTAINER_PARENT_MOUNT or "").strip()
+    if not host_parent and not container_parent:
+        return None
+    if not host_parent or not container_parent:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "OPENHANDS_HOST_PARENT_MOUNT and OPENHANDS_CONTAINER_PARENT_MOUNT "
+                "must both be set or both be empty"
+            ),
+        )
+    try:
+        host_parent_resolved = Path(host_parent).expanduser().resolve()
+        relative = host_root.relative_to(host_parent_resolved)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"workspace path {host_root} is not inside "
+                f"OPENHANDS_HOST_PARENT_MOUNT {host_parent}"
+            ),
+        )
+    container_root = Path(container_parent) / relative
+    return str(container_root).replace("\\", "/")
 
 
 def _resolve_repo_match(workspace, dev_task) -> None:
@@ -853,6 +955,10 @@ class OpenHandsExecutionService:
         # Resolve args (server-side template — request cannot influence argv).
         args = _resolve_args(str(instruction_path))
 
+        # Map host workspace path to in-container path for the HTTP bridge
+        # (no-op for subprocess executor). Misconfiguration raises 400 here.
+        container_working_directory = _resolve_container_working_directory(ws_root)
+
         # Invoke executor.
         result = EXECUTOR.run(
             command=_config.OPENHANDS_COMMAND,
@@ -860,6 +966,8 @@ class OpenHandsExecutionService:
             cwd=str(ws_root),
             timeout_seconds=timeout_seconds,
             max_output_bytes=max_output_bytes,
+            working_directory=container_working_directory,
+            title=dev_task.title,
         )
 
         # Snapshot after.

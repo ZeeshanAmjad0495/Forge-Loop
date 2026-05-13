@@ -81,9 +81,26 @@ Rules:
 - Include acceptance_criteria and definition_of_done for every task.
 - Use depends_on with the zero-based index of other tasks in this same response when a task depends on another.
 - Keep subtasks to the most important steps within a task.
+- Honor explicit scope boundaries in the requirement. If the requirement's first listed acceptance criterion or functional requirement is a project skeleton / health endpoint / test setup / README, the FIRST dev task must contain ONLY that scope. Storage/database/ORM, domain models, CRUD endpoints, business logic, validation, and incident logic belong in separate later tasks. Do not bundle them into the skeleton task even if they appear later in the requirement.
+- Map each distinct functional requirement to its own dev task (or a small group of closely related ones). Do not collapse unrelated functional requirements into one task to make the decomposition shorter.
+- A task titled or described as "skeleton", "scaffold", "bootstrap", or "project init" must not include database, ORM, model, schema, or CRUD subtasks. Its acceptance criteria and subtasks must be limited to: project file layout, framework entry point, a single health/status endpoint, test runner setup, README run/test commands, and .gitignore.
+- Subtasks must stay inside the parent task's scope. If a subtask requires capability that belongs to a later task, drop the subtask — do not silently expand the parent task to absorb it.
 
 task_type must be one of: backend, frontend, full_stack, testing, documentation, infrastructure, refactor, unknown.
 priority must be one of: low, medium, high.
+
+Anti-pattern (do NOT do this) — bundling storage into a skeleton task:
+- "Project skeleton with health endpoint, pytest setup, and README" with subtasks
+  that include "Initialize SQLAlchemy and SQLite", "Define Endpoint model",
+  or "Create database tables on startup". Those belong in a separate
+  storage/models task that depends_on the skeleton task.
+
+Acceptable pattern — skeleton task stays minimal:
+- "Project skeleton with health endpoint" — subtasks: create FastAPI app,
+  add GET /health returning healthy status, set up pytest with a health
+  test, write README run/test commands, add .gitignore.
+- A separate "Storage and models" task — subtasks: pick storage, define
+  models for the domain, wire startup, add storage tests.
 
 Respond with a single JSON object (no markdown fences, no extra text) using exactly this shape:
 

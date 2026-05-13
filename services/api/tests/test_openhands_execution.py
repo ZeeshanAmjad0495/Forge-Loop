@@ -64,13 +64,16 @@ class _RecordingExecutor:
         self.duration_seconds = duration_seconds
         self.calls: list[dict] = []
 
-    def run(self, *, command, args, cwd, timeout_seconds, max_output_bytes):
+    def run(self, *, command, args, cwd, timeout_seconds, max_output_bytes,
+            working_directory=None, title=None):
         self.calls.append({
             "command": command,
             "args": list(args),
             "cwd": cwd,
             "timeout_seconds": timeout_seconds,
             "max_output_bytes": max_output_bytes,
+            "working_directory": working_directory,
+            "title": title,
         })
         if self.on_run is not None:
             self.on_run(Path(cwd))
