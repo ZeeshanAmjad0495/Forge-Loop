@@ -687,10 +687,50 @@ class GitWorkflowService:
         )
         self.workspace_branch_repo.save(record)
 
-        # Switch -c.
+        # B17 guard: refuse to start a new branch on top of a dirty working
+        # tree. Without this, uncommitted state from a prior dev_task run
+        # silently flows into the new branch's first commit (workspace
+        # state bleed). Surface it instead so the caller resolves explicitly.
+        porcelain = _run_git(
+            cwd=root,
+            args=["status", "--porcelain=v1"],
+            timeout=timeout,
+            output_cap=cap,
+        )
+        if porcelain.exit_code == 0 and porcelain.stdout.strip():
+            changed, untracked = _parse_porcelain(porcelain.stdout)
+            self.workspace_branch_repo.update(record.model_copy(update={
+                "status": "failed",
+                "updated_at": _now(),
+                "error_message": (
+                    "workspace has uncommitted changes; refuse to create branch "
+                    "to avoid state bleed (B17)"
+                ),
+            }))
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "error": "WORKSPACE_DIRTY",
+                    "message": (
+                        "Workspace has uncommitted changes; refusing to create "
+                        "a new branch on top of unrelated state. Resolve "
+                        "first (commit / stash / reset)."
+                    ),
+                    "changed_files": changed[:50],
+                    "untracked_files": untracked[:50],
+                },
+            )
+
+        # Switch -c. Pass base_branch as the start-point so the new branch
+        # always starts at the named base, not at whatever HEAD happens to
+        # be. Without the explicit start-point, `git switch -c name` uses
+        # the current HEAD, which is the original B17 trigger.
+        switch_args = ["switch", "-c", name]
+        if base_branch:
+            switch_args.append(base_branch)
         result = _run_git(
             cwd=root,
-            args=["switch", "-c", name],
+            args=switch_args,
             timeout=timeout,
             output_cap=cap,
         )

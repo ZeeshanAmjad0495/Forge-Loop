@@ -474,6 +474,59 @@ def test_create_branch_does_not_invoke_forbidden_git_ops(
 
 
 @requires_git
+def test_create_branch_uses_explicit_base_branch_start_point(
+    workspace_root, enable_git_workflow
+):
+    """B17 regression: a new branch must start from base_branch, not from
+    whatever the workspace's current HEAD happens to be. Otherwise prior
+    dev_task state bleeds into the new branch's first commit.
+    """
+    project = _create_project()
+    ws = _create_git_workspace(project["id"], workspace_root.parent)
+    root = Path(ws["root_path"])
+    # Create a feature branch with an extra commit, then leave the workspace on it.
+    _git(root, "switch", "-c", "forgeloop/scratch")
+    (root / "scratch.txt").write_text("scratch", encoding="utf-8")
+    _git(root, "add", "scratch.txt")
+    _git(root, "-c", "user.name=t", "-c", "user.email=t@local", "commit", "-m", "scratch")
+    # main still points to the original commit; HEAD is now on scratch.
+    res = client.post(
+        f"/workspaces/{ws['id']}/branches",
+        json={"name": "forgeloop/from-main", "base_branch": "main"},
+    )
+    assert res.status_code == 201, res.text
+    # The new branch must NOT contain scratch.txt — it should match main.
+    head = _git(root, "rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
+    assert head == "forgeloop/from-main"
+    files = _git(root, "ls-files").stdout.split()
+    assert "scratch.txt" not in files
+
+
+@requires_git
+def test_create_branch_refuses_dirty_workspace(
+    workspace_root, enable_git_workflow
+):
+    """B17 guard: starting a new dev_task branch on top of an uncommitted
+    working tree must fail loudly so prior state doesn't silently leak.
+    """
+    project = _create_project()
+    ws = _create_git_workspace(project["id"], workspace_root.parent)
+    root = Path(ws["root_path"])
+    # Leave a tracked-but-modified file in the working tree.
+    (root / "dirty.txt").write_text("dirty", encoding="utf-8")
+    _git(root, "add", "dirty.txt")
+    _git(root, "-c", "user.name=t", "-c", "user.email=t@local", "commit", "-m", "seed")
+    (root / "dirty.txt").write_text("now dirty", encoding="utf-8")
+    res = client.post(
+        f"/workspaces/{ws['id']}/branches",
+        json={"name": "forgeloop/should-fail", "base_branch": "main"},
+    )
+    assert res.status_code == 409
+    body = res.json()
+    assert body["detail"]["error"] == "WORKSPACE_DIRTY"
+
+
+@requires_git
 def test_create_branch_writes_audit(workspace_root, enable_git_workflow):
     project = _create_project()
     task = _create_dev_task(project["id"])
