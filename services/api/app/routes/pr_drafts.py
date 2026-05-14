@@ -33,7 +33,7 @@ from ..repositories_state import (
 
 router = APIRouter()
 
-_PR_DRAFT_ALLOWED_PROVIDERS = ("manual", "local")
+_PR_DRAFT_ALLOWED_PROVIDERS = ("manual", "local", "github")
 
 
 @router.post(

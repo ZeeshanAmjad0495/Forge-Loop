@@ -258,7 +258,13 @@ def test_prepare_pr_draft_requires_dev_task_or_subtask():
     assert resp.status_code == 400
 
 
-def test_prepare_pr_draft_rejects_github_provider_when_not_supported():
+def test_prepare_pr_draft_accepts_github_provider():
+    """B12: provider='github' is the natural value an end-user reaches for when
+    the intent is GitHub publication. Accept it on create — the publication
+    step (POST /pr-drafts/{id}/create-github-draft) is still the actual gate
+    for pushing to GitHub. Rejecting it here forced users to send 'local' as
+    a workaround, which was non-obvious.
+    """
     project, task = _create_dev_task()
     repo = _create_repo(project["id"])
     resp = client.post(
@@ -269,7 +275,24 @@ def test_prepare_pr_draft_rejects_github_provider_when_not_supported():
             "provider": "github",
         },
     )
-    assert resp.status_code == 400
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["provider"] == "github"
+
+
+def test_prepare_pr_draft_rejects_unknown_provider():
+    """Sanity: still reject genuinely unknown providers."""
+    project, task = _create_dev_task()
+    repo = _create_repo(project["id"])
+    resp = client.post(
+        f"/projects/{project['id']}/pr-drafts",
+        json={
+            "code_repository_id": repo["id"],
+            "dev_task_id": task["id"],
+            "provider": "bitbucket",
+        },
+    )
+    # Pydantic literal validation returns 422, route check would return 400.
+    assert resp.status_code in (400, 422)
 
 
 def test_prepare_pr_draft_rejects_repo_from_other_project():
