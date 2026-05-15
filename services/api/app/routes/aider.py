@@ -2,11 +2,12 @@ from fastapi import APIRouter, Body, Depends
 
 from ..auth import require_auth
 from ..models import (
+    AiderExecuteRequest,
     AiderPreparePackageRequest,
     AiderRecordResultRequest,
     ToolRun,
 )
-from ..services import aider_workflow
+from ..services import aider_execution, aider_workflow
 
 router = APIRouter()
 
@@ -28,6 +29,18 @@ def prepare_aider_package(
         body.code_repository_id,
         current_user,
     )
+
+
+@router.post(
+    "/dev-tasks/{dev_task_id}/aider/execute",
+    response_model=ToolRun,
+)
+def execute_aider(
+    dev_task_id: str,
+    body: AiderExecuteRequest,
+    current_user: str = Depends(require_auth),
+):
+    return aider_execution.execute(dev_task_id, body, current_user)
 
 
 @router.post(

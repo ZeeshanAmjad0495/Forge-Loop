@@ -32,6 +32,8 @@ class Artifact(BaseModel):
         "git_commit_summary",
         "integration_run_summary",
         "aider_instruction_package",
+        "aider_execution_output",
+        "aider_execution_changed_paths",
         "github_pr_creation_summary",
         "review_feedback_import_summary",
         "revision_plan_summary",

@@ -150,6 +150,14 @@ class AiderRecordResultRequest(BaseModel):
     conclusion: ToolRunConclusion = "neutral"
 
 
+class AiderExecuteRequest(BaseModel):
+    workspace_id: str
+    tool_runner_definition_id: str | None = None
+    approval_id: str | None = None
+    timeout_seconds: int | None = None
+    mode: Literal["dry_run", "local"] = "local"
+
+
 OpenHandsExecuteMode = Literal["dry_run", "local"]
 OpenHandsChangeType = Literal["added", "modified", "deleted"]
 

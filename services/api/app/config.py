@@ -111,6 +111,14 @@ AIDER_EXECUTION_ENABLED = (
 # off hosted providers). Override with AIDER_LLM_PROVIDER if needed.
 AIDER_LLM_PROVIDER = os.getenv("AIDER_LLM_PROVIDER", "ollama")
 AIDER_MODEL = os.getenv("AIDER_MODEL", "")  # blank -> provider default
+# Aider execution bridge (real subprocess). Server-controlled argv only;
+# request input can never influence the command line.
+AIDER_COMMAND = os.getenv("AIDER_COMMAND", "aider")
+AIDER_TIMEOUT_SECONDS = int(os.getenv("AIDER_TIMEOUT_SECONDS", "900"))
+AIDER_MAX_OUTPUT_BYTES = int(os.getenv("AIDER_MAX_OUTPUT_BYTES", "200000"))
+AIDER_EXECUTION_HARD_CAP_SECONDS = int(
+    os.getenv("AIDER_EXECUTION_HARD_CAP_SECONDS", "3600")
+)
 
 # C2: Langfuse observability. Non-secret bits live here; the secret key is
 # resolved via the secret provider at runtime (never committed). Provider is

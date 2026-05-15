@@ -367,6 +367,7 @@ from .workspaces import (
     WorkspaceUpdate,
 )
 from .tool_runs import (
+    AiderExecuteRequest,
     AiderPreparePackageRequest,
     AiderRecordResultRequest,
     OpenHandsChangedPath,
@@ -567,6 +568,7 @@ __all__ = [
     "OpenHandsChangeType",
     "OpenHandsExecuteMode",
     "OpenHandsExecuteRequest",
+    "AiderExecuteRequest",
     "AiderPreparePackageRequest",
     "AiderRecordResultRequest",
     "OpenHandsExecuteResponse",
