@@ -59,6 +59,18 @@ AUTH_ENABLED = os.getenv("AUTH_ENABLED", "true").lower() == "true"
 AUTH_ADMIN_EMAIL = os.getenv("AUTH_ADMIN_EMAIL", "")
 AUTH_ADMIN_PASSWORD = os.getenv("AUTH_ADMIN_PASSWORD", "")
 AUTH_TOKEN_SECRET = os.getenv("AUTH_TOKEN_SECRET", "")
+# H1: disabling auth must be a deliberate, local-only opt-in — never a
+# single silent env flip in a non-local environment.
+FORGELOOP_ALLOW_NO_AUTH = (
+    os.getenv("FORGELOOP_ALLOW_NO_AUTH", "false").lower() == "true"
+)
+# L1: minimum entropy for the JWT signing secret.
+AUTH_TOKEN_SECRET_MIN_LEN = int(os.getenv("AUTH_TOKEN_SECRET_MIN_LEN", "32"))
+# M4: bound every hosted-LLM call so a hung TLS connection cannot wedge
+# a worker indefinitely.
+LLM_REQUEST_TIMEOUT_SECONDS = int(
+    os.getenv("LLM_REQUEST_TIMEOUT_SECONDS", "60")
+)
 AUTH_TOKEN_TTL_SECONDS = int(os.getenv("AUTH_TOKEN_TTL_SECONDS", "86400"))
 OPENHANDS_EXECUTION_ENABLED = os.getenv("OPENHANDS_EXECUTION_ENABLED", "false").lower() == "true"
 OPENHANDS_MODE = os.getenv("OPENHANDS_MODE", "dry_run")
@@ -188,6 +200,23 @@ def validate_startup_config() -> None:
             "AUTH_TOKEN_SECRET must be set when AUTH_ENABLED=true. "
             "Set a random secret of at least 32 characters."
         )
+    # L1: enforce signing-secret entropy (was only checked non-empty).
+    if AUTH_ENABLED and len(AUTH_TOKEN_SECRET) < AUTH_TOKEN_SECRET_MIN_LEN:
+        raise RuntimeError(
+            f"AUTH_TOKEN_SECRET must be >= {AUTH_TOKEN_SECRET_MIN_LEN} "
+            "characters (weak secrets enable offline JWT forgery)."
+        )
+    # H1: refuse to run anonymously unless it is an explicit, local-only
+    # opt-in. A single AUTH_ENABLED=false flip must not silently expose
+    # the entire control plane (incl. execution endpoints).
+    if not AUTH_ENABLED:
+        if ENVIRONMENT != "local" or not FORGELOOP_ALLOW_NO_AUTH:
+            raise RuntimeError(
+                "AUTH_ENABLED=false is refused: it makes every endpoint "
+                "(including code execution) anonymous. To run without auth "
+                "you must set ENVIRONMENT=local AND "
+                "FORGELOOP_ALLOW_NO_AUTH=true (local development only)."
+            )
     if REPOSITORY_PROVIDER == "local_document":
         if LOCAL_DOCUMENT_DB_PROVIDER != "mongodb":
             raise RuntimeError(

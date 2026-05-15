@@ -35,10 +35,39 @@ def test_validate_startup_config_raises_when_auth_enabled_and_secret_empty(monke
         config.validate_startup_config()
 
 
-def test_validate_startup_config_ok_when_auth_disabled(monkeypatch):
+def test_h1_auth_disabled_refused_by_default(monkeypatch):
+    # Security #45/H1: a bare AUTH_ENABLED=false must NOT silently expose
+    # the control plane — it is refused unless an explicit local opt-in.
     monkeypatch.setattr(config, "AUTH_ENABLED", False)
     monkeypatch.setattr(config, "AUTH_TOKEN_SECRET", "")
+    monkeypatch.setattr(config, "ENVIRONMENT", "production")
+    monkeypatch.setattr(config, "FORGELOOP_ALLOW_NO_AUTH", False)
+    with pytest.raises(RuntimeError, match="AUTH_ENABLED=false is refused"):
+        config.validate_startup_config()
+
+
+def test_h1_auth_disabled_allowed_with_explicit_local_optin(monkeypatch):
+    monkeypatch.setattr(config, "AUTH_ENABLED", False)
+    monkeypatch.setattr(config, "AUTH_TOKEN_SECRET", "")
+    monkeypatch.setattr(config, "ENVIRONMENT", "local")
+    monkeypatch.setattr(config, "FORGELOOP_ALLOW_NO_AUTH", True)
     config.validate_startup_config()  # must not raise
+
+
+def test_h1_auth_disabled_local_without_flag_still_refused(monkeypatch):
+    monkeypatch.setattr(config, "AUTH_ENABLED", False)
+    monkeypatch.setattr(config, "ENVIRONMENT", "local")
+    monkeypatch.setattr(config, "FORGELOOP_ALLOW_NO_AUTH", False)
+    with pytest.raises(RuntimeError, match="AUTH_ENABLED=false is refused"):
+        config.validate_startup_config()
+
+
+def test_l1_auth_token_secret_min_length_enforced(monkeypatch):
+    monkeypatch.setattr(config, "AUTH_ENABLED", True)
+    monkeypatch.setattr(config, "AUTH_TOKEN_SECRET", "tooshort")
+    monkeypatch.setattr(config, "AUTH_TOKEN_SECRET_MIN_LEN", 32)
+    with pytest.raises(RuntimeError, match=">= 32 characters"):
+        config.validate_startup_config()
 
 
 def test_validate_startup_config_ok_when_auth_enabled_and_secret_set(monkeypatch):

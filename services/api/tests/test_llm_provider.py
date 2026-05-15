@@ -138,3 +138,42 @@ def test_deepseek_generate_text_empty_response_raises():
         provider = DeepSeekProvider(api_key="sk-test", base_url="http://localhost", model="deepseek-v4-flash")
         with pytest.raises(ProviderError, match="empty or malformed"):
             provider.generate_text("some prompt")
+
+
+# --- #45/M4: hosted-LLM hardening (timeout + exception redaction) ---------
+
+
+def test_m4_deepseek_client_constructed_with_timeout(monkeypatch):
+    monkeypatch.setattr(config, "LLM_REQUEST_TIMEOUT_SECONDS", 42)
+    with patch("app.llm.deepseek.OpenAI") as MockOpenAI:
+        DeepSeekProvider(api_key="sk-test", base_url="http://x", model="m")
+    _, kwargs = MockOpenAI.call_args
+    assert kwargs.get("timeout") == 42
+
+
+def test_m4_deepseek_error_does_not_leak_raw_exception():
+    with patch("app.llm.deepseek.OpenAI") as MockOpenAI:
+        MockOpenAI.return_value.chat.completions.create.side_effect = (
+            RuntimeError("https://api.deepseek.com leaked-key=sk-secret-xyz")
+        )
+        provider = DeepSeekProvider(api_key="sk-test", base_url="http://x", model="m")
+        with pytest.raises(ProviderError) as ei:
+            provider.generate_text("p")
+    msg = str(ei.value)
+    assert "RuntimeError" in msg
+    assert "sk-secret-xyz" not in msg
+    assert "deepseek.com" not in msg
+
+
+def test_m4_kimi_client_timeout_and_redaction():
+    with patch("app.llm.kimi.OpenAI") as MockOpenAI:
+        MockOpenAI.return_value.chat.completions.create.side_effect = (
+            RuntimeError("secret-leak-token")
+        )
+        provider = KimiProvider(api_key="k", base_url="http://x", model="m")
+        _, kwargs = MockOpenAI.call_args
+        assert "timeout" in kwargs
+        with pytest.raises(ProviderError) as ei:
+            provider.generate_text("p")
+    assert "secret-leak-token" not in str(ei.value)
+    assert "RuntimeError" in str(ei.value)

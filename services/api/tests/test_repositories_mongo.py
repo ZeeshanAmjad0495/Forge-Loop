@@ -474,7 +474,9 @@ def test_memory_provider_does_not_invoke_mongo_factory(monkeypatch):
 
 def test_validate_startup_config_passes_for_memory(monkeypatch):
     monkeypatch.setattr(config, "REPOSITORY_PROVIDER", "memory")
-    monkeypatch.setattr(config, "AUTH_ENABLED", False)
+    # Secure posture (post-#45/H1): auth on with a valid-length secret.
+    monkeypatch.setattr(config, "AUTH_ENABLED", True)
+    monkeypatch.setattr(config, "AUTH_TOKEN_SECRET", "x" * 40)
     config.validate_startup_config()
 
 
@@ -482,8 +484,9 @@ def test_validate_startup_config_requires_mongo_uri(monkeypatch):
     monkeypatch.setattr(config, "REPOSITORY_PROVIDER", "local_document")
     monkeypatch.setattr(config, "LOCAL_DOCUMENT_DB_PROVIDER", "mongodb")
     monkeypatch.setattr(config, "MONGODB_URI", "")
-    monkeypatch.setattr(config, "AUTH_ENABLED", False)
-    with pytest.raises(RuntimeError):
+    monkeypatch.setattr(config, "AUTH_ENABLED", True)
+    monkeypatch.setattr(config, "AUTH_TOKEN_SECRET", "x" * 40)
+    with pytest.raises(RuntimeError, match="MONGODB_URI"):
         config.validate_startup_config()
 
 
