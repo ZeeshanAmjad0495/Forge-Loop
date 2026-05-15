@@ -16,8 +16,10 @@ class _FakeResponse:
         self._body = json.dumps(payload).encode("utf-8")
         self.status = status
 
-    def read(self) -> bytes:
-        return self._body
+    def read(self, n: int = -1) -> bytes:
+        if n is None or n < 0:
+            return self._body
+        return self._body[:n]
 
     def __enter__(self):
         return self
@@ -126,3 +128,40 @@ def test_providers_endpoint_includes_ollama(client):
     assert "ollama" in by_name
     assert by_name["ollama"]["configured"] is True
     assert by_name["ollama"]["default_model"]
+
+
+# --- #45/H8+M5: SSRF / TLS / bounded-read hardening ----------------------
+
+
+def test_h8_rejects_cloud_metadata_host():
+    with pytest.raises(ProviderError, match="metadata|link-local|blocked"):
+        OllamaProvider(base_url="http://169.254.169.254/api", model="m")
+
+
+def test_h8_rejects_plaintext_http_to_public_host(monkeypatch):
+    monkeypatch.setattr(config, "ALLOW_INSECURE_LLM_HTTP", False)
+    with pytest.raises(ProviderError, match="https"):
+        OllamaProvider(base_url="http://ollama.example.com", model="m")
+
+
+def test_h8_allows_loopback_http():
+    # Default local config must keep working (no usability regression).
+    OllamaProvider(base_url="http://127.0.0.1:11434", model="m")
+    OllamaProvider(base_url="http://localhost:11434", model="m")
+
+
+def test_h8_allows_insecure_http_with_explicit_override(monkeypatch):
+    monkeypatch.setattr(config, "ALLOW_INSECURE_LLM_HTTP", True)
+    OllamaProvider(base_url="http://ollama.internal", model="m")
+
+
+def test_h8_response_size_cap_enforced(monkeypatch):
+    monkeypatch.setattr(config, "LLM_MAX_RESPONSE_BYTES", 10)
+    provider = OllamaProvider(base_url="http://localhost:11434", model="m")
+
+    def _big(req, timeout=None):
+        return _FakeResponse({"message": {"content": "x" * 5000}})
+
+    with patch("app.llm.ollama.urllib_request.urlopen", side_effect=_big):
+        with pytest.raises(ProviderError, match="size cap"):
+            provider.generate_text("p")

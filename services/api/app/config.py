@@ -71,6 +71,16 @@ AUTH_TOKEN_SECRET_MIN_LEN = int(os.getenv("AUTH_TOKEN_SECRET_MIN_LEN", "32"))
 LLM_REQUEST_TIMEOUT_SECONDS = int(
     os.getenv("LLM_REQUEST_TIMEOUT_SECONDS", "60")
 )
+# H8: cap LLM HTTP response reads (Ollama generations can be large but
+# must still be bounded against a hostile/runaway endpoint).
+LLM_MAX_RESPONSE_BYTES = int(
+    os.getenv("LLM_MAX_RESPONSE_BYTES", "5000000")
+)
+# M5: operator escape hatch to allow http:// to a non-local LLM/bridge
+# host (trusted internal network only). Default off = TLS enforced.
+ALLOW_INSECURE_LLM_HTTP = (
+    os.getenv("ALLOW_INSECURE_LLM_HTTP", "false").lower() == "true"
+)
 AUTH_TOKEN_TTL_SECONDS = int(os.getenv("AUTH_TOKEN_TTL_SECONDS", "86400"))
 OPENHANDS_EXECUTION_ENABLED = os.getenv("OPENHANDS_EXECUTION_ENABLED", "false").lower() == "true"
 OPENHANDS_MODE = os.getenv("OPENHANDS_MODE", "dry_run")

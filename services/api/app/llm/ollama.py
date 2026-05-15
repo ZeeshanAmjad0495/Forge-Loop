@@ -13,6 +13,8 @@ from typing import Any
 from urllib import error as urllib_error
 from urllib import request as urllib_request
 
+from .. import config as _config
+from ..services.url_safety import UnsafeURLError, validate_external_base_url
 from .base import ProviderError
 
 
@@ -26,7 +28,17 @@ class OllamaProvider:
         timeout_seconds: int = 60,
     ) -> None:
         self.model_name = model
-        self._base_url = base_url.rstrip("/")
+        # H8: reject SSRF/metadata/link-local targets and plaintext http to
+        # a non-local host before any request is made.
+        try:
+            validated = validate_external_base_url(
+                base_url,
+                label="OLLAMA_BASE_URL",
+                allow_insecure_http=_config.ALLOW_INSECURE_LLM_HTTP,
+            )
+        except UnsafeURLError as exc:
+            raise ProviderError(str(exc)) from exc
+        self._base_url = validated.rstrip("/")
         self._timeout_seconds = timeout_seconds
 
     # --- HTTP -----------------------------------------------------------------
@@ -41,11 +53,19 @@ class OllamaProvider:
         )
         try:
             with urllib_request.urlopen(req, timeout=self._timeout_seconds) as resp:
-                body = resp.read().decode("utf-8")
+                # H8: bound the read against a hostile/runaway endpoint.
+                raw = resp.read(_config.LLM_MAX_RESPONSE_BYTES + 1)
+            if len(raw) > _config.LLM_MAX_RESPONSE_BYTES:
+                raise ProviderError("Ollama response exceeded size cap")
+            body = raw.decode("utf-8")
         except urllib_error.URLError as exc:
-            raise ProviderError(f"Ollama call failed: {exc}") from exc
+            raise ProviderError(
+                f"Ollama call failed: {type(exc).__name__}"
+            ) from exc
         except TimeoutError as exc:
-            raise ProviderError(f"Ollama call timed out: {exc}") from exc
+            raise ProviderError(
+                f"Ollama call timed out: {type(exc).__name__}"
+            ) from exc
         try:
             return json.loads(body)
         except json.JSONDecodeError as exc:
