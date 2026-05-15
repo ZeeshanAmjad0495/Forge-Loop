@@ -352,7 +352,14 @@ class HttpOpenHandsExecutor:
         # The POST returns a start-task id, not the conversation_id. Resolve
         # the actual ``app_conversation_id`` once the start-task is READY.
         conversation_id: str | None = None
-        resolve_deadline = started + min(120.0, max(1, timeout_seconds))
+        # B3 lever: the start-task -> READY (sandbox/runtime spin-up) phase
+        # was hard-capped at 120s regardless of the job timeout. A cold
+        # OpenHands runtime routinely needs longer, so DTs silently timed
+        # out in resolve and produced ZERO code. The cap is now configurable
+        # and defaults high enough for a cold runtime, still bounded by the
+        # overall job timeout.
+        resolve_cap = float(_config.OPENHANDS_HTTP_RESOLVE_TIMEOUT_SECONDS)
+        resolve_deadline = started + min(resolve_cap, max(1, timeout_seconds))
         while True:
             try:
                 tasks = self._http_get(
@@ -376,13 +383,22 @@ class HttpOpenHandsExecutor:
             if conversation_id:
                 break
             if time.monotonic() >= resolve_deadline:
+                now = time.monotonic()
                 return OpenHandsExecutionResult(
                     exit_code=None,
                     stdout="",
                     stderr="",
                     timed_out=True,
-                    duration_seconds=time.monotonic() - started,
-                    error="timed out waiting for OpenHands start-task to become READY",
+                    duration_seconds=now - started,
+                    # B3: attribute the timeout to the resolve phase so
+                    # telemetry shows WHERE it died (was reported as 0.0).
+                    resolve_seconds=round(now - started, 3),
+                    run_seconds=0.0,
+                    error=(
+                        "timed out waiting for OpenHands start-task to become "
+                        f"READY after {round(now - started)}s "
+                        f"(resolve cap {resolve_cap:.0f}s)"
+                    ),
                 )
             time.sleep(self._poll_interval)
 

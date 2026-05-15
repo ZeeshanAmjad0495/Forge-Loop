@@ -227,6 +227,34 @@ def test_run_records_phase_timing_breakdown(tmp_path):
     ) < 0.5
 
 
+def test_resolve_timeout_is_configurable_and_attributed(tmp_path, monkeypatch):
+    """B3 fix: start-task->READY (runtime spin-up) is no longer hard-capped
+    at 120s; the cap is configurable and a resolve timeout is attributed to
+    the resolve phase (was reported as resolve_seconds=0.0)."""
+    from app import config
+
+    monkeypatch.setattr(
+        config, "OPENHANDS_HTTP_RESOLVE_TIMEOUT_SECONDS", 0.05
+    )
+    instr = _make_instruction_file(tmp_path)
+    # conv_id=None -> start-task never yields an app_conversation_id, so the
+    # runtime never becomes resolvable: the resolve loop must hit the cap.
+    stub = _StubHttp(conv_id=None, start_task_status="PENDING")
+    ex = _executor(stub)
+    result = ex.run(
+        command="ignored",
+        args=[str(instr)],
+        cwd=str(tmp_path),
+        timeout_seconds=900,  # large job timeout; resolve cap must bound it
+        max_output_bytes=1000,
+    )
+    assert result.timed_out is True
+    assert result.exit_code is None
+    assert result.resolve_seconds > 0.0          # attributed, not 0.0
+    assert result.run_seconds == 0.0
+    assert "resolve cap" in (result.error or "")
+
+
 def test_run_times_out_when_events_never_arrive(tmp_path):
     instr = _make_instruction_file(tmp_path)
     # Count stays 0 forever

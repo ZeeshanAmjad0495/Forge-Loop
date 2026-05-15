@@ -79,6 +79,11 @@ OPENHANDS_HTTP_POLL_INTERVAL_SECONDS = float(
 OPENHANDS_HTTP_QUIET_AFTER_SECONDS = float(
     os.getenv("OPENHANDS_HTTP_QUIET_AFTER_SECONDS", "10")
 )
+# B3: cap for the start-task -> READY (runtime spin-up) phase. Hard-coded
+# 120s previously caused cold-runtime DTs to time out with zero output.
+OPENHANDS_HTTP_RESOLVE_TIMEOUT_SECONDS = float(
+    os.getenv("OPENHANDS_HTTP_RESOLVE_TIMEOUT_SECONDS", "300")
+)
 OPENHANDS_HOST_PARENT_MOUNT = os.getenv("OPENHANDS_HOST_PARENT_MOUNT", "").strip()
 OPENHANDS_CONTAINER_PARENT_MOUNT = os.getenv(
     "OPENHANDS_CONTAINER_PARENT_MOUNT", ""
