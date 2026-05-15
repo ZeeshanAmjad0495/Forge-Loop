@@ -48,6 +48,8 @@ AuditAction = Literal[
     "integration_run_completed",
     "integration_run_conflict",
     "integration_run_failed",
+    "aider_package_prepared",
+    "aider_result_recorded",
     "github_pr_creation_requested",
     "github_branch_pushed",
     "github_pr_created",

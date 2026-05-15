@@ -139,6 +139,17 @@ class OpenHandsRecordResultRequest(BaseModel):
     conclusion: ToolRunConclusion = "neutral"
 
 
+class AiderPreparePackageRequest(BaseModel):
+    tool_runner_definition_id: str | None = None
+    code_repository_id: str | None = None
+
+
+class AiderRecordResultRequest(BaseModel):
+    summary: str = ""
+    output: str = ""
+    conclusion: ToolRunConclusion = "neutral"
+
+
 OpenHandsExecuteMode = Literal["dry_run", "local"]
 OpenHandsChangeType = Literal["added", "modified", "deleted"]
 

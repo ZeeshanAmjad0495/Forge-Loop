@@ -45,6 +45,19 @@ _DEFAULT_RUNNER_TEMPLATES: list[dict] = [
         "config": {},
     },
     {
+        "name": "Aider",
+        "runner_type": "aider",
+        "mode": "dry_run",
+        # Seeded enabled (parity with OpenHands, B4 rationale). The Aider
+        # adapter is pure; external execution is independently gated by
+        # AIDER_EXECUTION_ENABLED, so enabling the definition runs nothing.
+        "enabled": True,
+        "description": "Alternative coding runner (Aider). Enabled by "
+                       "default; reuses the configured LLM provider/key. "
+                       "Execution gated by AIDER_EXECUTION_ENABLED.",
+        "config": {},
+    },
+    {
         "name": "Manual Runner",
         "runner_type": "manual",
         "mode": "manual",

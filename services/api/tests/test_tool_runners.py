@@ -188,22 +188,29 @@ def test_patch_tool_runner_definition_404():
 # Defaults endpoint
 # ---------------------------------------------------------------------------
 
-def test_defaults_creates_openhands_and_manual_definitions():
+def test_defaults_creates_openhands_aider_and_manual_definitions():
     project = _create_project()
     resp = client.post(f"/projects/{project['id']}/tool-runner-definitions/defaults", json={})
     assert resp.status_code == 201
     data = resp.json()
-    assert len(data["created"]) == 2
+    assert len(data["created"]) == 3
     assert len(data["existing"]) == 0
     names = {d["name"] for d in data["created"]}
     assert "OpenHands" in names
+    assert "Aider" in names
     assert "Manual Runner" in names
     openhands = next(d for d in data["created"] if d["name"] == "OpenHands")
+    aider = next(d for d in data["created"] if d["name"] == "Aider")
     manual = next(d for d in data["created"] if d["name"] == "Manual Runner")
     # B4: OpenHands runner is now seeded enabled. Execution remains gated
     # by OPENHANDS_EXECUTION_ENABLED + request mode, so this is safe.
     assert openhands["enabled"] is True
     assert openhands["mode"] == "dry_run"
+    # C1: Aider seeded enabled (parity); execution gated by
+    # AIDER_EXECUTION_ENABLED and the pure adapter never executes.
+    assert aider["enabled"] is True
+    assert aider["runner_type"] == "aider"
+    assert aider["mode"] == "dry_run"
     assert manual["enabled"] is True
     assert manual["mode"] == "manual"
 
@@ -213,14 +220,14 @@ def test_defaults_dedupes_existing_definitions():
     # First call creates both
     resp1 = client.post(f"/projects/{project['id']}/tool-runner-definitions/defaults", json={})
     assert resp1.status_code == 201
-    assert len(resp1.json()["created"]) == 2
+    assert len(resp1.json()["created"]) == 3
 
     # Second call finds both already existing
     resp2 = client.post(f"/projects/{project['id']}/tool-runner-definitions/defaults", json={})
     assert resp2.status_code == 201
     data2 = resp2.json()
     assert len(data2["created"]) == 0
-    assert len(data2["existing"]) == 2
+    assert len(data2["existing"]) == 3
 
 
 def test_defaults_unknown_project_returns_404():
@@ -242,7 +249,7 @@ def test_defaults_creates_audit_events():
     client.post(f"/projects/{project['id']}/tool-runner-definitions/defaults", json={})
     events = client.get(f"/projects/{project['id']}/audit-events").json()
     created_events = [e for e in events if e["action"] == "tool_runner_definition_created"]
-    assert len(created_events) == 2
+    assert len(created_events) == 3
     sources = {e["details"].get("source") for e in created_events}
     assert sources == {"defaults"}
 
@@ -256,7 +263,7 @@ def test_defaults_scoped_to_repo_dedupes_per_repo():
         json={"code_repository_id": repo["id"]},
     )
     assert resp1.status_code == 201
-    assert len(resp1.json()["created"]) == 2
+    assert len(resp1.json()["created"]) == 3
 
     # Call again — should find existing
     resp2 = client.post(
@@ -264,7 +271,7 @@ def test_defaults_scoped_to_repo_dedupes_per_repo():
         json={"code_repository_id": repo["id"]},
     )
     assert len(resp2.json()["created"]) == 0
-    assert len(resp2.json()["existing"]) == 2
+    assert len(resp2.json()["existing"]) == 3
 
 
 # ---------------------------------------------------------------------------

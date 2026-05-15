@@ -45,6 +45,7 @@ from .repositories_state import (
 from .routes import (
     agent_failures,
     approvals,
+    aider,
     architecture_decisions,
     architecture_reviews,
     improvement_proposals,
@@ -134,6 +135,7 @@ app.include_router(epics.router)
 app.include_router(checks.router)
 app.include_router(tool_runners.router)
 app.include_router(openhands.router)
+app.include_router(aider.router)
 app.include_router(pr_drafts.router)
 app.include_router(pr_reviews.router)
 app.include_router(ci.router)

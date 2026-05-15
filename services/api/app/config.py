@@ -86,6 +86,23 @@ OPENHANDS_CONTAINER_PARENT_MOUNT = os.getenv(
 KODY_REVIEW_ENABLED = os.getenv("KODY_REVIEW_ENABLED", "false").lower() == "true"
 KODY_BASE_URL = os.getenv("KODY_BASE_URL", "")
 KODY_API_KEY = os.getenv("KODY_API_KEY", "")
+
+# C1: Aider coding runner. The runner is pure (instruction-package only,
+# like OpenHands dry-run); external execution is independently gated and not
+# implemented in this build. Aider reuses the configured LLM provider/key
+# (e.g. DeepSeek) — no separate Aider API key.
+AIDER_EXECUTION_ENABLED = (
+    os.getenv("AIDER_EXECUTION_ENABLED", "false").lower() == "true"
+)
+AIDER_MODEL = os.getenv("AIDER_MODEL", "")  # blank -> fall back to LLM_MODEL
+
+# C2: Langfuse observability. Non-secret bits live here; the secret key is
+# resolved via the secret provider at runtime (never committed). Provider is
+# a no-op unless host + both keys are present.
+LANGFUSE_ENABLED = os.getenv("LANGFUSE_ENABLED", "false").lower() == "true"
+LANGFUSE_HOST = os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
+LANGFUSE_PUBLIC_KEY = os.getenv("LANGFUSE_PUBLIC_KEY", "")
+LANGFUSE_SECRET_KEY = os.getenv("LANGFUSE_SECRET_KEY", "")
 FORGELOOP_WORKSPACE_ROOT = os.getenv("FORGELOOP_WORKSPACE_ROOT", "./.forgeloop/workspaces")
 WORKSPACE_ALLOW_OUTSIDE_ROOT = os.getenv("WORKSPACE_ALLOW_OUTSIDE_ROOT", "false").lower() == "true"
 
