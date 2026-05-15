@@ -75,4 +75,26 @@ def record_cost(
         updated_at=now,
     )
     cost_record_repo.save(record)
+
+    # C2: mirror the cost record to the observability provider as an LLM
+    # generation. No-op unless Langfuse is configured; never raises.
+    try:
+        from .observability import get_observability_provider
+
+        get_observability_provider().record_generation(
+            name=f"{workflow_type}:{source_type}",
+            provider=provider,
+            model=model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            total_tokens=total_tokens,
+            cost_usd=estimated_total_cost_usd,
+            project_id=project_id,
+            source_type=source_type,
+            source_id=source_id,
+            metadata=dict(metadata or {}),
+        )
+    except Exception:
+        pass
+
     return record
