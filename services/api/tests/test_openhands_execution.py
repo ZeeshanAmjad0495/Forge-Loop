@@ -765,3 +765,31 @@ def test_sync_preserves_gitignored_artifacts(tmp_path):
     # -fd (not -x): gitignored caches survive for speed.
     assert (tmp_path / ".venv" / "x").exists()
     assert (tmp_path / ".coverage").exists()
+
+
+@requires_git
+def test_sync_removes_bled_disposable_db(tmp_path):
+    # #44 finding: a gitignored migration-stamped SQLite DB bleeds across
+    # dev-task branches -> spurious alembic QA failures. B1 sync must drop
+    # disposable dev DBs while still keeping caches.
+    _init_repo(tmp_path)
+    (tmp_path / ".gitignore").write_text("*.db\n.coverage\n.venv/\n")
+    subprocess.run(["git", "-C", str(tmp_path), "add", ".gitignore"], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "-c", "commit.gpgsign=false",
+                     "commit", "-q", "-m", "gi"], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "switch", "-c",
+                     "forgeloop/dev-task/z"], check=True)
+    (tmp_path / "probepilot.db").write_text("stale-alembic-stamp")
+    sub = tmp_path / "app"
+    sub.mkdir()
+    (sub / "test.sqlite3").write_text("nested stamped db")
+    (tmp_path / ".coverage").write_text("cov")
+    (tmp_path / ".venv").mkdir()
+    (tmp_path / ".venv" / "x").write_text("cached")
+
+    sync_workspace_to_branch_head(tmp_path)
+
+    assert not (tmp_path / "probepilot.db").exists()      # removed
+    assert not (sub / "test.sqlite3").exists()            # nested removed
+    assert (tmp_path / ".coverage").exists()              # cache kept
+    assert (tmp_path / ".venv" / "x").exists()            # venv kept
