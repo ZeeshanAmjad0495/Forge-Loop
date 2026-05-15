@@ -68,6 +68,18 @@ def _redact_key(text: str, key: str | None) -> str:
     return out
 
 
+def _unwrap(resp: dict) -> dict:
+    """Kodus wraps payloads in a ``{"data": {...}}`` envelope (observed on
+    the live API; the OpenAPI DTOs don't show it). Unwrap one level so
+    callers see ``{jobId, status, ...}`` / ``{summary, issues, ...}``
+    directly. Idempotent for un-enveloped responses."""
+    if isinstance(resp, dict):
+        inner = resp.get("data")
+        if isinstance(inner, dict) and inner:
+            return inner
+    return resp
+
+
 class UrllibKodyClient:
     """stdlib-only Kodus CLI client."""
 
@@ -190,15 +202,18 @@ class UrllibKodyClient:
         if user_email:
             payload["userEmail"] = user_email
         extra = {"x-kodus-async": "1"} if async_mode else None
-        return self._request(
+        resp = self._request(
             "POST", "/cli/review",
             api_key=api_key, body=payload, extra_headers=extra,
         )
+        return _unwrap(resp)
 
     def get_review_job(self, *, api_key: str, job_id: str) -> dict:
         """GET /cli/review/jobs/{jobId} -> {status, result?, error?}."""
-        return self._request(
-            "GET", f"/cli/review/jobs/{job_id}", api_key=api_key
+        return _unwrap(
+            self._request(
+                "GET", f"/cli/review/jobs/{job_id}", api_key=api_key
+            )
         )
 
 
@@ -214,4 +229,5 @@ __all__ = [
     "KodyValidationError",
     "UrllibKodyClient",
     "_redact_key",
+    "_unwrap",
 ]
