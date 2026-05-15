@@ -13,6 +13,12 @@ build/
 .env
 .env.*
 !**/.env.example
+# Security (C1/L2): never commit secret-bearing backups
+*.bak
+*.env.backup
+*.env.local
+secrets.json
+*-service-account*.json
 
 # Terraform
 infra/terraform/.terraform/
