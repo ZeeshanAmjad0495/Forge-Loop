@@ -50,9 +50,11 @@ def test_prepare_aider_package_returns_tool_run_and_package():
     pkg = json.loads(run["output"])
     assert pkg["runner"] == "aider"
     assert pkg["dev_task"]["id"] == task["id"]
-    # LLM identity is recorded (provider/model only — never a key).
+    # LLM identity is recorded — Aider defaults to local Ollama. Never a key.
     assert "llm" in pkg
-    assert set(pkg["llm"].keys()) == {"provider", "model"}
+    assert pkg["llm"]["provider"] == "ollama"
+    assert pkg["llm"]["model"]  # OLLAMA_DEFAULT_MODEL
+    assert pkg["llm"]["base_url"].startswith("http")
     assert all("key" not in k.lower() for k in pkg["llm"])
 
     events = client.get(f"/projects/{project['id']}/audit-events").json()

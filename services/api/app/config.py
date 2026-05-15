@@ -94,7 +94,10 @@ KODY_API_KEY = os.getenv("KODY_API_KEY", "")
 AIDER_EXECUTION_ENABLED = (
     os.getenv("AIDER_EXECUTION_ENABLED", "false").lower() == "true"
 )
-AIDER_MODEL = os.getenv("AIDER_MODEL", "")  # blank -> fall back to LLM_MODEL
+# Project decision: Aider uses the local Ollama by default (keeps codegen
+# off hosted providers). Override with AIDER_LLM_PROVIDER if needed.
+AIDER_LLM_PROVIDER = os.getenv("AIDER_LLM_PROVIDER", "ollama")
+AIDER_MODEL = os.getenv("AIDER_MODEL", "")  # blank -> provider default
 
 # C2: Langfuse observability. Non-secret bits live here; the secret key is
 # resolved via the secret provider at runtime (never committed). Provider is

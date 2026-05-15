@@ -39,9 +39,21 @@ AIDER_INSTRUCTIONS: list[str] = [
 
 
 def _llm_block() -> dict:
-    """Provider/model identity only — never the API key."""
+    """LLM identity for the Aider run — never an API key.
+
+    Defaults to the local Ollama (project decision). For Ollama the local
+    base_url + model are surfaced so a future execution path points Aider at
+    the local server; other providers record provider/model only.
+    """
+    provider = config.AIDER_LLM_PROVIDER or config.LLM_PROVIDER
+    if provider == "ollama":
+        return {
+            "provider": "ollama",
+            "model": config.AIDER_MODEL or config.OLLAMA_DEFAULT_MODEL,
+            "base_url": config.OLLAMA_BASE_URL,
+        }
     return {
-        "provider": config.LLM_PROVIDER,
+        "provider": provider,
         "model": config.AIDER_MODEL or config.LLM_MODEL or None,
     }
 
