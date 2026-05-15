@@ -485,7 +485,18 @@ def _service() -> AiderExecutionService:
 
 
 def execute(dev_task_id: str, body, actor_email: str) -> ToolRun:
-    return _service().execute(dev_task_id, body, actor_email)
+    # Same per-workspace mutual exclusion as the OpenHands path: a
+    # concurrent same-workspace run would be corrupted by B1 hard-sync.
+    from .workspace_locks import WorkspaceBusyError, workspace_execution_lock
+
+    ws_id = getattr(body, "workspace_id", None)
+    if not ws_id:
+        return _service().execute(dev_task_id, body, actor_email)
+    try:
+        with workspace_execution_lock(ws_id):
+            return _service().execute(dev_task_id, body, actor_email)
+    except WorkspaceBusyError as exc:
+        raise HTTPException(status_code=409, detail="WORKSPACE_BUSY") from exc
 
 
 __all__ = ["AiderExecutionService", "AiderSubprocessExecutor", "execute"]
