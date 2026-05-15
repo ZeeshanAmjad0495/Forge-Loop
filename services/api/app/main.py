@@ -69,6 +69,7 @@ from .routes import (
     git_workflow,
     health,
     incidents,
+    integration_runs,
     llm,
     memory,
     memory_retrieval,
@@ -152,6 +153,7 @@ app.include_router(benchmarks.router)
 app.include_router(workspaces.router)
 app.include_router(commands.router)
 app.include_router(git_workflow.router)
+app.include_router(integration_runs.router)
 app.include_router(review_feedback.router)
 app.include_router(runtime.router)
 app.include_router(cost_records.router)

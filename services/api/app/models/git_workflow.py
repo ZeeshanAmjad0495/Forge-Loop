@@ -96,11 +96,71 @@ class GitCommitRecord(BaseModel):
     error_message: str | None = None
 
 
+# ---------------------------------------------------------------------------
+# B2: native multi-dev-task integration.
+#
+# Manual hand-merge of per-dev-task branches previously dropped a dev_task
+# silently (DT-S4-3). The integration run takes an *explicit ordered* list of
+# already-committed workspace branches, merges them onto a fresh integration
+# branch, and reports every member's outcome. A conflict surfaces as a 409
+# with the conflicting member + files — it is never skipped or hidden.
+# ---------------------------------------------------------------------------
+
+
+IntegrationMemberStatus = Literal[
+    "pending",
+    "merged",
+    "conflict",
+    "not_attempted",
+]
+
+IntegrationRunStatus = Literal["integrated", "conflict", "failed"]
+
+
+class IntegrationMember(BaseModel):
+    workspace_branch_id: str
+    branch_name: str
+    dev_task_id: str | None = None
+    status: IntegrationMemberStatus = "pending"
+    conflicting_files: list[str] = []
+    detail: str | None = None
+
+
+class IntegrationRunCreate(BaseModel):
+    # Ordered list of already-committed WorkspaceBranch ids to integrate.
+    source_branch_ids: list[str]
+    base_branch: str | None = None
+    name: str | None = None
+    approval_id: str | None = None
+    create_pr_draft: bool = False
+    code_repository_id: str | None = None
+    target_branch: str = "main"
+    pr_title: str | None = None
+    pr_body: str | None = None
+
+
+class IntegrationRunResult(BaseModel):
+    status: IntegrationRunStatus
+    integration_branch: WorkspaceBranch
+    base_branch: str
+    members: list[IntegrationMember]
+    commit_sha: str | None = None
+    git_commit_record_id: str | None = None
+    pr_draft_id: str | None = None
+    diff_stat: str = ""
+    notes: list[str] = []
+
+
 __all__ = [
     "GitCommitCreate",
     "GitCommitRecord",
     "GitCommitStatus",
     "GitInspectionResponse",
+    "IntegrationMember",
+    "IntegrationMemberStatus",
+    "IntegrationRunCreate",
+    "IntegrationRunResult",
+    "IntegrationRunStatus",
     "WorkspaceBranch",
     "WorkspaceBranchCreate",
     "WorkspaceBranchResponse",

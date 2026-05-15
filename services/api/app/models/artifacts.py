@@ -30,6 +30,7 @@ class Artifact(BaseModel):
         "openhands_execution_changed_paths",
         "git_inspection_summary",
         "git_commit_summary",
+        "integration_run_summary",
         "github_pr_creation_summary",
         "review_feedback_import_summary",
         "revision_plan_summary",
