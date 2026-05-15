@@ -110,7 +110,37 @@ async def lifespan(_app: FastAPI):
     yield
 
 
-app = FastAPI(lifespan=lifespan)
+from fastapi.responses import JSONResponse
+
+# M9: do not expose the API schema/docs anonymously in production.
+_docs_enabled = config.ENVIRONMENT != "production"
+app = FastAPI(
+    lifespan=lifespan,
+    docs_url="/docs" if _docs_enabled else None,
+    redoc_url="/redoc" if _docs_enabled else None,
+    openapi_url="/openapi.json" if _docs_enabled else None,
+)
+
+
+@app.middleware("http")
+async def _limit_request_body(request, call_next):
+    # H6: reject oversized request bodies (JSON-bomb / memory-DoS).
+    cl = request.headers.get("content-length")
+    if cl is not None:
+        try:
+            if int(cl) > config.MAX_REQUEST_BODY_BYTES:
+                return JSONResponse(
+                    status_code=413,
+                    content={"detail": "request body too large"},
+                )
+        except ValueError:
+            return JSONResponse(
+                status_code=400,
+                content={"detail": "invalid Content-Length"},
+            )
+    return await call_next(request)
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=config.CORS_ALLOWED_ORIGINS,

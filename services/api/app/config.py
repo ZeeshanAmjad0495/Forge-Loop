@@ -81,6 +81,11 @@ LLM_MAX_RESPONSE_BYTES = int(
 ALLOW_INSECURE_LLM_HTTP = (
     os.getenv("ALLOW_INSECURE_LLM_HTTP", "false").lower() == "true"
 )
+# H6: hard cap on request body size (JSON-bomb / memory-DoS defense).
+# Generous — instruction packages / large diffs are well under this.
+MAX_REQUEST_BODY_BYTES = int(
+    os.getenv("MAX_REQUEST_BODY_BYTES", "10000000")
+)
 AUTH_TOKEN_TTL_SECONDS = int(os.getenv("AUTH_TOKEN_TTL_SECONDS", "86400"))
 OPENHANDS_EXECUTION_ENABLED = os.getenv("OPENHANDS_EXECUTION_ENABLED", "false").lower() == "true"
 OPENHANDS_MODE = os.getenv("OPENHANDS_MODE", "dry_run")
