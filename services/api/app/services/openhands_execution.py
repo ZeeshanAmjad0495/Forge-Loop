@@ -728,6 +728,61 @@ def _capped_combined(stdout: str, stderr: str, cap: int) -> str:
     return combined
 
 
+def _git(root: Path, args: list[str], timeout: int) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        ["git", "-C", str(root), *args],
+        capture_output=True, text=True, timeout=timeout,
+        shell=False, env={"PATH": os.environ.get("PATH", "")}, check=False,
+    )
+
+
+class SandboxSyncError(RuntimeError):
+    pass
+
+
+def sync_workspace_to_branch_head(ws_root: Path, *, timeout: int = 60) -> str | None:
+    """B1: eliminate sandbox state bleed.
+
+    Before the agent runs, force the workspace to exactly the committed
+    HEAD of its current branch and drop any untracked bled files. The
+    legitimate flow is: ForgeLoop creates the branch (clean) -> execute
+    (agent edits) -> ForgeLoop commits. So at execute-start there should
+    be NO uncommitted changes; anything present is bleed (a prior run, or
+    the OpenHands bind-mount carrying state) and is discarded.
+
+    Guards (never destructive outside the intended case):
+    - workspace must be a git repo
+    - current branch must start with the configured forgeloop/ prefix and
+      must NOT be a protected branch (main/master/develop/production/...)
+    Returns the branch name synced, or None if not a git repo (no-op).
+    Raises SandboxSyncError if on a protected/unexpected branch.
+    """
+    if not (ws_root / ".git").exists():
+        return None
+    head = _git(ws_root, ["rev-parse", "--abbrev-ref", "HEAD"], timeout)
+    if head.returncode != 0:
+        return None
+    branch = head.stdout.strip()
+    protected = {b.strip() for b in _config.GIT_PROTECTED_BRANCHES if b.strip()}
+    prefix = _config.GIT_ALLOWED_BRANCH_PREFIX or "forgeloop/"
+    if branch in protected or branch == "HEAD" or not branch.startswith(prefix):
+        raise SandboxSyncError(
+            f"refusing pre-execute sync: workspace is on {branch!r}, "
+            f"not a {prefix}* dev-task branch"
+        )
+    # Fixed argv, shell=False. `reset --hard HEAD` reverts tracked-modified
+    # bleed; `clean -fd` removes untracked bled source files. NOT `-x`, so
+    # gitignored caches/.venv/.forgeloop survive (kept for speed; the
+    # instruction file is (re)written immediately after this).
+    r1 = _git(ws_root, ["reset", "--hard", "HEAD"], timeout)
+    if r1.returncode != 0:
+        raise SandboxSyncError(f"git reset --hard failed: {r1.stderr.strip()}")
+    r2 = _git(ws_root, ["clean", "-fd"], timeout)
+    if r2.returncode != 0:
+        raise SandboxSyncError(f"git clean -fd failed: {r2.stderr.strip()}")
+    return branch
+
+
 def _changed_paths_to_summary(
     diff: workspace_snapshot.WorkspaceDiff, limit: int = 1000
 ) -> list[OpenHandsChangedPath]:
@@ -885,9 +940,30 @@ class OpenHandsExecutionService:
             created_at=now,
         ))
 
+        ws_root = Path(workspace.root_path).resolve()
+
+        # B1: hard-sync the workspace to its branch HEAD before the agent
+        # runs, so no bled state (prior run / bind-mount carryover) leaks
+        # into this dev_task's output. Local mode only; guarded to
+        # forgeloop/* non-protected branches.
+        try:
+            synced_branch = sync_workspace_to_branch_head(
+                ws_root, timeout=int(_config.GIT_TIMEOUT_SECONDS)
+            )
+        except SandboxSyncError as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
+        if synced_branch:
+            self.audit_writer.write(
+                "openhands_workspace_synced",
+                "workspace",
+                workspace.id,
+                project_id=project.id,
+                actor_email=actor_email,
+                details={"branch": synced_branch, "dev_task_id": dev_task.id},
+            )
+
         # Write the instruction file into a ForgeLoop-controlled metadata dir
         # under the workspace root.
-        ws_root = Path(workspace.root_path).resolve()
         meta_dir = ws_root / ".forgeloop" / "openhands"
         try:
             meta_dir.mkdir(parents=True, exist_ok=True)

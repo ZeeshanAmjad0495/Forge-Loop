@@ -685,3 +685,72 @@ def test_no_real_subprocess_invoked_anywhere(workspace_root, enable_execution, m
         json={"workspace_id": ws["id"], "mode": "local"},
     )
     assert res.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# B1: pre-execute sandbox sync (sync_workspace_to_branch_head)
+# ---------------------------------------------------------------------------
+
+import shutil  # noqa: E402
+
+from app.services.openhands_execution import (  # noqa: E402
+    SandboxSyncError,
+    sync_workspace_to_branch_head,
+)
+
+GIT = shutil.which("git")
+requires_git = pytest.mark.skipif(GIT is None, reason="git not available")
+
+
+def _init_repo(p: Path) -> None:
+    subprocess.run(["git", "init", "-q", str(p)], check=True)
+    subprocess.run(["git", "-C", str(p), "config", "user.email", "t@t"], check=True)
+    subprocess.run(["git", "-C", str(p), "config", "user.name", "t"], check=True)
+    (p / "main.py").write_text("print('v1')\n")
+    subprocess.run(["git", "-C", str(p), "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(p), "-c", "commit.gpgsign=false",
+                     "commit", "-q", "-m", "init"], check=True)
+
+
+@requires_git
+def test_sync_noop_when_not_git(tmp_path):
+    assert sync_workspace_to_branch_head(tmp_path) is None
+
+
+@requires_git
+def test_sync_refuses_protected_branch(tmp_path):
+    _init_repo(tmp_path)  # default branch (main/master) is protected
+    with pytest.raises(SandboxSyncError):
+        sync_workspace_to_branch_head(tmp_path)
+
+
+@requires_git
+def test_sync_discards_bled_state_on_forgeloop_branch(tmp_path):
+    _init_repo(tmp_path)
+    subprocess.run(["git", "-C", str(tmp_path), "switch", "-c",
+                    "forgeloop/dev-task/x"], check=True)
+    # Simulate bleed: a tracked-modified file + an untracked stray file.
+    (tmp_path / "main.py").write_text("BLED tracked change\n")
+    (tmp_path / "stray.py").write_text("bled untracked\n")
+    branch = sync_workspace_to_branch_head(tmp_path)
+    assert branch == "forgeloop/dev-task/x"
+    assert (tmp_path / "main.py").read_text() == "print('v1')\n"   # reverted
+    assert not (tmp_path / "stray.py").exists()                     # cleaned
+
+
+@requires_git
+def test_sync_preserves_gitignored_artifacts(tmp_path):
+    _init_repo(tmp_path)
+    (tmp_path / ".gitignore").write_text(".venv/\n.coverage\n")
+    subprocess.run(["git", "-C", str(tmp_path), "add", ".gitignore"], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "-c", "commit.gpgsign=false",
+                    "commit", "-q", "-m", "gi"], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "switch", "-c",
+                    "forgeloop/dev-task/y"], check=True)
+    (tmp_path / ".venv").mkdir()
+    (tmp_path / ".venv" / "x").write_text("cached")
+    (tmp_path / ".coverage").write_text("cov")
+    sync_workspace_to_branch_head(tmp_path)
+    # -fd (not -x): gitignored caches survive for speed.
+    assert (tmp_path / ".venv" / "x").exists()
+    assert (tmp_path / ".coverage").exists()
