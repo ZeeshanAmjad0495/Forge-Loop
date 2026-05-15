@@ -106,6 +106,11 @@ OPENHANDS_HTTP_QUIET_AFTER_SECONDS = float(
 OPENHANDS_HTTP_RESOLVE_TIMEOUT_SECONDS = float(
     os.getenv("OPENHANDS_HTTP_RESOLVE_TIMEOUT_SECONDS", "300")
 )
+# H9: bound OpenHands bridge response reads (generous — event payloads can
+# be large — but never unbounded against a hostile/runaway bridge).
+OPENHANDS_HTTP_MAX_RESPONSE_BYTES = int(
+    os.getenv("OPENHANDS_HTTP_MAX_RESPONSE_BYTES", "10000000")
+)
 OPENHANDS_HOST_PARENT_MOUNT = os.getenv("OPENHANDS_HOST_PARENT_MOUNT", "").strip()
 OPENHANDS_CONTAINER_PARENT_MOUNT = os.getenv(
     "OPENHANDS_CONTAINER_PARENT_MOUNT", ""

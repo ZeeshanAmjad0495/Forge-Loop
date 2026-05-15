@@ -33,13 +33,18 @@ def validate_external_base_url(
     *,
     label: str = "base URL",
     allow_insecure_http: bool = False,
+    require_tls_for_public: bool = True,
 ) -> str:
     """Return the URL unchanged if safe; raise UnsafeURLError otherwise.
 
     - scheme must be http/https
-    - host must be present and not a known metadata/link-local literal
-    - non-loopback/non-private hosts must use https unless
-      ``allow_insecure_http`` (operator escape hatch) is set
+    - host must be present and not a known metadata/link-local literal,
+      and never a link-local/reserved/multicast IP
+    - when ``require_tls_for_public`` (default), non-loopback/non-private
+      hosts must use https unless ``allow_insecure_http`` is set. Set
+      ``require_tls_for_public=False`` for an internal-by-design bridge
+      (e.g. the OpenHands runtime) where only the metadata/link-local
+      SSRF class must be blocked.
     """
     if not url or not isinstance(url, str):
         raise UnsafeURLError(f"{label} is empty")
@@ -76,7 +81,11 @@ def validate_external_base_url(
             )
         if ip.is_loopback or ip.is_private:
             return url  # local/private literal — allowed (incl. http)
-        if parsed.scheme != "https" and not allow_insecure_http:
+        if (
+            require_tls_for_public
+            and parsed.scheme != "https"
+            and not allow_insecure_http
+        ):
             raise UnsafeURLError(
                 f"{label} must use https for the public host {host!r}"
             )
@@ -85,7 +94,11 @@ def validate_external_base_url(
     # Hostname (not a literal IP).
     if host == "localhost" or host.endswith(".localhost"):
         return url
-    if parsed.scheme != "https" and not allow_insecure_http:
+    if (
+        require_tls_for_public
+        and parsed.scheme != "https"
+        and not allow_insecure_http
+    ):
         raise UnsafeURLError(
             f"{label} must use https for the non-local host {host!r} "
             "(set the insecure-http override only for trusted internal "

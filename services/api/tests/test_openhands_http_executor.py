@@ -566,3 +566,48 @@ def test_run_omits_directive_and_title_when_not_provided(tmp_path):
     text = body["initial_message"]["content"][0]["text"]
     assert not text.startswith("Your working directory")
     assert "title" not in body
+
+
+# --- #45/H9: bridge SSRF + response-id sanitization ----------------------
+
+
+def test_h9_rejects_metadata_base_url():
+    from app.services.openhands_execution import (
+        HttpOpenHandsExecutor, OpenHandsHttpError,
+    )
+    with pytest.raises(OpenHandsHttpError):
+        HttpOpenHandsExecutor(base_url="http://169.254.169.254:3000")
+
+
+def test_h9_loopback_and_internal_http_base_url_allowed():
+    from app.services.openhands_execution import HttpOpenHandsExecutor
+    # default loopback + test-only internal hostnames must keep working
+    HttpOpenHandsExecutor(base_url="http://127.0.0.1:3000")
+    HttpOpenHandsExecutor(base_url="http://test.invalid:3000")
+
+
+def test_h9_unsafe_conversation_id_is_rejected(tmp_path):
+    instr = _make_instruction_file(tmp_path)
+    # Bridge returns a path/query-injecting app_conversation_id.
+    stub = _StubHttp(conv_id="../../evil?x=", start_task_status="READY")
+    ex = _executor(stub)
+    result = ex.run(
+        command="ignored", args=[str(instr)], cwd=str(tmp_path),
+        timeout_seconds=5, max_output_bytes=1000,
+    )
+    assert result.exit_code is None
+    assert "unsafe" in (result.error or "").lower()
+
+
+def test_h9_safe_conversation_id_still_flows(tmp_path):
+    instr = _make_instruction_file(tmp_path)
+    agent = {"kind": "MessageEvent", "source": "agent",
+             "content": [{"type": "text", "text": "ok"}]}
+    stub = _StubHttp(conv_id="conv-XYZ_123.4", events_count_sequence=[0, 1, 1],
+                     events=[agent])
+    ex = _executor(stub)
+    result = ex.run(
+        command="ignored", args=[str(instr)], cwd=str(tmp_path),
+        timeout_seconds=5, max_output_bytes=1000,
+    )
+    assert result.exit_code == 0

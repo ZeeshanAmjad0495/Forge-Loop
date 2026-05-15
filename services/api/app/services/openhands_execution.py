@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import time
 import uuid
@@ -215,11 +216,25 @@ class HttpOpenHandsExecutor:
         http_get=None,
         http_post=None,
     ) -> None:
-        self._base_url = (
+        from .url_safety import UnsafeURLError, validate_external_base_url
+
+        raw_base = (
             base_url
             if base_url is not None
             else _config.OPENHANDS_HTTP_BASE_URL
-        ).rstrip("/")
+        )
+        # H9: block the metadata/link-local SSRF class. The bridge is
+        # internal-by-design so http is allowed (require_tls_for_public
+        # is off) — only dangerous targets are rejected.
+        try:
+            validate_external_base_url(
+                raw_base,
+                label="OPENHANDS_HTTP_BASE_URL",
+                require_tls_for_public=False,
+            )
+        except UnsafeURLError as exc:
+            raise OpenHandsHttpError(str(exc)) from exc
+        self._base_url = raw_base.rstrip("/")
         self._poll_interval = (
             poll_interval_seconds
             if poll_interval_seconds is not None
@@ -402,6 +417,24 @@ class HttpOpenHandsExecutor:
                 )
             time.sleep(self._poll_interval)
 
+        # H9: the conversation_id came from the bridge's own response and
+        # is about to be interpolated into follow-up request URLs. A
+        # hostile/compromised bridge returning a crafted id (path/query
+        # injection) must not reshape those requests — pin it to a safe
+        # id charset. Surface as a normal result (bridge convention), not
+        # a raised exception.
+        try:
+            conversation_id = _safe_oh_id(conversation_id)
+        except OpenHandsHttpError as exc:
+            return OpenHandsExecutionResult(
+                exit_code=None,
+                stdout="",
+                stderr="",
+                timed_out=False,
+                duration_seconds=time.monotonic() - started,
+                error=str(exc),
+            )
+
         # End of the sandbox/runtime spin-up phase: the conversation is
         # resolved and READY. Everything after this is agent-run time.
         resolve_end = time.monotonic()
@@ -501,6 +534,19 @@ class OpenHandsHttpError(Exception):
     """Raised by the HTTP helpers for any network/HTTP failure."""
 
 
+_OH_ID_RE = re.compile(r"^[A-Za-z0-9_.\-]{1,128}$")
+
+
+def _safe_oh_id(value) -> str:
+    """H9: validate a bridge-supplied id before it is interpolated into a
+    request URL. Rejects path/query injection from a hostile bridge."""
+    if not isinstance(value, str) or not _OH_ID_RE.match(value):
+        raise OpenHandsHttpError(
+            "OpenHands returned an unsafe conversation/start-task id"
+        )
+    return value
+
+
 def _http_post_json(url: str, body: dict, *, timeout: float) -> dict:
     """Default HTTP POST helper used by HttpOpenHandsExecutor.
 
@@ -518,7 +564,13 @@ def _http_post_json(url: str, body: dict, *, timeout: float) -> dict:
     )
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return json.loads(resp.read().decode("utf-8"))
+            cap = int(_config.OPENHANDS_HTTP_MAX_RESPONSE_BYTES)
+            raw = resp.read(cap + 1)
+            if len(raw) > cap:
+                raise OpenHandsHttpError(
+                    f"response from {url} exceeded size cap"
+                )
+            return json.loads(raw.decode("utf-8"))
     except urllib.error.HTTPError as exc:
         body_text = ""
         try:
@@ -544,7 +596,13 @@ def _http_get_json(url: str, *, timeout: float):
     )
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            text = resp.read().decode("utf-8")
+            cap = int(_config.OPENHANDS_HTTP_MAX_RESPONSE_BYTES)
+            raw = resp.read(cap + 1)
+            if len(raw) > cap:
+                raise OpenHandsHttpError(
+                    f"response from {url} exceeded size cap"
+                )
+            text = raw.decode("utf-8")
     except urllib.error.HTTPError as exc:
         raise OpenHandsHttpError(f"HTTP {exc.code} from {url}") from exc
     except urllib.error.URLError as exc:
