@@ -153,7 +153,7 @@ def test_execute_success_records_run_and_cost(
     argv = stub.calls[0]["argv"]
     assert argv[0] == "aider-fake"
     assert "--no-auto-commits" in argv
-    assert "--yes" in argv
+    assert "--yes-always" in argv
     assert "--message-file" in argv
     assert "ollama/qwen2.5-coder:3b" in argv
 

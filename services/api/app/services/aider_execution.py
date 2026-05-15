@@ -75,7 +75,7 @@ def _build_argv(message_file: str) -> list[str]:
         _config.AIDER_COMMAND,
         "--model", _resolve_model(),
         "--message-file", message_file,
-        "--yes",
+        "--yes-always",
         "--no-auto-commits",
         "--no-stream",
         "--no-check-update",
