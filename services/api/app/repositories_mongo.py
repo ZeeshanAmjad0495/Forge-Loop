@@ -135,6 +135,26 @@ def _redact_mongo_uri(uri: str) -> str:
 # ---------------------------------------------------------------------------
 
 
+class MongoFilterInjectionError(ValueError):
+    """Raised when an equality filter value is a Mongo operator object.
+
+    #45/H7: ``find({field: value})`` treats a dict value as a query
+    operator ($ne/$gt/$where/...). Request-derived values reaching the
+    base equality helpers must be scalars; an operator object would let a
+    caller bypass project/approval scoping (NoSQL operator injection).
+    """
+
+
+def _assert_no_operator(value: Any) -> None:
+    if isinstance(value, dict):
+        raise MongoFilterInjectionError(
+            "operator objects are not allowed in equality filters"
+        )
+    if isinstance(value, (list, tuple)):
+        for item in value:
+            _assert_no_operator(item)
+
+
 class MongoDocumentRepository(Generic[T]):
     """Base class for Mongo-backed repositories.
 
@@ -161,6 +181,7 @@ class MongoDocumentRepository(Generic[T]):
 
     # --- read ----------------------------------------------------------
     def _get_by_id(self, value: str) -> T | None:
+        _assert_no_operator(value)
         doc = self._collection.find_one({"_id": value})
         if doc is None:
             return None
@@ -170,12 +191,15 @@ class MongoDocumentRepository(Generic[T]):
         return self._get_by_id(id)
 
     def list_by_field(self, field: str, value: Any) -> list[T]:
+        _assert_no_operator(value)
         return [
             from_mongo_document(d, self.model_cls)  # type: ignore[misc]
             for d in self._collection.find({field: value})
         ]
 
     def list_by_fields(self, filters: dict[str, Any]) -> list[T]:
+        for v in filters.values():
+            _assert_no_operator(v)
         return [
             from_mongo_document(d, self.model_cls)  # type: ignore[misc]
             for d in self._collection.find(filters)

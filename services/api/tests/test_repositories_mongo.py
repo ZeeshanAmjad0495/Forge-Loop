@@ -512,3 +512,36 @@ def test_ensure_indexes_creates_expected_indexes(db):
     approval_indexes = list(db["approvals"].list_indexes())
     approval_keys = {tuple(idx["key"].items()) for idx in approval_indexes}
     assert (("target_type", 1), ("target_id", 1), ("status", 1)) in approval_keys
+
+
+# --- #45/H7: Mongo NoSQL operator-injection guard -------------------------
+
+class _ProjRepo(mongo.MongoDocumentRepository):
+    collection_name = "projects"
+    model_cls = Project
+
+
+def test_h7_get_rejects_operator_object(db):
+    repo = _ProjRepo(db)
+    repo.save(_project("p1"))
+    assert repo.get("p1") is not None
+    with pytest.raises(mongo.MongoFilterInjectionError):
+        repo.get({"$ne": None})  # type: ignore[arg-type]
+
+
+def test_h7_list_by_field_rejects_operator_object(db):
+    repo = _ProjRepo(db)
+    repo.save(_project("p1", "P1"))
+    assert len(repo.list_by_field("name", "P1")) == 1  # scalar still works
+    with pytest.raises(mongo.MongoFilterInjectionError):
+        repo.list_by_field("name", {"$ne": "nope"})
+    with pytest.raises(mongo.MongoFilterInjectionError):
+        repo.list_by_field("name", [{"$gt": ""}])  # nested operator
+
+
+def test_h7_list_by_fields_rejects_operator_object(db):
+    repo = _ProjRepo(db)
+    repo.save(_project("p1", "P1"))
+    assert len(repo.list_by_fields({"name": "P1"})) == 1
+    with pytest.raises(mongo.MongoFilterInjectionError):
+        repo.list_by_fields({"name": {"$ne": None}})
