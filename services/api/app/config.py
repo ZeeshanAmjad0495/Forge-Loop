@@ -86,6 +86,14 @@ OPENHANDS_CONTAINER_PARENT_MOUNT = os.getenv(
 KODY_REVIEW_ENABLED = os.getenv("KODY_REVIEW_ENABLED", "false").lower() == "true"
 KODY_BASE_URL = os.getenv("KODY_BASE_URL", "")
 KODY_API_KEY = os.getenv("KODY_API_KEY", "")
+KODY_REQUEST_TIMEOUT_SECONDS = int(
+    os.getenv("KODY_REQUEST_TIMEOUT_SECONDS", "60")
+)
+KODY_MAX_RESPONSE_BYTES = int(
+    os.getenv("KODY_MAX_RESPONSE_BYTES", "2000000")
+)
+# Kodus enqueues a job when x-kodus-async:1 is sent; ForgeLoop polls it.
+KODY_ASYNC = os.getenv("KODY_ASYNC", "true").lower() == "true"
 
 # C1: Aider coding runner. The runner is pure (instruction-package only,
 # like OpenHands dry-run); external execution is independently gated and not

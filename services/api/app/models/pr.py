@@ -156,6 +156,18 @@ class PullRequestReviewUpdate(BaseModel):
     error_message: str | None = None
 
 
+class KodyReviewRunRequest(BaseModel):
+    # The unified diff to review (Kodus reviews a diff, not a repo).
+    diff: str
+    config: dict | None = None
+    branch: str | None = None
+    commit_sha: str | None = None
+    merge_base_sha: str | None = None
+    git_remote: str | None = None
+    user_email: str | None = None
+    async_mode: bool | None = None  # None -> config.KODY_ASYNC
+
+
 class PullRequestReviewComplete(BaseModel):
     conclusion: PullRequestReviewConclusion
     summary: str | None = None

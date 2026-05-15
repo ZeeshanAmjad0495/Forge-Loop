@@ -2,13 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from ..auth import require_auth
 from ..models import (
+    KodyReviewRunRequest,
     PullRequestReview,
     PullRequestReviewComplete,
     PullRequestReviewCreate,
     PullRequestReviewUpdate,
 )
 from ..repositories_state import pr_draft_repo, pr_review_repo
-from ..services import pr_review_workflow
+from ..services import kody_review_execution, pr_review_workflow
 
 router = APIRouter()
 
@@ -64,3 +65,26 @@ def complete_pr_review(
     current_user: str = Depends(require_auth),
 ):
     return pr_review_workflow.complete_review(review_id, body, current_user)
+
+
+@router.post(
+    "/pr-reviews/{review_id}/kody/run",
+    response_model=PullRequestReview,
+)
+def run_kody_review(
+    review_id: str,
+    body: KodyReviewRunRequest,
+    current_user: str = Depends(require_auth),
+):
+    return kody_review_execution.submit(review_id, body, current_user)
+
+
+@router.post(
+    "/pr-reviews/{review_id}/kody/poll",
+    response_model=PullRequestReview,
+)
+def poll_kody_review(
+    review_id: str,
+    current_user: str = Depends(require_auth),
+):
+    return kody_review_execution.poll(review_id, current_user)
