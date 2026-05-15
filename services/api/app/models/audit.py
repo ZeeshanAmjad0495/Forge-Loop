@@ -44,6 +44,7 @@ AuditAction = Literal[
     "workspace_commit_created",
     "workspace_commit_failed",
     "git_operation_blocked",
+    "openhands_workspace_synced",
     "integration_run_requested",
     "integration_run_completed",
     "integration_run_conflict",
