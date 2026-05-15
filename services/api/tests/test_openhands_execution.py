@@ -461,6 +461,17 @@ def test_exit_zero_creates_completed_requires_human_action_run(
     assert "openhands_execution_started" in actions
     assert "openhands_execution_completed" in actions
 
+    # C2 follow-up: the execution emits a CostRecord (-> Langfuse trace).
+    costs = client.get(
+        f"/projects/{project['id']}/cost-records"
+    ).json()
+    oh_costs = [c for c in costs if c["source_type"] == "tool_run"
+                and c["provider"] == "openhands"]
+    assert len(oh_costs) == 1
+    assert oh_costs[0]["source_id"] == run["id"]
+    assert oh_costs[0]["metadata"]["dev_task_id"] == task["id"]
+    assert "resolve_seconds" in oh_costs[0]["metadata"]
+
 
 def test_nonzero_exit_creates_failed_run(workspace_root, enable_execution, monkeypatch):
     _install_executor(monkeypatch, _RecordingExecutor(

@@ -1151,6 +1151,39 @@ class OpenHandsExecutionService:
         })
         self.tool_run_repo.save(updated)
 
+        # C2 follow-up: emit a CostRecord for the execution so the
+        # observability provider (Langfuse) traces the sprint path. The
+        # OpenHands HTTP bridge does not surface LLM token usage, so token
+        # counts are 0 by design — the value here is the phase-timing
+        # metadata (B3) and a per-run generation. Never breaks execution.
+        try:
+            from ..repositories_state import cost_record_repo as _crr
+            from .cost_tracking import record_cost as _record_cost
+
+            _record_cost(
+                _crr,
+                project_id=project.id,
+                source_type="tool_run",
+                source_id=updated.id,
+                workflow_type="coding",
+                provider="openhands",
+                model=(_config.OPENHANDS_EXECUTOR or "http-bridge"),
+                input_tokens=0,
+                output_tokens=0,
+                metadata={
+                    "dev_task_id": updated.target_id,
+                    "workspace_id": workspace.id,
+                    "exit_code": result.exit_code,
+                    "timed_out": result.timed_out,
+                    "duration_seconds": round(result.duration_seconds, 3),
+                    "resolve_seconds": round(result.resolve_seconds, 3),
+                    "run_seconds": round(result.run_seconds, 3),
+                    "conclusion": conclusion,
+                },
+            )
+        except Exception:
+            pass
+
         self.audit_writer.write(
             audit_action,
             "tool_run",
