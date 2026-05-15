@@ -194,6 +194,56 @@ def test_execute_command_parsing_table(
         assert captured["argv"] == expected_argv, (command, captured["argv"])
 
 
+def test_execute_shell_mode_runs_via_bash_lc(
+    workspace_root, block_real_subprocess, enable_runner, monkeypatch
+):
+    """A4: a check definition with shell=True runs `bash -lc "<command>"`
+    so multi-step commands with && / pipes / env work. The command string
+    is NOT token-validated in this path (that's the opt-in's purpose).
+    """
+    project = _make_project()
+    ws = _make_workspace(project["id"])
+    d = _make_check_def(
+        project["id"],
+        name="cov",
+        command="coverage run -m pytest -q && coverage report --fail-under=85",
+        shell=True,
+    )
+    assert d["shell"] is True
+
+    captured: dict = {}
+
+    def fake(argv, **kwargs):
+        captured["argv"] = argv
+        return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
+
+    _install_fake_runner(monkeypatch, fake)
+    resp = _execute(d["id"], ws["id"])
+    assert resp.status_code == 201, resp.text
+    assert captured["argv"] == [
+        "bash",
+        "-lc",
+        "coverage run -m pytest -q && coverage report --fail-under=85",
+    ]
+
+
+def test_execute_non_shell_still_rejects_metacharacters(
+    workspace_root, block_real_subprocess, enable_runner, monkeypatch
+):
+    """Default (shell=False) path must still reject && — the strict
+    behaviour is unchanged for everything that does not opt in.
+    """
+    project = _make_project()
+    ws = _make_workspace(project["id"])
+    d = _make_check_def(
+        project["id"], name="bad", command="pytest -q && echo done"
+    )
+    assert d["shell"] is False
+    resp = _execute(d["id"], ws["id"])
+    # parse_check_command raises -> route surfaces a 4xx, not a run.
+    assert resp.status_code >= 400
+
+
 # ---------------------------------------------------------------------------
 # Failure / timeout / blocked mapping
 # ---------------------------------------------------------------------------

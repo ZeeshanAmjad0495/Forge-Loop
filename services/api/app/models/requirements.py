@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from .agents import AgentRun
 from .artifacts import Artifact
@@ -9,8 +9,32 @@ from .artifacts import Artifact
 RequirementStatus = Literal["draft", "ready_for_analysis", "analyzed"]
 RequirementSource = Literal["manual", "agent_generated", "imported"]
 
+_REQ_LIST_FIELDS = (
+    "target_users",
+    "functional_requirements",
+    "non_functional_requirements",
+    "acceptance_criteria",
+    "constraints",
+    "non_goals",
+    "assumptions",
+)
 
-class RequirementCreate(BaseModel):
+
+class _ReqListCoercion(BaseModel):
+    # B6: these are list[str], but callers naturally send a bare string for
+    # a single value (e.g. target_users="developers"). Accept both: a
+    # non-empty string becomes a 1-element list; None/"" becomes [].
+    @field_validator(*_REQ_LIST_FIELDS, mode="before", check_fields=False)
+    @classmethod
+    def _coerce_str_to_list(cls, v: object) -> object:
+        if v is None:
+            return []
+        if isinstance(v, str):
+            return [v] if v.strip() else []
+        return v
+
+
+class RequirementCreate(_ReqListCoercion):
     title: str
     problem_statement: str = ""
     business_goal: str = ""
@@ -25,7 +49,7 @@ class RequirementCreate(BaseModel):
     status: RequirementStatus = "draft"
 
 
-class RequirementUpdate(BaseModel):
+class RequirementUpdate(_ReqListCoercion):
     title: str
     problem_statement: str = ""
     business_goal: str = ""

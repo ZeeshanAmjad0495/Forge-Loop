@@ -40,6 +40,11 @@ class CheckDefinitionCreate(BaseModel):
     enabled: bool = True
     severity: CheckSeverity = "blocking"
     description: str = ""
+    # Opt-in: when True the command runs via `bash -lc "<command>"` so it
+    # can use shell features (&&, pipes, env prefixes) for multi-step
+    # checks (e.g. coverage). Default False keeps the strict, token-
+    # validated, non-shell path. `bash` is still allowlist-gated.
+    shell: bool = False
 
 
 class CheckDefinitionUpdate(BaseModel):
@@ -50,6 +55,7 @@ class CheckDefinitionUpdate(BaseModel):
     enabled: bool | None = None
     severity: CheckSeverity | None = None
     description: str | None = None
+    shell: bool | None = None
 
 
 class CheckDefinition(BaseModel):
@@ -63,6 +69,7 @@ class CheckDefinition(BaseModel):
     enabled: bool = True
     severity: CheckSeverity = "blocking"
     description: str = ""
+    shell: bool = False
     created_at: datetime
     updated_at: datetime
 

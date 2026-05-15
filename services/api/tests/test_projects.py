@@ -80,6 +80,27 @@ def test_put_context_saves_and_returns():
     assert get_response.json()["architecture_notes"] == "Hexagonal"
 
 
+def test_put_context_accepts_list_for_string_fields():
+    """B5: callers naturally send lists for test_commands / domain_rules /
+    safety_rules / deployment_commands. A list is joined with newlines and
+    stored as the string the rest of the system expects.
+    """
+    project = client.post("/projects", json={"name": "CtxList", "description": "d"}).json()
+    resp = client.put(
+        f"/projects/{project['id']}/context",
+        json={
+            "test_commands": ["uv run pytest -q", "uv run ruff check ."],
+            "domain_rules": ["3 fails -> incident", "no dup open incidents"],
+            "coding_standards": "single string still works",
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    d = resp.json()
+    assert d["test_commands"] == "uv run pytest -q\nuv run ruff check ."
+    assert d["domain_rules"] == "3 fails -> incident\nno dup open incidents"
+    assert d["coding_standards"] == "single string still works"
+
+
 def test_put_context_unknown_project_returns_404():
     response = client.put(
         "/projects/nonexistent-project-id/context",

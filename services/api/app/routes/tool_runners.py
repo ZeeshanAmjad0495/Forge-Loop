@@ -34,9 +34,15 @@ _DEFAULT_RUNNER_TEMPLATES: list[dict] = [
         "name": "OpenHands",
         "runner_type": "openhands",
         "mode": "dry_run",
-        "enabled": False,
-        "description": "Primary coding runner planned for Release 5. Tracking only — no execution.",
-        "config": {"notes": "No execution yet"},
+        # Seeded enabled. Actual code execution is independently gated by
+        # OPENHANDS_EXECUTION_ENABLED + the request mode, so enabling the
+        # definition by default does not by itself run anything — it just
+        # removes the surprising "prepare returns 'runner disabled'" step
+        # every project hit on first use (B4).
+        "enabled": True,
+        "description": "Primary coding runner (OpenHands). Enabled by default; "
+                       "execution still gated by OPENHANDS_EXECUTION_ENABLED.",
+        "config": {},
     },
     {
         "name": "Manual Runner",

@@ -151,10 +151,23 @@ class CheckExecutionService:
         if not definition.enabled:
             raise CheckExecutionValidationError("check definition is disabled")
 
-        cmd, args = parse_check_command(definition.command)
+        if getattr(definition, "shell", False):
+            # Opt-in shell mode: run the raw command through bash so it can
+            # use &&, pipes, env prefixes, etc. `bash` is still validated
+            # against the command allowlist by the runner. The command
+            # string itself is intentionally NOT token-validated here —
+            # that is the whole point of the opt-in.
+            if not definition.command or not definition.command.strip():
+                raise CheckExecutionValidationError("check definition has no command")
+            cmd, args = "bash", ["-lc", definition.command]
+            shell_mode = True
+        else:
+            cmd, args = parse_check_command(definition.command)
+            shell_mode = False
 
         target_id = body.target_id or definition.id
         cmr_create = CommandRunCreate(
+            shell=shell_mode,
             command_definition_id=None,
             command=cmd,
             args=args,

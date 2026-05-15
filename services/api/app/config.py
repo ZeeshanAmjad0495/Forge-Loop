@@ -96,7 +96,11 @@ COMMAND_RUNNER_ENABLED = os.getenv("COMMAND_RUNNER_ENABLED", "false").lower() ==
 COMMAND_RUNNER_MAX_TIMEOUT_SECONDS = int(os.getenv("COMMAND_RUNNER_MAX_TIMEOUT_SECONDS", "300"))
 COMMAND_RUNNER_MAX_OUTPUT_BYTES = int(os.getenv("COMMAND_RUNNER_MAX_OUTPUT_BYTES", "200000"))
 
-_DEFAULT_ALLOWED_COMMANDS = "python,python3,pytest,npm,node,npx,ruff,mypy"
+# `bash` is allowed so opt-in shell-mode check definitions
+# (CheckDefinition.shell=True) can run `bash -lc "<command>"`. In the
+# default (non-shell) path, command args are still token-validated for
+# shell metacharacters, so `bash` there is effectively inert.
+_DEFAULT_ALLOWED_COMMANDS = "python,python3,pytest,npm,node,npx,ruff,mypy,bash,uv"
 _DEFAULT_BLOCKED_COMMANDS = (
     "sudo,su,rm,rmdir,chmod,chown,curl,wget,ssh,scp,rsync,"
     "git,gh,docker,docker-compose,terraform,kubectl,gcloud,"

@@ -120,6 +120,7 @@ def create_check_definition(
         enabled=body.enabled,
         severity=body.severity,
         description=body.description,
+        shell=body.shell,
         created_at=now,
         updated_at=now,
     )

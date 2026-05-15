@@ -44,6 +44,23 @@ def test_create_requirement_returns_201():
     assert "id" in body
 
 
+def test_create_requirement_coerces_bare_string_list_fields():
+    """B6: a bare string for a list field (target_users="developers")
+    becomes a 1-element list; empty string becomes []; lists unchanged.
+    """
+    project = _create_project()
+    payload = dict(REQUIREMENT_PAYLOAD)
+    payload["target_users"] = "individual developer"   # bare string
+    payload["constraints"] = ""                          # empty -> []
+    payload["non_goals"] = ["already a list"]            # unchanged
+    response = client.post(f"/projects/{project['id']}/requirements", json=payload)
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["target_users"] == ["individual developer"]
+    assert body["constraints"] == []
+    assert body["non_goals"] == ["already a list"]
+
+
 def test_create_requirement_missing_project_404():
     response = client.post("/projects/nope/requirements", json=REQUIREMENT_PAYLOAD)
     assert response.status_code == 404

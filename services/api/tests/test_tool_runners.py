@@ -200,7 +200,9 @@ def test_defaults_creates_openhands_and_manual_definitions():
     assert "Manual Runner" in names
     openhands = next(d for d in data["created"] if d["name"] == "OpenHands")
     manual = next(d for d in data["created"] if d["name"] == "Manual Runner")
-    assert openhands["enabled"] is False
+    # B4: OpenHands runner is now seeded enabled. Execution remains gated
+    # by OPENHANDS_EXECUTION_ENABLED + request mode, so this is safe.
+    assert openhands["enabled"] is True
     assert openhands["mode"] == "dry_run"
     assert manual["enabled"] is True
     assert manual["mode"] == "manual"

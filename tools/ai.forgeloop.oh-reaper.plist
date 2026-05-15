@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Template LaunchAgent for the OpenHands runtime reaper.
+  Installed by tools/install_oh_reaper.sh, which substitutes the real
+  home path and copies the reaper script to a non-TCC-protected
+  location (~/Library/Application Support/forgeloop/) because launchd
+  agents cannot read scripts under ~/Documents without Full Disk Access.
+
+  __HOME__ is replaced by the installer.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>ai.forgeloop.oh-reaper</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>__HOME__/Library/Application Support/forgeloop/cleanup_stale_openhands_runtimes.sh</string>
+    <string>--keep</string>
+    <string>6</string>
+  </array>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+
+  <!-- Reap every 30 min. A paused agent-server holds ~150-300MB;
+       ~25 of them OOM'd the orchestrator. Keeping the 6 newest
+       preserves any runtime an in-flight conversation might still
+       attach to while bounding memory well under the failure point. -->
+  <key>StartInterval</key>
+  <integer>1800</integer>
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/tmp/forgeloop_oh_reaper.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/forgeloop_oh_reaper.log</string>
+
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>LowPriorityIO</key>
+  <true/>
+</dict>
+</plist>

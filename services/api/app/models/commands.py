@@ -219,6 +219,11 @@ class CommandDefinition(BaseModel):
 
 
 class CommandRunCreate(BaseModel):
+    # `shell` is declared first so the command/args validators can read it
+    # via ValidationInfo.data (pydantic validates in declaration order).
+    # When True the runner executes `bash -lc "<command>"`; the metachar
+    # checks are skipped because shell features are the explicit intent.
+    shell: bool = False
     command_definition_id: str | None = None
     command: str | None = None
     args: list[str] | None = None
@@ -229,8 +234,8 @@ class CommandRunCreate(BaseModel):
 
     @field_validator("command")
     @classmethod
-    def _validate_command(cls, v: str | None) -> str | None:
-        if v is None:
+    def _validate_command(cls, v: str | None, info) -> str | None:
+        if v is None or info.data.get("shell"):
             return v
         reason = _command_invalid_reason(v)
         if reason:
@@ -239,8 +244,8 @@ class CommandRunCreate(BaseModel):
 
     @field_validator("args")
     @classmethod
-    def _validate_args(cls, v: list[str] | None) -> list[str] | None:
-        if v is None:
+    def _validate_args(cls, v: list[str] | None, info) -> list[str] | None:
+        if v is None or info.data.get("shell"):
             return v
         for a in v:
             reason = _arg_invalid_reason(a)
