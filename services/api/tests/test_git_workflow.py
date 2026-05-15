@@ -102,6 +102,39 @@ def test_is_safe_commit_path_rejects_secrets_and_traversal():
     assert _is_safe_commit_path("/abs/path", blocked_prefixes=blocked) is False
 
 
+def test_is_safe_commit_path_rejects_build_test_junk():
+    """B15 defense-in-depth: generated artifacts must never be committed
+    even when the project has no .gitignore covering them.
+    """
+    b: list[str] = []
+    # rejected junk
+    for junk in [
+        ".coverage",
+        ".coverage.host.12345",
+        "__pycache__/x.cpython-313.pyc",
+        "pkg/__pycache__/mod.pyc",
+        "main.pyc",
+        "mod.pyo",
+        ".pytest_cache/v/cache/lastfailed",
+        ".mypy_cache/3.13/x.data.json",
+        ".ruff_cache/content/abc",
+        ".venv/bin/python",
+        "venv/lib/site-packages/foo.py",
+        ".python-version",
+        "htmlcov/index.html",
+    ]:
+        assert _is_safe_commit_path(junk, blocked_prefixes=b) is False, junk
+    # still-allowed real source/files
+    for ok in [
+        "main.py",
+        "app/coverage_report.py",        # not literally .coverage
+        "tests/test_pycache.py",         # name contains 'pycache' but not the dir
+        "docs/venv-setup.md",            # 'venv' substring, not the dir
+        "pyproject.toml",
+    ]:
+        assert _is_safe_commit_path(ok, blocked_prefixes=b) is True, ok
+
+
 def test_check_top_level_rejects_disallowed_command():
     # Task 38 narrowly added "push" to the allow-list for the PR
     # publication flow; everything else stays rejected.

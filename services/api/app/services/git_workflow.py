@@ -230,6 +230,33 @@ def _is_safe_commit_path(rel: str, *, blocked_prefixes: list[str]) -> bool:
     if rel.startswith("secrets/") or rel == "secrets":
         return False
 
+    # Built-in build/test junk denylist. Defense-in-depth so a project
+    # without a comprehensive .gitignore does not accidentally commit
+    # generated artifacts (this caused .coverage to land repeatedly in
+    # early ProbePilot sprints until the project gitignored it). Applies
+    # to any repo regardless of its .gitignore.
+    _JUNK_BASENAMES = {".coverage", ".python-version"}
+    _JUNK_DIR_PREFIXES = (
+        "__pycache__/",
+        ".pytest_cache/",
+        ".mypy_cache/",
+        ".ruff_cache/",
+        ".venv/",
+        "venv/",
+        ".tox/",
+        ".nox/",
+        "htmlcov/",
+    )
+    if basename in _JUNK_BASENAMES:
+        return False
+    if basename.endswith(".pyc") or basename.endswith(".pyo"):
+        return False
+    if basename.startswith(".coverage."):  # coverage parallel files
+        return False
+    for jp in _JUNK_DIR_PREFIXES:
+        if rel == jp.rstrip("/") or rel.startswith(jp) or ("/" + jp) in rel:
+            return False
+
     # Safety-profile blocked_paths (operator-supplied).
     for prefix in blocked_prefixes:
         p = (prefix or "").strip().rstrip("/")
