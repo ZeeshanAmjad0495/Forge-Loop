@@ -19,6 +19,12 @@ dev = [
 local_document = [
     "pymongo>=4.7",
 ]
+observability = [
+    # C2: Langfuse backend. Pinned <3 — the provider uses the v2
+    # client.generation() API (v3 reworked it). Optional + lazily
+    # imported; ForgeLoop runs fine without it (provider no-ops).
+    "langfuse>=2,<3",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
