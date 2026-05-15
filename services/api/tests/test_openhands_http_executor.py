@@ -197,6 +197,36 @@ def test_run_handles_failure_response_from_post(tmp_path):
     assert "could not start OpenHands conversation" in (result.error or "")
 
 
+def test_run_records_phase_timing_breakdown(tmp_path):
+    """B3: the bridge attributes wall time to sandbox-resolve vs agent-run
+    so real runs yield a hard latency breakdown instead of one opaque total.
+    """
+    instr = _make_instruction_file(tmp_path)
+    agent_message = {
+        "kind": "MessageEvent",
+        "source": "agent",
+        "content": [{"type": "text", "text": "done"}],
+    }
+    stub = _StubHttp(events_count_sequence=[0, 1, 1, 1], events=[agent_message])
+    ex = _executor(stub)
+
+    result = ex.run(
+        command="ignored",
+        args=[str(instr)],
+        cwd=str(tmp_path),
+        timeout_seconds=5,
+        max_output_bytes=1000,
+    )
+
+    assert result.exit_code == 0
+    assert result.resolve_seconds >= 0.0
+    assert result.run_seconds >= 0.0
+    # The two phases reconstruct the total (within timing slack).
+    assert abs(
+        (result.resolve_seconds + result.run_seconds) - result.duration_seconds
+    ) < 0.5
+
+
 def test_run_times_out_when_events_never_arrive(tmp_path):
     instr = _make_instruction_file(tmp_path)
     # Count stays 0 forever

@@ -69,6 +69,13 @@ class OpenHandsExecutionResult(BaseModel):
     stderr: str = ""
     timed_out: bool = False
     duration_seconds: float = 0.0
+    # B3 latency attribution. For the HTTP bridge executor these split the
+    # total wall time into the sandbox/runtime spin-up phase (POST +
+    # start-task -> READY) and the agent-run phase (event-poll loop /
+    # inference). Both default 0.0 for executors that don't measure phases
+    # (subprocess executor, dry-run) — 0.0 means "single-phase / unmeasured".
+    resolve_seconds: float = 0.0
+    run_seconds: float = 0.0
     error: str | None = None
 
 
@@ -379,6 +386,10 @@ class HttpOpenHandsExecutor:
                 )
             time.sleep(self._poll_interval)
 
+        # End of the sandbox/runtime spin-up phase: the conversation is
+        # resolved and READY. Everything after this is agent-run time.
+        resolve_end = time.monotonic()
+
         # Poll events until either (a) the upstream conversation reports a
         # terminal execution_status, or (b) the event count stabilizes for
         # ``quiet_after`` seconds, or (c) the overall deadline expires.
@@ -436,6 +447,8 @@ class HttpOpenHandsExecutor:
         events = events_resp.get("items", []) if isinstance(events_resp, dict) else []
         agent_text, error_text = _summarize_events(events)
         duration = time.monotonic() - started
+        resolve_seconds = round(resolve_end - started, 3)
+        run_seconds = round(time.monotonic() - resolve_end, 3)
 
         if timed_out:
             return OpenHandsExecutionResult(
@@ -444,6 +457,8 @@ class HttpOpenHandsExecutor:
                 stderr=_truncate(error_text or "", per_stream),
                 timed_out=True,
                 duration_seconds=duration,
+                resolve_seconds=resolve_seconds,
+                run_seconds=run_seconds,
                 error=f"timed out after {timeout_seconds}s",
             )
 
@@ -460,6 +475,8 @@ class HttpOpenHandsExecutor:
             stderr=_truncate(error_text or "", per_stream),
             timed_out=False,
             duration_seconds=duration,
+            resolve_seconds=resolve_seconds,
+            run_seconds=run_seconds,
             error=None,
         )
 
@@ -1147,6 +1164,8 @@ class OpenHandsExecutionService:
                 "changed_paths_count": len(changed),
                 "blocked_path_changes_count": len(blocked_changes),
                 "duration_seconds": round(result.duration_seconds, 3),
+                "resolve_seconds": round(result.resolve_seconds, 3),
+                "run_seconds": round(result.run_seconds, 3),
             },
         )
 
