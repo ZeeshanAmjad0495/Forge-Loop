@@ -251,3 +251,107 @@ def test_integration_run_creates_pr_draft(workspace_root, enable_git_workflow):
     assert data["status"] == "integrated"
     assert data["pr_draft_id"]
     assert data["notes"] == []
+
+
+# --- (b) B2 stale-base hardening -----------------------------------------
+
+
+def _advance_origin_main(root: Path, extra_file: str) -> str:
+    """Simulate origin/main moving AHEAD of local main without network:
+    commit on main, point refs/remotes/origin/main at it, reset main back.
+    """
+    a = _git(root, "rev-parse", "main").stdout.strip()
+    assert _git(root, "switch", "main").returncode == 0
+    (root / extra_file).write_text("from remote\n", encoding="utf-8")
+    _git(root, "add", extra_file)
+    assert _git(root, "commit", "-m", "remote advance").returncode == 0
+    b = _git(root, "rev-parse", "main").stdout.strip()
+    assert _git(root, "update-ref", "refs/remotes/origin/main", b).returncode == 0
+    assert _git(root, "reset", "--hard", a).returncode == 0
+    return b
+
+
+@requires_git
+def test_b2_detects_stale_base_and_warns(workspace_root, enable_git_workflow):
+    project = _create_project()
+    ws = _create_git_workspace(project["id"], workspace_root)
+    b1 = _branch_with_commit(ws, "forgeloop/dev-task/dt1", "a.txt", "alpha\n")
+    _advance_origin_main(Path(ws["root_path"]), "remote_only.txt")
+
+    res = client.post(
+        f"/workspaces/{ws['id']}/integration-runs",
+        json={"source_branch_ids": [b1], "base_branch": "main"},
+    )
+    assert res.status_code == 201, res.text
+    d = res.json()
+    assert d["status"] == "integrated"
+    assert d["base_is_current"] is False
+    assert d["base_upstream"] == "origin/main"
+    assert any("stale_base" in w for w in d["warnings"])
+
+
+@requires_git
+def test_b2_stale_base_blocks_when_required(
+    workspace_root, enable_git_workflow, monkeypatch
+):
+    monkeypatch.setattr(config, "INTEGRATION_REQUIRE_CURRENT_BASE", True)
+    project = _create_project()
+    ws = _create_git_workspace(project["id"], workspace_root)
+    b1 = _branch_with_commit(ws, "forgeloop/dev-task/dt1", "a.txt", "alpha\n")
+    _advance_origin_main(Path(ws["root_path"]), "remote_only.txt")
+
+    res = client.post(
+        f"/workspaces/{ws['id']}/integration-runs",
+        json={"source_branch_ids": [b1], "base_branch": "main"},
+    )
+    assert res.status_code == 409, res.text
+    assert res.json()["detail"]["error"] == "STALE_BASE"
+
+
+@requires_git
+def test_b2_reconcile_base_merges_upstream(
+    workspace_root, enable_git_workflow
+):
+    project = _create_project()
+    ws = _create_git_workspace(project["id"], workspace_root)
+    b1 = _branch_with_commit(ws, "forgeloop/dev-task/dt1", "a.txt", "alpha\n")
+    _advance_origin_main(Path(ws["root_path"]), "remote_only.txt")
+
+    res = client.post(
+        f"/workspaces/{ws['id']}/integration-runs",
+        json={
+            "source_branch_ids": [b1],
+            "base_branch": "main",
+            "reconcile_base": True,
+        },
+    )
+    assert res.status_code == 201, res.text
+    d = res.json()
+    assert d["status"] == "integrated"
+    assert d["base_is_current"] is True
+    assert any("reconciled current base" in n for n in d["notes"])
+    # The upstream's file is now on the integration branch.
+    root = Path(ws["root_path"])
+    assert _git(root, "switch", d["integration_branch"]["name"]).returncode == 0
+    assert (root / "remote_only.txt").exists()
+    assert (root / "a.txt").exists()
+
+
+@requires_git
+def test_b2_current_base_no_warning_regression(
+    workspace_root, enable_git_workflow
+):
+    # No origin/* ref -> staleness undeterminable -> treated current,
+    # no behaviour change vs pre-hardening.
+    project = _create_project()
+    ws = _create_git_workspace(project["id"], workspace_root)
+    b1 = _branch_with_commit(ws, "forgeloop/dev-task/dt1", "a.txt", "alpha\n")
+    res = client.post(
+        f"/workspaces/{ws['id']}/integration-runs",
+        json={"source_branch_ids": [b1], "base_branch": "main"},
+    )
+    assert res.status_code == 201, res.text
+    d = res.json()
+    assert d["base_is_current"] is True
+    assert d["base_upstream"] is None
+    assert not any("stale_base" in w for w in d["warnings"])

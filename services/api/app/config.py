@@ -233,6 +233,13 @@ _git_protected_raw = os.getenv(
 GIT_PROTECTED_BRANCHES: list[str] = [
     s.strip() for s in _git_protected_raw.split(",") if s.strip()
 ]
+# B2 stale-base hardening: when true, an integration run whose base is
+# behind its local upstream (origin/<base>) is refused (409 STALE_BASE)
+# instead of silently producing a branch that conflicts with current
+# base. Default false: always DETECT + warn, block only when opted in.
+INTEGRATION_REQUIRE_CURRENT_BASE = (
+    os.getenv("INTEGRATION_REQUIRE_CURRENT_BASE", "false").lower() == "true"
+)
 GIT_TIMEOUT_SECONDS = int(os.getenv("GIT_TIMEOUT_SECONDS", "60"))
 GIT_MAX_DIFF_BYTES = int(os.getenv("GIT_MAX_DIFF_BYTES", "200000"))
 GIT_COMMIT_MESSAGE_MAX_LEN = int(os.getenv("GIT_COMMIT_MESSAGE_MAX_LEN", "2000"))

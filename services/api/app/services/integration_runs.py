@@ -84,6 +84,36 @@ def _ref_exists(root: Path, name: str, timeout: int) -> bool:
     return res.returncode == 0
 
 
+def _rev(root: Path, ref: str, timeout: int) -> str | None:
+    r = _git(root, ["rev-parse", "--verify", "--quiet", ref], timeout)
+    return r.stdout.strip() if r.returncode == 0 and r.stdout.strip() else None
+
+
+def _upstream_of(root: Path, base: str, timeout: int) -> str | None:
+    """Resolve the base branch's LOCAL upstream/remote-tracking ref.
+
+    No network: only consults refs already present locally. Tries the
+    configured upstream first, then the conventional origin/<base>.
+    Returns None if no local upstream exists (staleness undeterminable).
+    """
+    up = _git(
+        root,
+        ["rev-parse", "--abbrev-ref", "--symbolic-full-name", f"{base}@{{upstream}}"],
+        timeout,
+    )
+    if up.returncode == 0 and up.stdout.strip():
+        return up.stdout.strip()
+    if _rev(root, f"refs/remotes/origin/{base}", timeout):
+        return f"origin/{base}"
+    return None
+
+
+def _is_ancestor(root: Path, anc: str, desc: str, timeout: int) -> bool:
+    return _git(
+        root, ["merge-base", "--is-ancestor", anc, desc], timeout
+    ).returncode == 0
+
+
 @dataclass
 class IntegrationRunService:
     workspace_repo: object
@@ -216,6 +246,63 @@ class IntegrationRunService:
                 status_code=400,
                 detail=f"base_branch '{base_branch}' does not exist locally",
             )
+
+        # --- B2 stale-base detection (local refs only; no fetch). If the
+        # base is behind its local upstream (origin/<base>), an integration
+        # off it will likely conflict with the *current* base at PR time.
+        # Always detect + warn; block only if opted in; reconcile if asked.
+        warnings: list[str] = []
+        notes: list[str] = []
+        base_head = _rev(root, base_branch, timeout)
+        base_upstream = _upstream_of(root, base_branch, timeout)
+        base_upstream_head = (
+            _rev(root, base_upstream, timeout) if base_upstream else None
+        )
+        base_is_current = True
+        if (
+            base_upstream
+            and base_upstream_head
+            and base_head
+            and base_head != base_upstream_head
+            and _is_ancestor(root, base_branch, base_upstream, timeout)
+        ):
+            base_is_current = False
+            warnings.append(
+                f"stale_base: '{base_branch}' is behind '{base_upstream}' "
+                f"({base_upstream_head[:10]}); the integration branch / PR "
+                "may conflict with the current base"
+            )
+            self.audit_writer.write(
+                "integration_run_requested",
+                "workspace",
+                workspace.id,
+                project_id=workspace.project_id,
+                actor_email=actor_email,
+                details={
+                    "stale_base": True,
+                    "base_branch": base_branch,
+                    "base_head": base_head,
+                    "base_upstream": base_upstream,
+                    "base_upstream_head": base_upstream_head,
+                },
+            )
+            if _config.INTEGRATION_REQUIRE_CURRENT_BASE and not body.reconcile_base:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "error": "STALE_BASE",
+                        "message": (
+                            f"base '{base_branch}' is behind "
+                            f"'{base_upstream}'; refuse to integrate onto a "
+                            "stale base (set reconcile_base=true or update "
+                            "the base)"
+                        ),
+                        "base_branch": base_branch,
+                        "base_head": base_head,
+                        "base_upstream": base_upstream,
+                        "base_upstream_head": base_upstream_head,
+                    },
+                )
 
         # --- Each member branch must exist locally (explicit, pre-mutation).
         missing = [
@@ -388,7 +475,73 @@ class IntegrationRunService:
                     "integration_branch": name,
                     "base_branch": base_branch,
                     "members": [m.model_dump() for m in members],
+                    "warnings": warnings,
                 },
+            )
+
+        # --- B2 reconcile: if the base was stale and the caller asked,
+        # merge the current upstream base into the integration branch so
+        # the result reflects current base. Conflicts here are surfaced
+        # structurally (never silent) just like a member conflict.
+        if (not base_is_current) and body.reconcile_base and base_upstream:
+            rec = _git(
+                root,
+                [
+                    "-c", "user.name=ForgeLoop",
+                    "-c", "user.email=forgeloop@local",
+                    "merge", "--no-ff", "--no-edit", "--no-gpg-sign",
+                    base_upstream,
+                ],
+                timeout,
+            )
+            if rec.returncode != 0:
+                unmerged = _git(
+                    root, ["diff", "--name-only", "--diff-filter=U"], timeout
+                )
+                rec_files = [
+                    p for p in unmerged.stdout.splitlines() if p.strip()
+                ]
+                _git(root, ["merge", "--abort"], timeout)
+                self._fail_record(
+                    record,
+                    f"base reconcile conflict vs {base_upstream}: "
+                    f"{len(rec_files)} file(s)",
+                )
+                self._restore_head(root, original_branch, prefix, timeout)
+                self.audit_writer.write(
+                    "integration_run_conflict",
+                    "workspace_branch",
+                    record.id,
+                    project_id=workspace.project_id,
+                    actor_email=actor_email,
+                    details={
+                        "workspace_id": workspace.id,
+                        "integration_branch": name,
+                        "stage": "base_reconcile",
+                        "base_upstream": base_upstream,
+                        "conflicting_files": rec_files[:50],
+                    },
+                )
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "error": "BASE_RECONCILE_CONFLICT",
+                        "message": (
+                            "all members merged, but reconciling the current "
+                            f"base '{base_upstream}' conflicts — resolve "
+                            "before PR (no member was dropped)"
+                        ),
+                        "integration_branch": name,
+                        "base_branch": base_branch,
+                        "base_upstream": base_upstream,
+                        "conflicting_files": rec_files,
+                        "members": [m.model_dump() for m in members],
+                    },
+                )
+            base_is_current = True
+            notes.append(
+                f"reconciled current base from '{base_upstream}' "
+                f"({(base_upstream_head or '')[:10]})"
             )
 
         # --- All members merged. Record evidence.
@@ -465,7 +618,6 @@ class IntegrationRunService:
         )
         self.workspace_branch_repo.update(record)
 
-        notes: list[str] = []
         pr_draft_id: str | None = None
         if body.create_pr_draft:
             code_repository_id = (
@@ -532,6 +684,11 @@ class IntegrationRunService:
             pr_draft_id=pr_draft_id,
             diff_stat=diff_stat,
             notes=notes,
+            base_is_current=base_is_current,
+            base_head=base_head,
+            base_upstream=base_upstream,
+            base_upstream_head=base_upstream_head,
+            warnings=warnings,
         )
 
     # --- helpers ---------------------------------------------------------

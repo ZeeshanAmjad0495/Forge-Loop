@@ -137,6 +137,11 @@ class IntegrationRunCreate(BaseModel):
     target_branch: str = "main"
     pr_title: str | None = None
     pr_body: str | None = None
+    # B2 stale-base hardening: when true and the base's local upstream
+    # (origin/<base>) is ahead of the integrated base, merge that upstream
+    # into the integration branch so the result reflects current base;
+    # residual conflicts are surfaced structurally (never silent).
+    reconcile_base: bool = False
 
 
 class IntegrationRunResult(BaseModel):
@@ -149,6 +154,12 @@ class IntegrationRunResult(BaseModel):
     pr_draft_id: str | None = None
     diff_stat: str = ""
     notes: list[str] = []
+    # Stale-base signals (computed from local refs only; no network).
+    base_is_current: bool = True
+    base_head: str | None = None
+    base_upstream: str | None = None
+    base_upstream_head: str | None = None
+    warnings: list[str] = []
 
 
 __all__ = [
