@@ -54,6 +54,20 @@ MODEL_ROUTING_CONTEXT_REDUCTION_FIRST = (
     os.getenv("MODEL_ROUTING_CONTEXT_REDUCTION_FIRST", "true").lower()
     == "true"
 )
+
+# Task 76: provider budget guards (cost control). All safe-by-default.
+PROVIDER_BUDGETS_ENABLED = (
+    os.getenv("PROVIDER_BUDGETS_ENABLED", "true").lower() == "true"
+)
+DAILY_KIMI_BUDGET_USD = float(os.getenv("DAILY_KIMI_BUDGET_USD", "0.50"))
+DAILY_DEEPSEEK_BUDGET_USD = float(
+    os.getenv("DAILY_DEEPSEEK_BUDGET_USD", "1.00")
+)
+MAX_KIMI_CALLS_PER_TASK = int(os.getenv("MAX_KIMI_CALLS_PER_TASK", "3"))
+# Fail closed: if expensive-provider spend can't be computed, block it.
+BUDGET_FAIL_CLOSED_FOR_EXPENSIVE = (
+    os.getenv("BUDGET_FAIL_CLOSED_FOR_EXPENSIVE", "true").lower() == "true"
+)
 MODEL_ROUTING_LONG_CONTEXT_TOKENS = int(
     os.getenv("MODEL_ROUTING_LONG_CONTEXT_TOKENS", "32000")
 )

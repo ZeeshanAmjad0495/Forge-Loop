@@ -3,6 +3,9 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+# Task 76: lifecycle of a provider-usage / cost record.
+CostRecordStatus = Literal["planned", "completed", "failed", "blocked"]
+
 CostRecordSourceType = Literal[
     "agent_run",
     "requirement_analysis",
@@ -50,6 +53,19 @@ class CostRecordCreate(BaseModel):
     estimated_cached_input_cost_usd: float = 0.0
     currency: str = "USD"
     metadata: dict = {}
+    # Task 76 audit fields (all optional; defaults preserve prior behavior).
+    status: CostRecordStatus = "completed"
+    selected_provider: str | None = None
+    selected_model: str | None = None
+    routing_reason: str | None = None
+    fallback_chain: list[str] = []
+    was_expensive_provider: bool = False
+    required_approval: bool = False
+    approval_id: str | None = None
+    blocked_reason: str | None = None
+    actual_input_tokens: int | None = None
+    actual_output_tokens: int | None = None
+    actual_cost_usd: float | None = None
 
 
 class CostRecord(BaseModel):
@@ -70,5 +86,19 @@ class CostRecord(BaseModel):
     estimated_total_cost_usd: float = 0.0
     currency: str = "USD"
     metadata: dict = {}
+    # Task 76 audit fields.
+    status: CostRecordStatus = "completed"
+    selected_provider: str | None = None
+    selected_model: str | None = None
+    routing_reason: str | None = None
+    fallback_chain: list[str] = []
+    was_expensive_provider: bool = False
+    required_approval: bool = False
+    approval_id: str | None = None
+    blocked_reason: str | None = None
+    actual_input_tokens: int | None = None
+    actual_output_tokens: int | None = None
+    actual_cost_usd: float | None = None
     created_at: datetime
     updated_at: datetime
+    completed_at: datetime | None = None

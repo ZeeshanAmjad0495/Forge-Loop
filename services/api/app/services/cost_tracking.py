@@ -10,7 +10,12 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from ..models import CostRecord, CostRecordSourceType, CostRecordWorkflowType
+from ..models import (
+    CostRecord,
+    CostRecordSourceType,
+    CostRecordStatus,
+    CostRecordWorkflowType,
+)
 from ..repositories import CostRecordRepository
 
 
@@ -31,6 +36,19 @@ def record_cost(
     estimated_cached_input_cost_usd: float = 0.0,
     currency: str = "USD",
     metadata: dict | None = None,
+    # Task 76 audit fields (optional; defaults preserve prior behavior).
+    status: CostRecordStatus = "completed",
+    selected_provider: str | None = None,
+    selected_model: str | None = None,
+    routing_reason: str | None = None,
+    fallback_chain: list[str] | None = None,
+    was_expensive_provider: bool = False,
+    required_approval: bool = False,
+    approval_id: str | None = None,
+    blocked_reason: str | None = None,
+    actual_input_tokens: int | None = None,
+    actual_output_tokens: int | None = None,
+    actual_cost_usd: float | None = None,
 ) -> CostRecord:
     """Persist a ``CostRecord`` and return it.
 
@@ -71,8 +89,23 @@ def record_cost(
         estimated_total_cost_usd=estimated_total_cost_usd,
         currency=currency,
         metadata=dict(metadata or {}),
+        status=status,
+        selected_provider=selected_provider or provider,
+        selected_model=selected_model or model,
+        routing_reason=routing_reason,
+        fallback_chain=list(fallback_chain or []),
+        was_expensive_provider=was_expensive_provider,
+        required_approval=required_approval,
+        approval_id=approval_id,
+        blocked_reason=blocked_reason,
+        actual_input_tokens=actual_input_tokens,
+        actual_output_tokens=actual_output_tokens,
+        actual_cost_usd=actual_cost_usd,
         created_at=now,
         updated_at=now,
+        completed_at=(
+            now if status in ("completed", "failed", "blocked") else None
+        ),
     )
     cost_record_repo.save(record)
 

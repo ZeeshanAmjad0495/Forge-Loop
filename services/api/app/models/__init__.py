@@ -139,6 +139,7 @@ from .cost_records import (
     CostRecord,
     CostRecordCreate,
     CostRecordSourceType,
+    CostRecordStatus,
     CostRecordWorkflowType,
 )
 from .epics import Epic, EpicCreate, EpicPriority, EpicStatus, EpicUpdate
@@ -498,6 +499,7 @@ __all__ = [
     "CostRecord",
     "CostRecordCreate",
     "CostRecordSourceType",
+    "CostRecordStatus",
     "CostRecordWorkflowType",
     "CodeRepository",
     "CodeRepositoryCreate",
