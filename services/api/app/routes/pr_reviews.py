@@ -6,10 +6,16 @@ from ..models import (
     PullRequestReview,
     PullRequestReviewComplete,
     PullRequestReviewCreate,
+    PullRequestReviewRemediateRequest,
+    PullRequestReviewRemediation,
     PullRequestReviewUpdate,
 )
 from ..repositories_state import pr_draft_repo, pr_review_repo
-from ..services import kody_review_execution, pr_review_workflow
+from ..services import (
+    kody_review_execution,
+    pr_review_remediation,
+    pr_review_workflow,
+)
 
 router = APIRouter()
 
@@ -88,3 +94,18 @@ def poll_kody_review(
     current_user: str = Depends(require_auth),
 ):
     return kody_review_execution.poll(review_id, current_user)
+
+
+@router.post(
+    "/pr-reviews/{review_id}/remediate",
+    response_model=PullRequestReviewRemediation,
+    status_code=201,
+)
+def remediate_pr_review(
+    review_id: str,
+    body: PullRequestReviewRemediateRequest | None = None,
+    current_user: str = Depends(require_auth),
+):
+    """Close the review loop: turn a completed review's findings into an
+    approval-gated remediation work item that re-enters the pipeline."""
+    return pr_review_remediation.remediate(review_id, body, current_user)

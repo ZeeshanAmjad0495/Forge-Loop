@@ -176,6 +176,26 @@ class PullRequestReviewComplete(BaseModel):
     raw_output: str | None = None
 
 
+class PullRequestReviewRemediateRequest(BaseModel):
+    # Optional overrides; default to the PR draft's workspace/branch.
+    workspace_id: str | None = None
+    workspace_branch_id: str | None = None
+    approval_required: bool = True
+
+
+class PullRequestReviewRemediation(BaseModel):
+    review_id: str
+    pr_draft_id: str
+    project_id: str
+    imported_feedback_ids: list[str]
+    driving_feedback_id: str
+    revision_work_item_id: str
+    revision_work_item_status: str
+    requires_approval: bool
+    workspace_id: str
+    workspace_branch_id: str | None = None
+
+
 class PullRequestReview(BaseModel):
     id: str
     project_id: str

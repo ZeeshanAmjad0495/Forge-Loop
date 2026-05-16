@@ -70,6 +70,7 @@ AuditAction = Literal[
     "review_feedback_deferred",
     "review_feedback_resolved",
     "revision_work_item_planned",
+    "pr_review_remediation_planned",
     "revision_work_item_updated",
     "pr_draft_prepared",
     "pr_draft_updated",
