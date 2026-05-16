@@ -10,6 +10,7 @@ ApprovalTargetType = Literal[
     "subtask",
     "artifact",
     "revision_work_item",
+    "remediation_proposal",
 ]
 ApprovalStatus = Literal["pending", "approved", "rejected", "needs_revision"]
 

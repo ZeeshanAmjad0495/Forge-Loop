@@ -63,6 +63,7 @@ from .models import (
     Requirement,
     RequirementAnalysis,
     ResearchBrief,
+    RemediationProposal,
     ResearchSource,
     ReviewFeedback,
     RevisionWorkItem,
@@ -580,6 +581,27 @@ class MongoRevisionWorkItemRepository(MongoDocumentRepository[RevisionWorkItem])
         return _sorted_desc(self.list_by_field("project_id", project_id))
 
 
+class MongoRemediationProposalRepository(
+    MongoDocumentRepository[RemediationProposal]
+):
+    collection_name = "remediation_proposals"
+    model_cls = RemediationProposal
+
+    def list_by_project(self, project_id: str) -> list[RemediationProposal]:
+        return _sorted_desc(self.list_by_field("project_id", project_id))
+
+    def list_by_source(
+        self, source_type: str, source_id: str
+    ) -> list[RemediationProposal]:
+        return _sorted_desc(
+            [
+                r
+                for r in self.list_by_field("source_id", source_id)
+                if r.source_type == source_type
+            ]
+        )
+
+
 class MongoBenchmarkScenarioRepository(MongoDocumentRepository[BenchmarkScenario]):
     collection_name = "benchmark_scenarios"
     model_cls = BenchmarkScenario
@@ -1064,6 +1086,12 @@ _INDEX_PLAN: dict[str, list[Any]] = {
         "review_feedback_id",
         "status",
     ],
+    "remediation_proposals": [
+        "project_id",
+        "source_type",
+        "source_id",
+        "approval_status",
+    ],
     "cost_records": [
         "project_id",
         "workflow_type",
@@ -1335,6 +1363,7 @@ def build_mongo_repositories():
         git_commit_record=MongoGitCommitRecordRepository(db),
         review_feedback=MongoReviewFeedbackRepository(db),
         revision_work_item=MongoRevisionWorkItemRepository(db),
+        remediation_proposal=MongoRemediationProposalRepository(db),
         cost_record=MongoCostRecordRepository(db),
         context_pack=MongoContextPackRepository(db),
         artifact_summary=MongoArtifactSummaryRepository(db),

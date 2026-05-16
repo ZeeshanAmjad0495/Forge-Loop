@@ -47,6 +47,7 @@ from .models import (
     PullRequestDraft,
     PullRequestReview,
     Requirement,
+    RemediationProposal,
     RequirementAnalysis,
     RepoSafetyProfile,
     ResearchBrief,
@@ -1776,6 +1777,94 @@ class FirestoreRevisionWorkItemRepository:
     def list_by_project(self, project_id: str) -> list[RevisionWorkItem]:
         docs = self._collection.where("project_id", "==", project_id).stream()
         items = [RevisionWorkItem(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda r: r.created_at, reverse=True)
+
+
+class RemediationProposalRepository(Protocol):
+    def save(self, proposal: RemediationProposal) -> None: ...
+    def get(self, proposal_id: str) -> RemediationProposal | None: ...
+    def update(self, proposal: RemediationProposal) -> None: ...
+    def list_by_project(
+        self, project_id: str
+    ) -> list[RemediationProposal]: ...
+    def list_by_source(
+        self, source_type: str, source_id: str
+    ) -> list[RemediationProposal]: ...
+
+
+class InMemoryRemediationProposalRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, RemediationProposal] = {}
+
+    def save(self, proposal: RemediationProposal) -> None:
+        self._store[proposal.id] = proposal
+
+    def get(self, proposal_id: str) -> RemediationProposal | None:
+        return self._store.get(proposal_id)
+
+    def update(self, proposal: RemediationProposal) -> None:
+        self._store[proposal.id] = proposal
+
+    def list_by_project(self, project_id: str) -> list[RemediationProposal]:
+        items = [
+            r for r in self._store.values() if r.project_id == project_id
+        ]
+        return sorted(items, key=lambda r: r.created_at, reverse=True)
+
+    def list_by_source(
+        self, source_type: str, source_id: str
+    ) -> list[RemediationProposal]:
+        items = [
+            r
+            for r in self._store.values()
+            if r.source_type == source_type and r.source_id == source_id
+        ]
+        return sorted(items, key=lambda r: r.created_at, reverse=True)
+
+    def clear(self) -> None:
+        self._store.clear()
+
+
+class FirestoreRemediationProposalRepository:
+    def __init__(
+        self, client, collection_name: str = "remediation_proposals"
+    ) -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, proposal: RemediationProposal) -> None:
+        self._collection.document(proposal.id).set(
+            proposal.model_dump(mode="python")
+        )
+
+    def get(self, proposal_id: str) -> RemediationProposal | None:
+        snap = self._collection.document(proposal_id).get()
+        if not snap.exists:
+            return None
+        return RemediationProposal(**snap.to_dict())
+
+    def update(self, proposal: RemediationProposal) -> None:
+        self._collection.document(proposal.id).set(
+            proposal.model_dump(mode="python")
+        )
+
+    def list_by_project(self, project_id: str) -> list[RemediationProposal]:
+        docs = self._collection.where(
+            "project_id", "==", project_id
+        ).stream()
+        items = [RemediationProposal(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda r: r.created_at, reverse=True)
+
+    def list_by_source(
+        self, source_type: str, source_id: str
+    ) -> list[RemediationProposal]:
+        docs = self._collection.where(
+            "source_id", "==", source_id
+        ).stream()
+        items = [
+            RemediationProposal(**d.to_dict())
+            for d in docs
+            if d.to_dict().get("source_type") == source_type
+        ]
         return sorted(items, key=lambda r: r.created_at, reverse=True)
 
 
@@ -3681,6 +3770,7 @@ class Repositories:
     git_commit_record: GitCommitRecordRepository
     review_feedback: ReviewFeedbackRepository
     revision_work_item: RevisionWorkItemRepository
+    remediation_proposal: RemediationProposalRepository
     cost_record: CostRecordRepository
     context_pack: ContextPackRepository
     artifact_summary: ArtifactSummaryRepository
@@ -3747,6 +3837,7 @@ def get_repositories() -> Repositories:
             git_commit_record=InMemoryGitCommitRecordRepository(),
             review_feedback=InMemoryReviewFeedbackRepository(),
             revision_work_item=InMemoryRevisionWorkItemRepository(),
+            remediation_proposal=InMemoryRemediationProposalRepository(),
             cost_record=InMemoryCostRecordRepository(),
             context_pack=InMemoryContextPackRepository(),
             artifact_summary=InMemoryArtifactSummaryRepository(),
@@ -3817,6 +3908,9 @@ def get_repositories() -> Repositories:
             git_commit_record=FirestoreGitCommitRecordRepository(client),
             review_feedback=FirestoreReviewFeedbackRepository(client),
             revision_work_item=FirestoreRevisionWorkItemRepository(client),
+            remediation_proposal=FirestoreRemediationProposalRepository(
+                client
+            ),
             cost_record=FirestoreCostRecordRepository(client),
             context_pack=FirestoreContextPackRepository(client),
             artifact_summary=FirestoreArtifactSummaryRepository(client),

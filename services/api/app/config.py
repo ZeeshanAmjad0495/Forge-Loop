@@ -380,6 +380,32 @@ STRUCTURED_LOGS_ENABLED = (
     os.getenv("STRUCTURED_LOGS_ENABLED", "true").lower() == "true"
 )
 
+# --- Task 83: advisory-only auto-remediation ---
+# OFF by default. Even when enabled it is ADVISORY ONLY: CI/incident/PR-
+# review findings can become a RemediationProposal draft, but a human
+# Approval is required before a DevTask is created. ForgeLoop never
+# auto-merges, auto-deploys, or creates branches/PRs from remediation.
+AUTO_REMEDIATION_ENABLED = (
+    os.getenv("AUTO_REMEDIATION_ENABLED", "false").lower() == "true"
+)
+AUTO_REMEDIATION_ADVISORY_ONLY = (
+    os.getenv("AUTO_REMEDIATION_ADVISORY_ONLY", "true").lower() == "true"
+)
+AUTO_REMEDIATION_CREATE_TASKS_REQUIRE_APPROVAL = (
+    os.getenv(
+        "AUTO_REMEDIATION_CREATE_TASKS_REQUIRE_APPROVAL", "true"
+    ).lower()
+    == "true"
+)
+AUTO_REMEDIATION_ALLOW_BRANCH_CREATION = (
+    os.getenv("AUTO_REMEDIATION_ALLOW_BRANCH_CREATION", "false").lower()
+    == "true"
+)
+AUTO_REMEDIATION_ALLOW_PR_CREATION = (
+    os.getenv("AUTO_REMEDIATION_ALLOW_PR_CREATION", "false").lower()
+    == "true"
+)
+
 
 def validate_startup_config() -> None:
     if AUTH_ENABLED and not AUTH_TOKEN_SECRET:
@@ -441,4 +467,15 @@ def validate_startup_config() -> None:
         raise RuntimeError(
             f"Unsupported VECTOR_PROVIDER={VECTOR_PROVIDER!r}. "
             "Supported: memory (future: chroma, qdrant, pgvector)"
+        )
+    # Safety: advisory-only must never permit branch/PR automation.
+    if AUTO_REMEDIATION_ADVISORY_ONLY and (
+        AUTO_REMEDIATION_ALLOW_BRANCH_CREATION
+        or AUTO_REMEDIATION_ALLOW_PR_CREATION
+    ):
+        raise RuntimeError(
+            "AUTO_REMEDIATION_ADVISORY_ONLY=true forbids "
+            "AUTO_REMEDIATION_ALLOW_BRANCH_CREATION / "
+            "AUTO_REMEDIATION_ALLOW_PR_CREATION. Auto-remediation must "
+            "not create branches or PRs."
         )

@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends
 from ..auth import require_auth
 from ..services.cache_provider import cache_runtime_summary
 from ..services.cloud_compatibility import build_cloud_compatibility_report
+from ..services.auto_remediation import auto_remediation_runtime_summary
 from ..services.event_bus import event_bus_runtime_summary
 from ..services.metrics import observability_runtime_summary
 from ..services.vector_store import vector_runtime_summary
@@ -59,3 +60,8 @@ def get_runtime_vector(_: str = Depends(require_auth)) -> dict:
 @router.get("/runtime/observability")
 def get_runtime_observability(_: str = Depends(require_auth)) -> dict:
     return observability_runtime_summary()
+
+
+@router.get("/runtime/auto-remediation")
+def get_runtime_auto_remediation(_: str = Depends(require_auth)) -> dict:
+    return auto_remediation_runtime_summary()
