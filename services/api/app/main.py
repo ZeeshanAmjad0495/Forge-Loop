@@ -76,6 +76,7 @@ from .routes import (
     memory_retrieval,
     model_routing,
     openhands,
+    runner_routing,
     planning,
     pr_drafts,
     pr_reviews,
@@ -191,6 +192,7 @@ app.include_router(incidents.router)
 app.include_router(memory.router)
 app.include_router(memory_retrieval.router)
 app.include_router(model_routing.router)
+app.include_router(runner_routing.router)
 app.include_router(prompt_cache.router)
 app.include_router(budgets.router)
 app.include_router(swarm_policies.router)

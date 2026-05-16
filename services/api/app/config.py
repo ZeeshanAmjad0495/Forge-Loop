@@ -179,6 +179,28 @@ KODY_ASYNC = os.getenv("KODY_ASYNC", "true").lower() == "true"
 AIDER_EXECUTION_ENABLED = (
     os.getenv("AIDER_EXECUTION_ENABLED", "false").lower() == "true"
 )
+
+# Task 77: RunnerRouter — pick the fastest safe runner, not OpenHands by
+# default. Pure decision policy; execution stays gated by the *_ENABLED
+# flags. Safe-by-default: OpenHands not auto-selected, requires approval.
+RUNNER_ROUTING_ENABLED = (
+    os.getenv("RUNNER_ROUTING_ENABLED", "true").lower() == "true"
+)
+DEFAULT_CODING_RUNNER = os.getenv("DEFAULT_CODING_RUNNER", "lightweight")
+OPENHANDS_AUTO_SELECT_ENABLED = (
+    os.getenv("OPENHANDS_AUTO_SELECT_ENABLED", "false").lower() == "true"
+)
+OPENHANDS_REQUIRE_APPROVAL = (
+    os.getenv("OPENHANDS_REQUIRE_APPROVAL", "true").lower() == "true"
+)
+# Minimum task complexity at which OpenHands becomes eligible.
+OPENHANDS_MIN_COMPLEXITY = os.getenv("OPENHANDS_MIN_COMPLEXITY", "medium")
+LIGHTWEIGHT_RUNNER_ENABLED = (
+    os.getenv("LIGHTWEIGHT_RUNNER_ENABLED", "true").lower() == "true"
+)
+RUNNER_MAX_PARALLEL_LOCAL = int(
+    os.getenv("RUNNER_MAX_PARALLEL_LOCAL", "1")
+)
 # Project decision: Aider uses the local Ollama by default (keeps codegen
 # off hosted providers). Override with AIDER_LLM_PROVIDER if needed.
 AIDER_LLM_PROVIDER = os.getenv("AIDER_LLM_PROVIDER", "ollama")
