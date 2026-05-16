@@ -330,6 +330,21 @@ RATE_LIMIT_CACHE_FAIL_OPEN = (
     os.getenv("RATE_LIMIT_CACHE_FAIL_OPEN", "false").lower() == "true"
 )
 
+# --- Task 80 (Phase A): durable workflow + event foundation ---
+# Local-first. Defaults are in-memory: no dependency, deterministic,
+# used by every test. NATS (EventBus) and Temporal (WorkflowEngine) are
+# designed-for but Phase B — selecting them fails fast (no import). K3s
+# is an optional spike, documented only (never a default runtime).
+EVENT_BUS_PROVIDER = os.getenv("EVENT_BUS_PROVIDER", "memory").strip().lower()
+NATS_URL = os.getenv("NATS_URL", "nats://localhost:4222")
+WORKFLOW_ENGINE_PROVIDER = os.getenv(
+    "WORKFLOW_ENGINE_PROVIDER", "memory"
+).strip().lower()
+TEMPORAL_ADDRESS = os.getenv("TEMPORAL_ADDRESS", "localhost:7233")
+TEMPORAL_NAMESPACE = os.getenv("TEMPORAL_NAMESPACE", "default")
+WORKER_ENABLED = os.getenv("WORKER_ENABLED", "false").lower() == "true"
+WORKER_CONCURRENCY = int(os.getenv("WORKER_CONCURRENCY", "1"))
+
 
 def validate_startup_config() -> None:
     if AUTH_ENABLED and not AUTH_TOKEN_SECRET:
@@ -370,4 +385,18 @@ def validate_startup_config() -> None:
         raise RuntimeError(
             f"Unsupported CACHE_PROVIDER={CACHE_PROVIDER!r}. "
             "Supported: memory, redis, valkey"
+        )
+    if EVENT_BUS_PROVIDER not in (
+        "memory", "inmemory", "local", "nats", ""
+    ):
+        raise RuntimeError(
+            f"Unsupported EVENT_BUS_PROVIDER={EVENT_BUS_PROVIDER!r}. "
+            "Supported: memory, nats"
+        )
+    if WORKFLOW_ENGINE_PROVIDER not in (
+        "memory", "inmemory", "local", "temporal", ""
+    ):
+        raise RuntimeError(
+            "Unsupported WORKFLOW_ENGINE_PROVIDER="
+            f"{WORKFLOW_ENGINE_PROVIDER!r}. Supported: memory, temporal"
         )

@@ -481,3 +481,18 @@ These concepts are used across Studio modules. ForgeLoop owns and stores all of 
 ### Active build boundary
 
 **Releases 1–6 are complete (all 32 tasks).** The implemented core includes everything from ticket creation through project memory learning. Everything in the ForgeLoop Studio section (ProductScout, AuditLens, LaunchPilot) and the future Execution Bridge (live OpenHands execution, real branch/PR creation, live Kody/GitHub integration) remain out of scope for the current roadmap.
+
+### Durable workflow + event foundation (Task 80)
+
+ForgeLoop is local-first; long-running, human-supervised agent work needs durable workflows and event fanout without a heavy infra migration. Two provider abstractions back this:
+
+- **`EventBus`** (`services/event_bus.py`) — `publish` / `subscribe`. Default `InMemoryEventBus` (synchronous, dependency-free, deterministic). Notification channel only; **never the source of truth**.
+- **`WorkflowEngine`** (`services/workflow_engine.py`) — `start_workflow` / `signal_workflow` / `get_workflow_status` / `cancel_workflow`. Default `InMemoryWorkflowEngine`. Human approval is an **explicit signal** (`human_approval`), never an implicit timeout. Ephemeral orchestration bookkeeping only — durable effects (tickets, tasks, approvals, artifacts, audit) stay in the existing repositories/audit events.
+
+Phasing:
+
+- **Phase A (implemented):** interfaces + in-memory implementations + config + tests + `GET /runtime/workflow`. No external infra; defaults stay test-friendly.
+- **Phase B (deferred):** NATS adapter for `EventBus`, Temporal adapter for `WorkflowEngine`, behind `EVENT_BUS_PROVIDER=nats` / `WORKFLOW_ENGINE_PROVIDER=temporal`. Selecting these today fails fast with guidance (no `nats`/`temporalio` import). A GCP Pub/Sub–Eventarc adapter is a later cloud option behind the same `EventBus` interface. Kafka is intentionally **not** adopted (NATS is sufficient for ForgeLoop's fanout).
+- **Phase C (deferred):** migrate **one** low-risk candidate workflow (catalog: `requirement_to_plan`, `plan_to_dev_tasks`, `approved_dev_task_to_runner`, `runner_result_to_pr_draft`, `ci_failure_to_analysis`, `incident_to_triage`, `remediation_draft_to_approved_task`) onto the engine. No bulk migration.
+
+**K3s** is an *optional spike only* — consider it later only if isolated per-task worker execution is required (untrusted multi-file runner sandboxing at scale). It is **not** a default runtime and the K3s runner is not implemented unless explicitly approved.
