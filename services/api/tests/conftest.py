@@ -9,6 +9,9 @@ from app.repositories_state import repos
 @pytest.fixture(autouse=True)
 def clear_repos():
     repos.reset_all()
+    from app.services.cache_provider import reset_cache_provider
+
+    reset_cache_provider()
 
 
 @pytest.fixture(autouse=True)

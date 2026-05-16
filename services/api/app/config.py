@@ -312,6 +312,24 @@ GITHUB_PR_DRAFT_DEFAULT = os.getenv("GITHUB_PR_DRAFT_DEFAULT", "true").lower() =
 GITHUB_REQUEST_TIMEOUT_SECONDS = int(os.getenv("GITHUB_REQUEST_TIMEOUT_SECONDS", "30"))
 GITHUB_MAX_RESPONSE_BYTES = int(os.getenv("GITHUB_MAX_RESPONSE_BYTES", "200000"))
 
+# --- Task 79: local-first cache / ephemeral-state (Valkey/Redis) ---
+# Accelerator only — NEVER the source of truth (durable records stay in
+# the repository provider). Default backend is in-memory: no dependency,
+# deterministic, used by every test. `redis`/`valkey` is loaded lazily
+# and only when selected.
+CACHE_PROVIDER = os.getenv("CACHE_PROVIDER", "memory").strip().lower()
+CACHE_REDIS_URL = os.getenv("CACHE_REDIS_URL", "redis://localhost:6379/0")
+CACHE_DEFAULT_TTL_SECONDS = int(os.getenv("CACHE_DEFAULT_TTL_SECONDS", "3600"))
+CACHE_CONNECT_TIMEOUT_MS = int(os.getenv("CACHE_CONNECT_TIMEOUT_MS", "1000"))
+CACHE_ENABLED = os.getenv("CACHE_ENABLED", "true").lower() == "true"
+# Non-critical cache may fall back to in-memory if Redis is unreachable.
+CACHE_FAIL_OPEN = os.getenv("CACHE_FAIL_OPEN", "true").lower() == "true"
+# The expensive-provider budget/rate-limit guard must NOT silently trust
+# a degraded cache (the durable CostRecord guard remains authoritative).
+RATE_LIMIT_CACHE_FAIL_OPEN = (
+    os.getenv("RATE_LIMIT_CACHE_FAIL_OPEN", "false").lower() == "true"
+)
+
 
 def validate_startup_config() -> None:
     if AUTH_ENABLED and not AUTH_TOKEN_SECRET:
@@ -346,3 +364,10 @@ def validate_startup_config() -> None:
             raise RuntimeError(
                 "MONGODB_URI must be set when REPOSITORY_PROVIDER=local_document."
             )
+    if CACHE_PROVIDER not in (
+        "memory", "inmemory", "local", "redis", "valkey", ""
+    ):
+        raise RuntimeError(
+            f"Unsupported CACHE_PROVIDER={CACHE_PROVIDER!r}. "
+            "Supported: memory, redis, valkey"
+        )

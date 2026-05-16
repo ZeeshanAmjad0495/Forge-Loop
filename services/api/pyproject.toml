@@ -19,6 +19,12 @@ dev = [
 local_document = [
     "pymongo>=4.7",
 ]
+cache = [
+    # Task 79: optional Valkey/Redis backend for the cache /
+    # ephemeral-state abstraction. Lazily imported and only when
+    # CACHE_PROVIDER=redis|valkey; ForgeLoop + tests run without it.
+    "redis>=5",
+]
 observability = [
     # C2: Langfuse backend. Pinned <3 — the provider uses the v2
     # client.generation() API (v3 reworked it). Optional + lazily

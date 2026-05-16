@@ -6,5 +6,16 @@ services:
     volumes:
       - forgeloop_mongo_data:/data/db
 
+  # Task 79: optional local cache / ephemeral state. Valkey speaks the
+  # Redis protocol; set CACHE_PROVIDER=valkey + CACHE_REDIS_URL to use.
+  # Not required — the default in-memory cache needs no service.
+  valkey:
+    image: valkey/valkey:8
+    ports:
+      - "6379:6379"
+    volumes:
+      - forgeloop_valkey_data:/data
+
 volumes:
   forgeloop_mongo_data:
+  forgeloop_valkey_data:

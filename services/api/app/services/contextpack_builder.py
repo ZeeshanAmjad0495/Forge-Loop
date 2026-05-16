@@ -20,6 +20,7 @@ from pydantic import BaseModel
 from .. import config
 from ..models import ContextPackPurpose
 from . import prompt_context_cache as _cache
+from .cache_provider import get_cache_provider
 from .context_packs import create_context_pack, estimate_tokens
 
 # Layers, highest retention priority first (last to be reduced/dropped).
@@ -160,6 +161,8 @@ def build_context_pack(
         sort_keys=True,
     )
     cache_key = None
+    cp_key = None
+    use_fast_cache = config.CACHE_ENABLED and config.CONTEXTPACK_CACHE_ENABLED
     if config.CONTEXTPACK_CACHE_ENABLED:
         cache_key = _cache.compute_cache_key(
             project_id=project_id,
@@ -168,11 +171,33 @@ def build_context_pack(
             source_id=body.source_id or None,
             content_hash_value=_cache.content_hash(basis),
         )
+        # Fast accelerator front (Task 79): Redis/Valkey or in-memory.
+        # The durable prompt_cache below remains the source of truth;
+        # the fast layer is best-effort and degrades silently.
+        if use_fast_cache:
+            try:
+                cp_key = f"ctxpack:{cache_key}"
+                raw = get_cache_provider().get(cp_key)
+                if raw:
+                    cached = ContextPackBuildResult.model_validate_json(raw)
+                    cached.cached = True
+                    return cached
+            except Exception:
+                cp_key = None
         hit = _cache.get_cached(prompt_cache_repo, cache_key)
         if hit is not None and hit.metadata.get("result"):
             _cache.record_hit(prompt_cache_repo, hit)
             cached = ContextPackBuildResult(**hit.metadata["result"])
             cached.cached = True
+            if use_fast_cache and cp_key:
+                try:
+                    get_cache_provider().set(
+                        cp_key,
+                        cached.model_dump_json(),
+                        config.CACHE_DEFAULT_TTL_SECONDS,
+                    )
+                except Exception:
+                    pass
             return cached
 
     # Token accounting + structural reduction (deterministic).
@@ -269,6 +294,16 @@ def build_context_pack(
                 source_id=body.source_id or None,
                 estimated_tokens=final_tokens,
                 metadata={"result": result.model_dump(mode="json")},
+            )
+        except Exception:
+            pass
+
+    if use_fast_cache and cp_key:
+        try:
+            get_cache_provider().set(
+                cp_key,
+                result.model_dump_json(),
+                config.CACHE_DEFAULT_TTL_SECONDS,
             )
         except Exception:
             pass

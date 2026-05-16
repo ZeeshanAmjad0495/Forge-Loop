@@ -11,6 +11,7 @@ secret values.
 from fastapi import APIRouter, Depends
 
 from ..auth import require_auth
+from ..services.cache_provider import cache_runtime_summary
 from ..services.cloud_compatibility import build_cloud_compatibility_report
 from ..services.runtime_config import build_resolved_runtime_config
 from ..services.runtime_profile import build_runtime_summary
@@ -31,3 +32,8 @@ def get_runtime_config(_: str = Depends(require_auth)) -> dict:
 @router.get("/runtime/cloud-compatibility")
 def get_runtime_cloud_compatibility(_: str = Depends(require_auth)) -> dict:
     return build_cloud_compatibility_report()
+
+
+@router.get("/runtime/cache")
+def get_runtime_cache(_: str = Depends(require_auth)) -> dict:
+    return cache_runtime_summary()
