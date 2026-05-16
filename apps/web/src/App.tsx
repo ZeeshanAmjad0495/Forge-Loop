@@ -13,6 +13,7 @@ import { ProjectsView } from './components/ProjectsView'
 import { ProjectView } from './components/ProjectView'
 import { TicketView } from './components/TicketView'
 import { RequirementView } from './components/RequirementView'
+import { WorkflowStages } from './components/WorkflowStages'
 
 type View =
   | { view: 'projects' }
@@ -58,6 +59,8 @@ export default function App() {
         <h1>ForgeLoop</h1>
         <button className="logout" onClick={handleLogout}>Sign out</button>
       </div>
+
+      <WorkflowStages />
 
       {currentView.view === 'projects' && (
         <ProjectsView

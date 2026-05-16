@@ -364,3 +364,52 @@ h4 {
   font-weight: 600;
   margin: 1.25rem 0 0.5rem;
 }
+
+/* Task 84: lightweight workflow clarity */
+.workflow-stages {
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  background: #f6f8fa;
+  border: 1px solid #e1e4e8;
+  border-radius: 6px;
+}
+.workflow-stages__steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.85rem;
+}
+.workflow-stages__steps li {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #444;
+}
+.workflow-stages__num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 999px;
+  background: #0969da;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+.workflow-stages__legend {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: #555;
+}
+.workflow-stages__legend summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.workflow-stages__legend ul {
+  margin: 0.4rem 0 0;
+  padding-left: 1.1rem;
+}
