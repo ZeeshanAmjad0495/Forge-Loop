@@ -148,6 +148,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.exception_handler(Exception)
+async def _generic_exception_handler(request, exc):
+    # M8: never leak internal exception detail (filesystem paths, DB
+    # connection structure, provider URLs) to clients. Explicit
+    # HTTPExceptions (intended 4xx + safe detail) are handled by FastAPI
+    # and never reach here; only *unhandled* errors do -> opaque 500,
+    # full detail logged server-side only.
+    import logging as _logging
+
+    _logging.getLogger("forgeloop").exception(
+        "unhandled error on %s %s", request.method, request.url.path
+    )
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "internal server error"},
+    )
+
+
 app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(projects.router)

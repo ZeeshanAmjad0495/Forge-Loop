@@ -29,3 +29,22 @@ def test_h6_health_unaffected():
 def test_m9_docs_enabled_in_non_production():
     # ENVIRONMENT defaults to "local" in tests -> schema/docs available.
     assert client.get("/openapi.json").status_code == 200
+
+
+# --- #45/M8: unhandled errors must not leak internal detail --------------
+
+
+def test_m8_unhandled_error_returns_opaque_500(monkeypatch):
+    from app import repositories_state
+
+    secret_ish = "/srv/secret/path connstr=mongodb://u:p@host"
+
+    def boom(_id):
+        raise RuntimeError(secret_ish)
+
+    monkeypatch.setattr(repositories_state.project_repo, "get", boom)
+    safe_client = TestClient(app, raise_server_exceptions=False)
+    r = safe_client.get("/projects/anything")
+    assert r.status_code == 500
+    assert r.json() == {"detail": "internal server error"}
+    assert secret_ish not in r.text
