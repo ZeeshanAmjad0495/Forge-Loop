@@ -266,6 +266,21 @@ LLM_MODEL=kimi-k2.6
 KIMI_API_KEY=sk-...
 ```
 
+### Model routing policy (hardened)
+
+When `MODEL_ROUTING_ENABLED=true`, per-workflow routing follows a
+cost-safe policy: **local-first** (Ollama) for cheap workflows;
+**DeepSeek** (`NORMAL_REASONING_PROVIDER`) for reasoning and as the
+normal hosted fallback; **Kimi is an explicit expensive provider, never
+an automatic default** (`EXPENSIVE_PROVIDER`). Long context recommends
+context reduction before any expensive provider; high-risk workflows
+require human approval but still route to DeepSeek. Kimi is selected only
+when the request explicitly opts in (`allow_expensive_provider` +
+approval) or `KIMI_AUTO_FALLBACK_ENABLED=true`. Every decision records
+`reason`, `fallback_chain`, `warnings`, `requires_human_approval`,
+`expensive_provider_blocked`, and `context_reduction_recommended`. See
+`GET /runtime/model-routing` and `POST /projects/{id}/model-route/preview`.
+
 ---
 
 ## Auth configuration

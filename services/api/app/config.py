@@ -24,10 +24,36 @@ REPOSITORY_PROVIDER = os.getenv("REPOSITORY_PROVIDER", "memory")
 
 # --- Release 9: Model routing ---
 MODEL_ROUTING_ENABLED = os.getenv("MODEL_ROUTING_ENABLED", "true").lower() == "true"
-DEFAULT_REASONING_PROVIDER = os.getenv("DEFAULT_REASONING_PROVIDER", "deepseek")
-LONG_CONTEXT_PROVIDER = os.getenv("LONG_CONTEXT_PROVIDER", "kimi")
-LOCAL_SUPPORT_PROVIDER = os.getenv("LOCAL_SUPPORT_PROVIDER", "ollama")
+# #46: Kimi is an EXPENSIVE provider, not a default routing target.
+NORMAL_REASONING_PROVIDER = os.getenv(
+    "NORMAL_REASONING_PROVIDER",
+    os.getenv("DEFAULT_REASONING_PROVIDER", "deepseek"),
+)
+LOCAL_CHEAP_PROVIDER = os.getenv(
+    "LOCAL_CHEAP_PROVIDER", os.getenv("LOCAL_SUPPORT_PROVIDER", "ollama")
+)
+EXPENSIVE_PROVIDER = os.getenv(
+    "EXPENSIVE_PROVIDER", os.getenv("LONG_CONTEXT_PROVIDER", "kimi")
+)
+# Legacy aliases kept so existing imports/summary keep working.
+DEFAULT_REASONING_PROVIDER = NORMAL_REASONING_PROVIDER
+LONG_CONTEXT_PROVIDER = EXPENSIVE_PROVIDER
+LOCAL_SUPPORT_PROVIDER = LOCAL_CHEAP_PROVIDER
 TEST_PROVIDER = os.getenv("TEST_PROVIDER", "mock")
+# Kimi/expensive routing controls — all default to the safe posture.
+KIMI_AUTO_FALLBACK_ENABLED = (
+    os.getenv("KIMI_AUTO_FALLBACK_ENABLED", "false").lower() == "true"
+)
+KIMI_REQUIRE_APPROVAL = (
+    os.getenv("KIMI_REQUIRE_APPROVAL", "true").lower() == "true"
+)
+MODEL_ROUTING_PREFER_LOCAL = (
+    os.getenv("MODEL_ROUTING_PREFER_LOCAL", "true").lower() == "true"
+)
+MODEL_ROUTING_CONTEXT_REDUCTION_FIRST = (
+    os.getenv("MODEL_ROUTING_CONTEXT_REDUCTION_FIRST", "true").lower()
+    == "true"
+)
 MODEL_ROUTING_LONG_CONTEXT_TOKENS = int(
     os.getenv("MODEL_ROUTING_LONG_CONTEXT_TOKENS", "32000")
 )

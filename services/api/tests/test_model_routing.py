@@ -1,6 +1,10 @@
+"""#46: model-routing hardening — Kimi is a gated expensive fallback,
+never an automatic default. Covers the 10 required policy cases."""
+
 import pytest
 
 from app import config
+from app.llm import _PROVIDER_REGISTRY
 from app.services.model_routing import (
     ModelRoutePreviewRequest,
     decide_route,
@@ -8,113 +12,152 @@ from app.services.model_routing import (
 )
 
 
-def test_test_workflow_routes_to_mock():
-    decision = decide_route(ModelRoutePreviewRequest(workflow_type="test"))
-    assert decision.selected_provider == "mock"
-    assert decision.reason == "test_smoke_demo_workflow"
-
-
-def test_requirement_analysis_routes_to_deepseek():
-    decision = decide_route(
-        ModelRoutePreviewRequest(workflow_type="requirement_analysis")
-    )
-    assert decision.selected_provider == "deepseek"
-    assert decision.fallback_provider == "kimi"
-
-
-def test_long_context_routes_to_kimi():
-    decision = decide_route(
-        ModelRoutePreviewRequest(
-            workflow_type="pr_review", estimated_context_tokens=200_000
-        )
-    )
-    assert decision.selected_provider == "kimi"
-    assert decision.reason == "long_context_threshold_exceeded"
-
-
-def test_explicit_workflow_long_context_review():
-    decision = decide_route(
-        ModelRoutePreviewRequest(workflow_type="long_context_review")
-    )
-    assert decision.selected_provider == "kimi"
-
-
-def test_high_risk_requires_human_approval():
-    decision = decide_route(
-        ModelRoutePreviewRequest(
-            workflow_type="pr_review", risk_level="high"
-        )
-    )
-    assert decision.requires_human_approval is True
-    assert decision.reason == "high_risk_workflow"
-
-
-def test_artifact_summary_without_ollama_falls_back(monkeypatch):
-    monkeypatch.setattr(config, "OLLAMA_ENABLED", False)
-    decision = decide_route(
-        ModelRoutePreviewRequest(workflow_type="artifact_summary")
-    )
-    assert decision.selected_provider == "deepseek"
-    assert "ollama_not_enabled_falling_back_to_reasoning_provider" in decision.warnings
-
-
-def test_artifact_summary_with_ollama_enabled(monkeypatch):
+# 1. Local workflow -> Ollama when OLLAMA_ENABLED=true
+def test_local_workflow_routes_to_ollama_when_enabled(monkeypatch):
     monkeypatch.setattr(config, "OLLAMA_ENABLED", True)
-    decision = decide_route(
-        ModelRoutePreviewRequest(workflow_type="artifact_summary")
-    )
-    assert decision.selected_provider == "ollama"
+    monkeypatch.setattr(config, "MODEL_ROUTING_PREFER_LOCAL", True)
+    d = decide_route(ModelRoutePreviewRequest(workflow_type="artifact_summary"))
+    assert d.selected_provider == config.LOCAL_CHEAP_PROVIDER == "ollama"
 
 
-def test_explicit_override_respected():
-    decision = decide_route(
+# 2. Local workflow -> DeepSeek when Ollama disabled
+def test_local_workflow_falls_back_to_deepseek_when_ollama_off(monkeypatch):
+    monkeypatch.setattr(config, "OLLAMA_ENABLED", False)
+    d = decide_route(ModelRoutePreviewRequest(workflow_type="memory_extraction"))
+    assert d.selected_provider == "deepseek"
+    assert "ollama_disabled_falling_back_to_deepseek_not_kimi" in d.warnings
+
+
+# 3. Local workflow never routes to Kimi by default
+@pytest.mark.parametrize("enabled", [True, False])
+def test_local_workflow_never_kimi_by_default(monkeypatch, enabled):
+    monkeypatch.setattr(config, "OLLAMA_ENABLED", enabled)
+    d = decide_route(ModelRoutePreviewRequest(workflow_type="classification"))
+    assert d.selected_provider != "kimi"
+    assert "kimi" not in d.fallback_chain
+
+
+# 4. Normal reasoning -> DeepSeek
+def test_normal_reasoning_routes_to_deepseek():
+    d = decide_route(ModelRoutePreviewRequest(workflow_type="planning"))
+    assert d.selected_provider == "deepseek"
+    assert d.reason == "default_reasoning_workflow"
+
+
+# 5. Normal reasoning fallback chain does not put Kimi first
+def test_reasoning_fallback_chain_not_kimi_first():
+    d = decide_route(ModelRoutePreviewRequest(workflow_type="coding"))
+    assert d.fallback_chain[0] == "deepseek"
+    assert "kimi" not in d.fallback_chain  # default: no expensive opt-in
+
+
+# 6. Long context not routed to Kimi unless expensive allowed
+def test_long_context_not_kimi_by_default():
+    d = decide_route(
         ModelRoutePreviewRequest(
-            workflow_type="requirement_analysis",
-            override_provider="kimi",
-            override_model="moonshot-v1-128k",
+            workflow_type="long_context_review",
+            estimated_context_tokens=200000,
         )
     )
-    assert decision.selected_provider == "kimi"
-    assert decision.selected_model == "moonshot-v1-128k"
-    assert decision.reason == "explicit_override"
+    assert d.selected_provider == "deepseek"
+    assert d.selected_provider != "kimi"
 
 
-def test_routing_disabled_uses_global(monkeypatch):
-    monkeypatch.setattr(config, "MODEL_ROUTING_ENABLED", False)
-    monkeypatch.setattr(config, "LLM_PROVIDER", "mock")
-    decision = decide_route(
-        ModelRoutePreviewRequest(workflow_type="requirement_analysis")
+def test_long_context_kimi_when_expensive_explicitly_allowed():
+    d = decide_route(
+        ModelRoutePreviewRequest(
+            workflow_type="long_context_review",
+            allow_expensive_provider=True,
+            expensive_approved=True,
+        )
     )
-    assert decision.selected_provider == "mock"
-    assert decision.reason == "routing_disabled_use_global_llm_provider"
+    assert d.selected_provider == "kimi"
 
 
-def test_routing_summary_returns_keys():
-    summary = routing_summary()
-    assert "enabled" in summary
-    assert "default_reasoning_provider" in summary
-    assert "long_context_threshold_tokens" in summary
+# 7. Long context returns context-reduction recommendation/warning
+def test_long_context_recommends_context_reduction(monkeypatch):
+    monkeypatch.setattr(config, "MODEL_ROUTING_CONTEXT_REDUCTION_FIRST", True)
+    d = decide_route(
+        ModelRoutePreviewRequest(
+            workflow_type="long_context_review",
+            estimated_context_tokens=999999,
+        )
+    )
+    assert d.context_reduction_recommended is True
+    assert any("context_reduction" in w for w in d.warnings)
 
 
-# -- API tests --------------------------------------------------------------
+# 8. High risk requires approval but not Kimi by default
+def test_high_risk_requires_approval_but_not_kimi():
+    d = decide_route(
+        ModelRoutePreviewRequest(workflow_type="coding", risk_level="high")
+    )
+    assert d.requires_human_approval is True
+    assert d.selected_provider == "deepseek"
+    assert d.selected_provider != "kimi"
+
+
+# 9. Explicit Kimi override blocked / approval-required when required
+def test_explicit_kimi_override_blocked_when_approval_required(monkeypatch):
+    monkeypatch.setattr(config, "KIMI_REQUIRE_APPROVAL", True)
+    monkeypatch.setattr(config, "KIMI_AUTO_FALLBACK_ENABLED", False)
+    d = decide_route(
+        ModelRoutePreviewRequest(
+            workflow_type="planning", override_provider="kimi"
+        )
+    )
+    assert d.selected_provider != "kimi"
+    assert d.expensive_provider_blocked is True
+    assert d.requires_human_approval is True
+
+
+def test_explicit_kimi_override_allowed_when_approved():
+    d = decide_route(
+        ModelRoutePreviewRequest(
+            workflow_type="planning", override_provider="kimi",
+            allow_expensive_provider=True, expensive_approved=True,
+        )
+    )
+    assert d.selected_provider == "kimi"
+    assert d.expensive_provider_blocked is False
+
+
+# 10. Provider/model defaults consistent across llm + model_routing
+def test_provider_model_defaults_consistent(monkeypatch):
+    monkeypatch.setattr(config, "LLM_MODEL", None)
+    from app.services.model_routing import _model_for
+
+    for name, meta in _PROVIDER_REGISTRY.items():
+        assert _model_for(name) == meta["default_model"]
+
+
+# --- endpoint smoke (kept; summary keys updated to new schema) -----------
+
+def test_routing_summary_keys():
+    s = routing_summary()
+    for k in (
+        "normal_reasoning_provider", "expensive_provider",
+        "local_cheap_provider", "kimi_require_approval",
+        "context_reduction_first",
+    ):
+        assert k in s
 
 
 def test_model_route_preview_endpoint(client, project):
-    project_id = project["id"]
     res = client.post(
-        f"/projects/{project_id}/model-route/preview",
-        json={"workflow_type": "requirement_analysis"},
+        f"/projects/{project['id']}/model-route/preview",
+        json={"workflow_type": "planning"},
     )
     assert res.status_code == 200
     body = res.json()
     assert body["selected_provider"] == "deepseek"
-    assert body["project_id"] == project_id
+    assert "fallback_chain" in body
 
 
 def test_model_route_preview_unknown_project(client):
     res = client.post(
-        "/projects/missing/model-route/preview",
-        json={"workflow_type": "requirement_analysis"},
+        "/projects/nope/model-route/preview",
+        json={"workflow_type": "planning"},
     )
     assert res.status_code == 404
 
@@ -122,5 +165,4 @@ def test_model_route_preview_unknown_project(client):
 def test_runtime_model_routing_endpoint(client):
     res = client.get("/runtime/model-routing")
     assert res.status_code == 200
-    body = res.json()
-    assert "enabled" in body
+    assert res.json()["expensive_provider"] == "kimi"
