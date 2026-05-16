@@ -152,11 +152,19 @@ class CheckExecutionService:
             raise CheckExecutionValidationError("check definition is disabled")
 
         if getattr(definition, "shell", False):
-            # Opt-in shell mode: run the raw command through bash so it can
-            # use &&, pipes, env prefixes, etc. `bash` is still validated
-            # against the command allowlist by the runner. The command
-            # string itself is intentionally NOT token-validated here —
-            # that is the whole point of the opt-in.
+            # Opt-in shell mode runs the raw command through `bash -lc`,
+            # bypassing token validation entirely (full RCE surface).
+            # #45/H3: gate it behind an explicit operator flag — without
+            # COMMAND_RUNNER_ALLOW_SHELL it is refused, not silently run.
+            from .. import config as _config
+
+            if not _config.COMMAND_RUNNER_ALLOW_SHELL:
+                raise CheckExecutionValidationError(
+                    "shell-mode check definitions are disabled; set "
+                    "COMMAND_RUNNER_ALLOW_SHELL=true to permit `bash -lc` "
+                    "checks (this grants arbitrary execution — opt in "
+                    "deliberately)"
+                )
             if not definition.command or not definition.command.strip():
                 raise CheckExecutionValidationError("check definition has no command")
             cmd, args = "bash", ["-lc", definition.command]

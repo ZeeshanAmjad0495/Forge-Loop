@@ -54,6 +54,14 @@ def block_real_subprocess(monkeypatch):
 @pytest.fixture
 def enable_runner(monkeypatch):
     monkeypatch.setattr(config, "COMMAND_RUNNER_ENABLED", True)
+    # #45/H3: opt in the interpreters + shell mode these mechanic tests
+    # exercise (production default stays interpreter-free / shell-off).
+    monkeypatch.setattr(
+        config, "COMMAND_RUNNER_ALLOWED_COMMANDS",
+        [*config.COMMAND_RUNNER_ALLOWED_COMMANDS,
+         "python", "python3", "coverage", "bash", "npm"],
+    )
+    monkeypatch.setattr(config, "COMMAND_RUNNER_ALLOW_SHELL", True)
 
 
 REPO_PAYLOAD = {

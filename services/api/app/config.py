@@ -169,11 +169,20 @@ COMMAND_RUNNER_ENABLED = os.getenv("COMMAND_RUNNER_ENABLED", "false").lower() ==
 COMMAND_RUNNER_MAX_TIMEOUT_SECONDS = int(os.getenv("COMMAND_RUNNER_MAX_TIMEOUT_SECONDS", "300"))
 COMMAND_RUNNER_MAX_OUTPUT_BYTES = int(os.getenv("COMMAND_RUNNER_MAX_OUTPUT_BYTES", "200000"))
 
-# `bash` is allowed so opt-in shell-mode check definitions
-# (CheckDefinition.shell=True) can run `bash -lc "<command>"`. In the
-# default (non-shell) path, command args are still token-validated for
-# shell metacharacters, so `bash` there is effectively inert.
-_DEFAULT_ALLOWED_COMMANDS = "python,python3,pytest,npm,node,npx,ruff,mypy,bash,uv"
+# #45/H3: interpreter escapes (bash/python/node/npx/npm) are NO LONGER on
+# the default allowlist — allowlisting an interpreter is equivalent to
+# allowing arbitrary execution (it nullifies the argv[0] blocklist via
+# `bash -c` / `python -c`). The default set is the concrete QA tooling
+# only. Operators that genuinely need an interpreter must add it
+# explicitly via COMMAND_RUNNER_ALLOWED_COMMANDS (informed opt-in).
+_DEFAULT_ALLOWED_COMMANDS = "pytest,ruff,mypy,uv"
+# #45/H3: opt-in shell-mode check definitions (CheckDefinition.shell=True
+# -> `bash -lc "<raw>"`) bypass token validation entirely, so they are
+# now gated behind an explicit flag (default off). Without it a
+# shell-mode check is blocked rather than silently granting full RCE.
+COMMAND_RUNNER_ALLOW_SHELL = (
+    os.getenv("COMMAND_RUNNER_ALLOW_SHELL", "false").lower() == "true"
+)
 _DEFAULT_BLOCKED_COMMANDS = (
     "sudo,su,rm,rmdir,chmod,chown,curl,wget,ssh,scp,rsync,"
     "git,gh,docker,docker-compose,terraform,kubectl,gcloud,"

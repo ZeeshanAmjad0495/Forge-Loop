@@ -67,6 +67,14 @@ def block_real_subprocess(monkeypatch):
 @pytest.fixture
 def enable_runner(monkeypatch):
     monkeypatch.setattr(config, "COMMAND_RUNNER_ENABLED", True)
+    # #45/H3: interpreters are no longer on the default allowlist. These
+    # tests exercise runner *mechanics* with a harmless `python` command,
+    # so they opt it in explicitly (mirrors the new informed-opt-in
+    # model). Production default stays interpreter-free.
+    monkeypatch.setattr(
+        config, "COMMAND_RUNNER_ALLOWED_COMMANDS",
+        [*config.COMMAND_RUNNER_ALLOWED_COMMANDS, "python", "python3"],
+    )
 
 
 def _make_project(name: str = "TestProject") -> dict:
@@ -95,7 +103,10 @@ def _make_workspace(project_id: str) -> dict:
 def _make_definition(project_id: str, **overrides) -> dict:
     payload = {
         "name": "Version check",
-        "command": "python",
+        # #45/H3: default to an allowlisted command (interpreters are no
+        # longer default-allowlisted). Tests needing `python` pass it
+        # explicitly under the enable_runner allowlist.
+        "command": "uv",
         "args": ["--version"],
         "command_type": "utility",
         "timeout_seconds": 5,
@@ -222,7 +233,7 @@ def test_get_command_definition(workspace_root, block_real_subprocess):
 
 def test_patch_command_definition_updates_safe_fields(workspace_root, block_real_subprocess):
     project = _make_project()
-    d = _make_definition(project["id"])
+    d = _make_definition(project["id"], command="pytest")  # #45/H3: allowlisted
     resp = client.patch(
         f"/command-definitions/{d['id']}",
         json={"enabled": False, "timeout_seconds": 30, "description": "edited"},
@@ -242,7 +253,7 @@ def test_run_blocked_when_command_runner_disabled(workspace_root, block_real_sub
     # COMMAND_RUNNER_ENABLED defaults to False — do not enable_runner
     project = _make_project()
     ws = _make_workspace(project["id"])
-    d = _make_definition(project["id"])
+    d = _make_definition(project["id"], command="pytest")  # #45/H3: allowlisted
     resp = client.post(
         f"/workspaces/{ws['id']}/command-runs",
         json={"command_definition_id": d["id"]},
@@ -373,7 +384,8 @@ def test_run_safe_command_success_records_completed(
 ):
     project = _make_project()
     ws = _make_workspace(project["id"])
-    d = _make_definition(project["id"])
+    # enable_runner allowlists python; argv assertion below expects it.
+    d = _make_definition(project["id"], command="python")
 
     captured: dict = {}
 
@@ -494,7 +506,7 @@ def test_run_no_real_subprocess_executed_when_disabled(workspace_root, block_rea
     # any subprocess attempt.
     project = _make_project()
     ws = _make_workspace(project["id"])
-    d = _make_definition(project["id"])
+    d = _make_definition(project["id"], command="pytest")  # #45/H3: allowlisted
     resp = client.post(
         f"/workspaces/{ws['id']}/command-runs",
         json={"command_definition_id": d["id"]},
