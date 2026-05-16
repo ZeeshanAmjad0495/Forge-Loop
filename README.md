@@ -26,6 +26,17 @@ All 32 core tasks across Releases 1–6 are complete. See [Future roadmap](#futu
 18. Record production incidents and produce advisory `IncidentAnalysis` triage reports; prepare non-persisted remediation work item drafts for human review.
 19. Distill learnings from CI analyses, incident analyses, PR reviews, check runs, and dev tasks into `ProjectMemoryCandidate`s; human approve/reject writes them back into project context.
 
+## Post-Release-6 hardening & capabilities
+
+Beyond the Release 1–6 core, the following are implemented and tested:
+
+- **Real coding runners.** OpenHands HTTP execution bridge (with an automated stale-runtime reaper) and a real **Aider execution bridge** (subprocess via local Ollama) — both gated, audited, snapshot-diffed; request input never reaches argv.
+- **Native multi-dev-task integration.** `POST /workspaces/{id}/integration-runs` merges an ordered set of dev-task branches, returns a structured `409` listing conflicting files, and **never silently drops a member**; optional single PR draft.
+- **State & latency correctness.** B1 pre-execute hard-sync eliminates cross-run/cross-dev-task state bleed (including disposable migration-stamped DBs); B3 phase timing attributes per-DT latency (sandbox-resolve vs agent inference) with a configurable resolve cap.
+- **Real review + observability.** Kody/Kodus CLI-key HTTP adapter (submit/poll, contract-verified live) and an optional Langfuse observability provider (live-verified; no-op without creds).
+- **Concurrency.** Enforced per-workspace execution mutual exclusion (409 `WORKSPACE_BUSY`) prevents same-workspace corruption; multi-workspace runs are independent.
+- **Security.** OWASP-ASVS-aligned audit with fixes applied without changing usability. See **[`docs/security-architecture.md`](docs/security-architecture.md)** (trust/threat model, defense-in-depth, production-safety guarantees, operator requirements) and **[`docs/security-audit-findings.md`](docs/security-audit-findings.md)** (severity-ranked register). All execution/push/integration/shell gates default **off**.
+
 ## What it does not do (by design)
 
 - Create branches, commits, or pull requests autonomously

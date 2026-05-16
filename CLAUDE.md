@@ -40,6 +40,17 @@ Implemented capabilities include:
 - Production/incident ticket workflow and advisory triage
 - Project memory learning loop (human-supervised candidate flow)
 
+Post-Release-6 hardening & capability work (shipped):
+
+- OpenHands HTTP execution bridge + automated stale-runtime reaper (launchd)
+- Real Aider execution bridge (subprocess via local Ollama; gated, audited, snapshot-diffed) — Aider is a true coding runner, not package-only
+- Native multi-dev-task integration endpoint (`POST /workspaces/{id}/integration-runs`) — ordered merge, structured 409 on conflict, never silent-drops a member
+- B1 sandbox state-bleed elimination (pre-execute hard-sync, incl. disposable migration-stamped DB cleanup)
+- B3 latency attribution (sandbox-resolve vs agent-run phase timing; configurable resolve cap)
+- Real Kody/Kodus HTTP review adapter (CLI-key API: submit/poll, contract-verified) + Langfuse observability provider (live-verified; optional, no-op without creds)
+- Per-workspace execution mutual-exclusion (concurrency hardening)
+- Security: OWASP-aligned audit + fixes — see `docs/security-architecture.md` and `docs/security-audit-findings.md`. All feature/execution/push gates default OFF; auth/secret/SSRF/injection/confinement controls enforced without changing usability.
+
 All 32 core tasks are complete. Next work is Release 7 (LaunchPilot) or explicit follow-on tasks.
 
 ## Active Roadmap
