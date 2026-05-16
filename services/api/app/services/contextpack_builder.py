@@ -239,6 +239,7 @@ def build_context_pack(
     excluded: list[str] = []
     tokens = {n: estimate_tokens(layers[n]) for n in _LAYER_ORDER}
     total = sum(tokens.values())
+    tokens_before = total
     compression_level: Literal["none", "light", "aggressive"] = "none"
 
     if total > budget:
@@ -342,6 +343,13 @@ def build_context_pack(
             )
         except Exception:
             pass
+
+    try:
+        from .metrics import record_contextpack_tokens
+
+        record_contextpack_tokens(tokens_before, final_tokens)
+    except Exception:
+        pass
 
     return _apply_retrieval(result, project_id, body)
 

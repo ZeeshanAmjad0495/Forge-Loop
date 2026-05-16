@@ -130,4 +130,19 @@ def record_cost(
     except Exception:
         pass
 
+    # Task 82: free observability counters (no-op unless enabled).
+    try:
+        from .metrics import record_cost_metrics, record_route_decision
+
+        record_cost_metrics(
+            provider=provider,
+            status=status,
+            was_expensive=was_expensive_provider,
+            cost_usd=estimated_total_cost_usd,
+        )
+        if source_type == "model_route":
+            record_route_decision(selected_provider or provider)
+    except Exception:
+        pass
+
     return record

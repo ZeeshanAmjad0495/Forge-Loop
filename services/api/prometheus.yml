@@ -1,0 +1,20 @@
+# Task 82: optional local Prometheus scrape config.
+# Used only by the `observability` compose profile:
+#   docker compose -f docker-compose.local.yml --profile observability up
+#
+# The API runs locally (uvicorn on :8080), not as a compose service, so
+# the target is the docker host. /metrics requires auth — paste a valid
+# bearer token below for local scraping (never commit a real token; this
+# file ships with a placeholder only).
+global:
+  scrape_interval: 30s
+
+scrape_configs:
+  - job_name: forgeloop-api
+    metrics_path: /metrics
+    scheme: http
+    authorization:
+      type: Bearer
+      credentials: REPLACE_WITH_LOCAL_DEV_TOKEN
+    static_configs:
+      - targets: ["host.docker.internal:8080"]

@@ -24,6 +24,12 @@ def preview_runner_route(
     if project_repo.get(project_id) is None:
         raise HTTPException(status_code=404, detail="Project not found")
     decision = decide_runner(body)
+    try:
+        from ..services.metrics import record_runner_selected
+
+        record_runner_selected(decision.runner_name)
+    except Exception:
+        pass
     audit_writer.write(
         "runner_route_previewed",
         "project",

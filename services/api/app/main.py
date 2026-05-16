@@ -74,6 +74,7 @@ from .routes import (
     llm,
     memory,
     memory_retrieval,
+    metrics,
     model_routing,
     openhands,
     runner_routing,
@@ -208,6 +209,7 @@ app.include_router(git_workflow.router)
 app.include_router(integration_runs.router)
 app.include_router(review_feedback.router)
 app.include_router(runtime.router)
+app.include_router(metrics.router)
 app.include_router(cost_records.router)
 app.include_router(context_packs.router)
 app.include_router(artifact_summaries.router)

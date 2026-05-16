@@ -16,6 +16,17 @@ services:
     volumes:
       - forgeloop_valkey_data:/data
 
+  # Task 82: optional local metrics scrape. Off by default — only
+  # starts with `docker compose --profile observability up`. Scrapes
+  # the locally-running API /metrics (auth required; see prometheus.yml).
+  prometheus:
+    image: prom/prometheus:latest
+    profiles: ["observability"]
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
 volumes:
   forgeloop_mongo_data:
   forgeloop_valkey_data:

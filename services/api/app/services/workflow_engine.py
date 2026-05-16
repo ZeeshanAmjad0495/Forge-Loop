@@ -138,6 +138,12 @@ class InMemoryWorkflowEngine(WorkflowEngine):
                 updated_at=now,
             )
             self._wf[workflow_id] = state
+            try:
+                from .metrics import record_workflow_started
+
+                record_workflow_started(workflow_type)
+            except Exception:
+                pass
             return state.model_copy(deep=True)
 
     def signal_workflow(
@@ -154,6 +160,15 @@ class InMemoryWorkflowEngine(WorkflowEngine):
                 {"at": now.isoformat(), "event": "signal", "signal": signal}
             )
             if signal == HUMAN_APPROVAL_SIGNAL:
+                if state.status == "waiting_human_approval":
+                    try:
+                        from .metrics import observe_approval_wait
+
+                        observe_approval_wait(
+                            (now - state.created_at).total_seconds()
+                        )
+                    except Exception:
+                        pass
                 approved = bool((payload or {}).get("approved", False))
                 state.status = "running" if approved else "cancelled"
                 if not approved:

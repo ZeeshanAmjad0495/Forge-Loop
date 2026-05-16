@@ -365,6 +365,21 @@ VECTOR_INDEX_RAW_ARTIFACTS = (
     os.getenv("VECTOR_INDEX_RAW_ARTIFACTS", "false").lower() == "true"
 )
 
+# --- Task 82: free/local-first observability ---
+# In-process Prometheus-text /metrics + structured JSON event logs. No
+# client library, no OpenTelemetry import (OTEL is a config flag only —
+# heavy dependency, deferred), no paid monitoring. All instrumentation
+# is a no-op unless OBSERVABILITY_ENABLED and METRICS_ENABLED.
+OBSERVABILITY_ENABLED = (
+    os.getenv("OBSERVABILITY_ENABLED", "true").lower() == "true"
+)
+METRICS_ENABLED = os.getenv("METRICS_ENABLED", "true").lower() == "true"
+METRICS_PATH = os.getenv("METRICS_PATH", "/metrics")
+OTEL_ENABLED = os.getenv("OTEL_ENABLED", "false").lower() == "true"
+STRUCTURED_LOGS_ENABLED = (
+    os.getenv("STRUCTURED_LOGS_ENABLED", "true").lower() == "true"
+)
+
 
 def validate_startup_config() -> None:
     if AUTH_ENABLED and not AUTH_TOKEN_SECRET:

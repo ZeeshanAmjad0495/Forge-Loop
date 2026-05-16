@@ -11,6 +11,7 @@ def clear_repos():
     repos.reset_all()
     from app.services.cache_provider import reset_cache_provider
     from app.services.event_bus import reset_event_bus
+    from app.services.metrics import reset as reset_metrics
     from app.services.vector_store import reset_vector_store
     from app.services.workflow_engine import reset_workflow_engine
 
@@ -18,6 +19,7 @@ def clear_repos():
     reset_event_bus()
     reset_workflow_engine()
     reset_vector_store()
+    reset_metrics()
 
 
 @pytest.fixture(autouse=True)
