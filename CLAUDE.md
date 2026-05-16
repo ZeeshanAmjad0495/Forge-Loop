@@ -242,3 +242,37 @@ Do not commit or push if:
 - secrets are present
 - unrelated files are changed
 - the user has not approved the task implementation
+
+## Cost & Safety Policy (Tasks 75–85) — Enforced
+
+This policy is binding. It supersedes any older "always out of scope"
+phrasing: the direction is **controlled adoption, not endless
+expansion**. Authoritative direction lives in `docs/roadmap.md` and
+`docs/architecture.md`.
+
+1. **Plan mode first.** Non-trivial work: inspect, produce a short plan,
+   then implement the approved scope only. No large unplanned
+   implementation.
+2. **No scope expansion.** The post-32 roadmap is bounded to Tasks
+   75–85. Do not start work beyond 85, and do not re-expand a
+   "deferred" item, without an explicit `docs/roadmap.md` update.
+3. **No paid/expensive services without approval.** Default to free /
+   local-first (Ollama local, DeepSeek default hosted). Prometheus/
+   OpenTelemetry/Grafana stay free/local; no paid monitoring.
+4. **No Kimi unless explicitly approved.** Kimi is an expensive,
+   approval-gated fallback only; the budget guard is fail-closed. Never
+   make Kimi a default route.
+5. **Runner discipline.** Lightweight/deterministic runner by default;
+   OpenHands only for broad/complex, human-approved work.
+6. **No deploy/merge automation without approval.** Auto-remediation is
+   advisory only — no auto-merge, auto-deploy, branch/PR creation, or
+   destructive commands. Human approval precedes any executable DevTask.
+7. **Infra is sequenced, not sprawled.** Valkey → NATS → Temporal;
+   K3s optional spike only; Pub/Sub-Eventarc a later cloud adapter;
+   Kafka deferred. New infra requires a provider abstraction and must
+   never be the source of truth.
+8. **RAG stays controlled.** Project-memory/summary retrieval only, off
+   by default; never broad raw-code/log/secret indexing.
+9. **GitHub push after a completed task** only if tests/builds pass and
+   the user has configured/confirmed it (see the GitHub Push Rule).
+10. Preserve all historical release/task summaries — never delete them.

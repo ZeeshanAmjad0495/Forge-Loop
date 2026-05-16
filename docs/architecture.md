@@ -480,7 +480,19 @@ These concepts are used across Studio modules. ForgeLoop owns and stores all of 
 
 ### Active build boundary
 
-**Releases 1–6 are complete (all 32 tasks).** The implemented core includes everything from ticket creation through project memory learning. Everything in the ForgeLoop Studio section (ProductScout, AuditLens, LaunchPilot) and the future Execution Bridge (live OpenHands execution, real branch/PR creation, live Kody/GitHub integration) remain out of scope for the current roadmap.
+**Releases 1–6 are complete (all 32 tasks).** The implemented core includes everything from ticket creation through project memory learning. The post-32 work (Tasks 75–85) is **controlled adoption**, not endless expansion — see the bounded roadmap and decisions matrix in [`roadmap.md`](roadmap.md). ForgeLoop Studio (ProductScout, AuditLens, LaunchPilot) and the future Execution Bridge (live OpenHands execution, real branch/PR creation, live Kody/GitHub integration) are **deferred** (not "always out of scope"): they may be adopted later only via an explicit roadmap update, never by silent scope creep.
+
+### Controlled adoption & cost-safe policy (Tasks 75–85)
+
+The maintained direction (this file + `roadmap.md` + the repo `CLAUDE.md`) is authoritative; older "always out of scope" phrasing elsewhere is superseded by **deferred / controlled adoption**.
+
+- **Cost-safe model routing:** Ollama for local cheap workflows; DeepSeek as the default hosted reasoning provider; **Kimi is an expensive, approval-gated fallback only** (budget guard fail-closed). See the Task 75/76 sections.
+- **Runner strategy:** deterministic/lightweight runner by default; **OpenHands only for broad/complex, human-approved work** (Task 77).
+- **Infrastructure sequence:** Valkey first (cache/locks), then NATS (local event bus), then Temporal (durable workflows); **K3s optional spike only**; a Pub/Sub–Eventarc cloud adapter is a later option behind the `EventBus` interface; **Kafka deferred** (Tasks 79–80).
+- **RAG:** controlled project-memory/summary retrieval only — **no broad raw-code/log/secret RAG**; off by default (Task 81).
+- **Observability:** free/local-first OpenTelemetry-flag / Prometheus-text / optional Grafana; no paid monitoring (Task 82).
+- **Auto-remediation:** advisory only — no merge/deploy/branch/PR automation; human approval before any DevTask (Task 83).
+- **Bounded roadmap:** Tasks 75–85 are the post-32 scope. No new tasks without an explicit `roadmap.md` update.
 
 ### Durable workflow + event foundation (Task 80)
 

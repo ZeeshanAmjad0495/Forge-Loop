@@ -1,6 +1,6 @@
 # ForgeLoop Roadmap
 
-32 tasks across 6 releases. The active engineering scope is fixed — do not add tasks beyond 32 without explicit approval.
+Releases 1–6 (32 tasks) are complete. Post-32 work is the **bounded controlled-adoption roadmap, Tasks 75–85** (see the section near the end of this file). The scope is fixed: **do not start any task beyond 85, or re-expand earlier "deferred" items, without an explicit update to this file.** This file + `docs/architecture.md` + the repo `CLAUDE.md` are the authoritative direction.
 
 ---
 
@@ -140,3 +140,46 @@ Tasks beyond the fixed 32 are scoped one at a time and must not be expanded with
 - Task 34 — Safe command runner (future). Will introduce controlled command execution against a workspace. Not in Task 33.
 
 See [`docs/execution-bridge.md`](execution-bridge.md).
+
+---
+
+## Post-32 Controlled-Adoption Roadmap (Tasks 75–85) — Bounded
+
+This is the **complete** post-32 scope. It is bounded: **no task beyond 85 may be started without an explicit update to this file.** Historical release summaries above are retained and unchanged. The direction is *controlled adoption, not endless expansion* — items previously phrased "always out of scope" are **deferred / controlled adoption**, never silent scope creep.
+
+| Task | Title | Status |
+|------|-------|--------|
+| 75 | Model routing + Kimi cost guard | Complete |
+| 76 | Cost visibility + budget CostRecords | Complete |
+| 77 | RunnerRouter (lightweight default, OpenHands approval-gated) | Complete |
+| 78 | ContextPack hardening + token reduction | Complete |
+| 79 | Valkey/Redis local cache, rate-limit, ephemeral state | Complete |
+| 80 | Durable workflow + event foundation (Phase A: in-memory EventBus/WorkflowEngine) | Complete |
+| 81 | Controlled project-memory vector retrieval | Complete |
+| 82 | Free observability (metrics/structured logs) | Complete |
+| 83 | Advisory-only auto-remediation | Complete |
+| 84 | CLI-first UX + lightweight dashboard clarity | Complete |
+| 85 | Documentation / CLAUDE.md / roadmap alignment | Complete |
+
+### Decisions matrix (adopted / deferred / rejected)
+
+| Item | Decision | Why |
+|---|---|---|
+| Kimi | Adopt — **approval-gated expensive fallback only** | Burns balance too fast for default use |
+| DeepSeek | Adopt — default hosted reasoning provider | Cheaper than Kimi, sufficient for most planning/review |
+| Ollama | Adopt — local cheap workflows | Summaries, classification, compression, memory extraction |
+| OpenHands | Keep — route selectively, **approval-gated** | Too slow for every task; good for broad multi-file work |
+| Lightweight runner (Aider/OpenCode-style) | Adopt — default for narrow coding | Faster/cheaper |
+| Valkey/Redis | Adopted (Task 79) — cache/locks/rate-limit, **never source of truth** | First infra step |
+| NATS | Adopted as Phase-B adapter (designed, not forced) | Local-first fanout; better fit than Kafka |
+| Temporal | Adopted as Phase-B adapter (designed, not forced) | Durable human-supervised workflows |
+| Kafka | **Deferred/avoid** | Too heavy for ForgeLoop's volume |
+| Pub/Sub / Eventarc | **Deferred** — later cloud adapter behind `EventBus` | Only relevant on GCP |
+| K3s | **Optional spike only**, documented | Use only if worker isolation becomes necessary |
+| Vector DB / RAG | Adopted controlled (Task 81) — project-memory summaries only, off by default | No broad raw-code RAG |
+| Chroma/Qdrant/pgvector | **Deferred** future local adapters | In-memory deterministic store is the smallest workable option |
+| Prometheus/OpenTelemetry/Grafana | Adopt free/local foundation (Task 82); OTel = config flag, not imported | Free and useful |
+| Sentry / Cloud Logging | **Deferred** | Optional / cloud-only |
+| Auto-remediation | Adopt **advisory only** (Task 83) | No deploy/merge/branch/PR without human approval |
+| Slack/email notifications | **Deferred** until workflows stable | Not core |
+| Complex dashboard / billing / multi-tenancy / MCP | **Deferred / out of scope now** | CLI-first; not needed for current use |
