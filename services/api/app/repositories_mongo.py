@@ -314,15 +314,17 @@ class MongoApprovalRepository(MongoDocumentRepository[Approval]):
         return _sorted_desc(self.list_by_field("project_id", project_id))
 
     def find_approved_for_target(
-        self, target_type: str, target_id: str
+        self, target_type: str, target_id: str,
+        project_id: str | None = None,
     ) -> Approval | None:
-        doc = self._collection.find_one(
-            {
-                "target_type": target_type,
-                "target_id": target_id,
-                "status": "approved",
-            }
-        )
+        flt = {
+            "target_type": target_type,
+            "target_id": target_id,
+            "status": "approved",
+        }
+        if project_id is not None:
+            flt["project_id"] = project_id
+        doc = self._collection.find_one(flt)
         if doc is None:
             return None
         return from_mongo_document(doc, Approval)

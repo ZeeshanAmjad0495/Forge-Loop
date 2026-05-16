@@ -266,7 +266,16 @@ class AiderExecutionService:
             content=package_json, created_at=now,
         ))
 
-        ws_root = Path(workspace.root_path).resolve()
+        # #45/H4: re-assert workspace safety before B1 sync / aider run.
+        from .workspace_paths import (
+            WorkspacePathError,
+            assert_workspace_safe,
+        )
+
+        try:
+            ws_root = assert_workspace_safe(workspace.root_path)
+        except WorkspacePathError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         try:
             synced_branch = sync_workspace_to_branch_head(
                 ws_root, timeout=int(_config.GIT_TIMEOUT_SECONDS)

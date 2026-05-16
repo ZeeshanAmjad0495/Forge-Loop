@@ -717,9 +717,12 @@ def _resolve_approval(
             )
         return appr
 
-    found = approval_repo.find_approved_for_target("dev_task", dev_task_id)
+    # #45/M2: scope the implicit approval lookup to this project.
+    found = approval_repo.find_approved_for_target(
+        "dev_task", dev_task_id, project_id)
     if found is None and agent_run_id is not None:
-        found = approval_repo.find_approved_for_target("task_decomposition", agent_run_id)
+        found = approval_repo.find_approved_for_target(
+            "task_decomposition", agent_run_id, project_id)
     if found is None:
         raise HTTPException(
             status_code=400,
@@ -1050,7 +1053,17 @@ class OpenHandsExecutionService:
             created_at=now,
         ))
 
-        ws_root = Path(workspace.root_path).resolve()
+        # #45/H4: re-assert workspace safety before B1 hard-sync /
+        # reset --hard can touch the host filesystem.
+        from .workspace_paths import (
+            WorkspacePathError,
+            assert_workspace_safe,
+        )
+
+        try:
+            ws_root = assert_workspace_safe(workspace.root_path)
+        except WorkspacePathError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
         # B1: hard-sync the workspace to its branch HEAD before the agent
         # runs, so no bled state (prior run / bind-mount carryover) leaks

@@ -470,7 +470,10 @@ class ApprovalRepository(Protocol):
     def get(self, approval_id: str) -> Approval | None: ...
     def update(self, approval: Approval) -> None: ...
     def list_by_project(self, project_id: str) -> list[Approval]: ...
-    def find_approved_for_target(self, target_type: str, target_id: str) -> Approval | None: ...
+    def find_approved_for_target(
+        self, target_type: str, target_id: str,
+        project_id: str | None = None,
+    ) -> Approval | None: ...
 
 
 class InMemoryApprovalRepository:
@@ -490,9 +493,17 @@ class InMemoryApprovalRepository:
         matches = [a for a in self._store.values() if a.project_id == project_id]
         return sorted(matches, key=lambda a: a.created_at, reverse=True)
 
-    def find_approved_for_target(self, target_type: str, target_id: str) -> Approval | None:
+    def find_approved_for_target(
+        self, target_type: str, target_id: str,
+        project_id: str | None = None,
+    ) -> Approval | None:
         for a in self._store.values():
-            if a.target_type == target_type and a.target_id == target_id and a.status == "approved":
+            if (
+                a.target_type == target_type
+                and a.target_id == target_id
+                and a.status == "approved"
+                and (project_id is None or a.project_id == project_id)
+            ):
                 return a
         return None
 
@@ -521,7 +532,10 @@ class FirestoreApprovalRepository:
         matches = [Approval(**d.to_dict()) for d in docs]
         return sorted(matches, key=lambda a: a.created_at, reverse=True)
 
-    def find_approved_for_target(self, target_type: str, target_id: str) -> Approval | None:
+    def find_approved_for_target(
+        self, target_type: str, target_id: str,
+        project_id: str | None = None,
+    ) -> Approval | None:
         # Three-field equality query; may need a composite index in prod.
         # Fallback: filter status in code if index not available.
         docs = (
@@ -532,7 +546,9 @@ class FirestoreApprovalRepository:
             .stream()
         )
         for d in docs:
-            return Approval(**d.to_dict())
+            appr = Approval(**d.to_dict())
+            if project_id is None or appr.project_id == project_id:
+                return appr
         return None
 
 

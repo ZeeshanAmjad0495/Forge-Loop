@@ -421,15 +421,18 @@ def _resolve_approval(
             )
         return appr
 
+    # #45/M2: bind the implicit approval lookup to this project so an
+    # approval in another project cannot satisfy this gate.
     candidates: list[Approval | None] = []
     if dev_task_id:
-        candidates.append(approval_repo.find_approved_for_target("dev_task", dev_task_id))
+        candidates.append(approval_repo.find_approved_for_target(
+            "dev_task", dev_task_id, project_id))
     if subtask_id:
-        candidates.append(approval_repo.find_approved_for_target("subtask", subtask_id))
+        candidates.append(approval_repo.find_approved_for_target(
+            "subtask", subtask_id, project_id))
     if agent_run_id:
-        candidates.append(
-            approval_repo.find_approved_for_target("task_decomposition", agent_run_id)
-        )
+        candidates.append(approval_repo.find_approved_for_target(
+            "task_decomposition", agent_run_id, project_id))
     for c in candidates:
         if c is not None:
             return c
@@ -467,7 +470,16 @@ class GitWorkflowService:
                 status_code=400,
                 detail=f"Workspace is not ready (status={workspace.status})",
             )
-        root = Path(workspace.root_path).resolve()
+        # #45/H4: re-assert workspace safety at operation time — a
+        # persisted root_path must never be a system/credential location,
+        # even with WORKSPACE_ALLOW_OUTSIDE_ROOT on. Prevents destructive
+        # git ops (reset --hard / clean) against the host's real dirs.
+        from .workspace_paths import WorkspacePathError, assert_workspace_safe
+
+        try:
+            root = assert_workspace_safe(workspace.root_path)
+        except WorkspacePathError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         if not (root / ".git").is_dir():
             raise HTTPException(
                 status_code=400,

@@ -289,7 +289,7 @@ class RevisionWorkItemService:
             # Approval gate for proposed -> approved.
             if item.status == "proposed" and target_status == "approved" and item.requires_approval:
                 approved = self.approval_repo.find_approved_for_target(
-                    "revision_work_item", item.id
+                    "revision_work_item", item.id, item.project_id
                 )
                 if approved is None:
                     raise HTTPException(

@@ -337,6 +337,14 @@ class CommandRunnerService:
         except CommandBlocked as exc:
             return self._record_blocked(run, actor_email, str(exc))
 
+        # #45/H4: re-assert workspace safety before running anything.
+        from .workspace_paths import WorkspacePathError, assert_workspace_safe
+
+        try:
+            assert_workspace_safe(workspace.root_path)
+        except WorkspacePathError as exc:
+            return self._record_blocked(run, actor_email, str(exc))
+
         # cwd resolution
         try:
             cwd = resolve_cwd(workspace.root_path, working_directory)
