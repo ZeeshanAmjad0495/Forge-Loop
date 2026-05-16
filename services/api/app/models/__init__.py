@@ -131,6 +131,7 @@ from .code_repositories import (
 )
 from .core import AssigneeType
 from .context_packs import (
+    CompressionLevel,
     ContextPack,
     ContextPackCreate,
     ContextPackPurpose,
@@ -493,6 +494,7 @@ __all__ = [
     "CommandRunStatus",
     "CommandRunTargetType",
     "CommandType",
+    "CompressionLevel",
     "ContextPack",
     "ContextPackCreate",
     "ContextPackPurpose",

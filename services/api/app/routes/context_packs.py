@@ -4,8 +4,30 @@ from ..auth import require_auth
 from ..models import ContextPack, ContextPackCreate
 from ..repositories_state import context_pack_repo, project_repo
 from ..services.context_packs import create_context_pack
+from ..services.contextpack_builder import (
+    ContextPackBuildRequest,
+    ContextPackBuildResult,
+    build_context_pack,
+)
 
 router = APIRouter()
+
+
+@router.post(
+    "/projects/{project_id}/context-packs/build",
+    response_model=ContextPackBuildResult,
+    status_code=201,
+)
+def build_pack(
+    project_id: str,
+    body: ContextPackBuildRequest,
+    current_user: str = Depends(require_auth),
+):
+    """Task 78: build a layered, token-budgeted ContextPack (Ollama-
+    preferred compression, never Kimi; structural reduction; cached)."""
+    if project_repo.get(project_id) is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return build_context_pack(project_id=project_id, body=body)
 
 
 @router.get(

@@ -3,6 +3,9 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+# Task 78: how aggressively the pack was reduced to fit the token budget.
+CompressionLevel = Literal["none", "light", "aggressive"]
+
 ContextPackPurpose = Literal[
     "requirement_analysis",
     "task_decomposition",
@@ -37,6 +40,10 @@ class ContextPackCreate(BaseModel):
     actual_input_tokens: int = 0
     artifact_id: str | None = None
     metadata: dict = {}
+    # Task 78 layered/compression fields (additive).
+    compression_level: CompressionLevel = "none"
+    excluded_context_reasoning: list[str] = []
+    source_ids: list[str] = []
 
 
 class ContextPack(BaseModel):
@@ -61,5 +68,8 @@ class ContextPack(BaseModel):
     actual_input_tokens: int = 0
     artifact_id: str | None = None
     metadata: dict = {}
+    compression_level: CompressionLevel = "none"
+    excluded_context_reasoning: list[str] = []
+    source_ids: list[str] = []
     created_at: datetime
     updated_at: datetime

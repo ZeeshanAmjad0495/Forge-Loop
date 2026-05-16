@@ -201,6 +201,27 @@ LIGHTWEIGHT_RUNNER_ENABLED = (
 RUNNER_MAX_PARALLEL_LOCAL = int(
     os.getenv("RUNNER_MAX_PARALLEL_LOCAL", "1")
 )
+
+# Task 78: layered ContextPack + token-budget reduction (cost control).
+# Compression prefers local Ollama, falls back to DeepSeek — never Kimi.
+CONTEXTPACK_ENABLED = (
+    os.getenv("CONTEXTPACK_ENABLED", "true").lower() == "true"
+)
+CONTEXTPACK_DEFAULT_TOKEN_BUDGET = int(
+    os.getenv("CONTEXTPACK_DEFAULT_TOKEN_BUDGET", "12000")
+)
+CONTEXTPACK_MAX_TOKEN_BUDGET = int(
+    os.getenv("CONTEXTPACK_MAX_TOKEN_BUDGET", "24000")
+)
+CONTEXTPACK_COMPRESSION_PROVIDER = os.getenv(
+    "CONTEXTPACK_COMPRESSION_PROVIDER", "ollama"
+)
+CONTEXTPACK_FALLBACK_PROVIDER = os.getenv(
+    "CONTEXTPACK_FALLBACK_PROVIDER", "deepseek"
+)
+CONTEXTPACK_CACHE_ENABLED = (
+    os.getenv("CONTEXTPACK_CACHE_ENABLED", "true").lower() == "true"
+)
 # Project decision: Aider uses the local Ollama by default (keeps codegen
 # off hosted providers). Override with AIDER_LLM_PROVIDER if needed.
 AIDER_LLM_PROVIDER = os.getenv("AIDER_LLM_PROVIDER", "ollama")

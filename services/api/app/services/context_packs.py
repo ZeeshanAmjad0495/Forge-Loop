@@ -47,6 +47,9 @@ def create_context_pack(
     actual_input_tokens: int = 0,
     artifact_id: str | None = None,
     metadata: dict | None = None,
+    compression_level: str = "none",
+    excluded_context_reasoning: list[str] | None = None,
+    source_ids: list[str] | None = None,
 ) -> ContextPack:
     if estimated_tokens_value is None:
         estimated_tokens_value = (
@@ -78,6 +81,9 @@ def create_context_pack(
         actual_input_tokens=max(0, int(actual_input_tokens)),
         artifact_id=artifact_id,
         metadata=dict(metadata or {}),
+        compression_level=compression_level,  # type: ignore[arg-type]
+        excluded_context_reasoning=list(excluded_context_reasoning or []),
+        source_ids=list(source_ids or []),
         created_at=now,
         updated_at=now,
     )
