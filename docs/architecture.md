@@ -496,3 +496,11 @@ Phasing:
 - **Phase C (deferred):** migrate **one** low-risk candidate workflow (catalog: `requirement_to_plan`, `plan_to_dev_tasks`, `approved_dev_task_to_runner`, `runner_result_to_pr_draft`, `ci_failure_to_analysis`, `incident_to_triage`, `remediation_draft_to_approved_task`) onto the engine. No bulk migration.
 
 **K3s** is an *optional spike only* — consider it later only if isolated per-task worker execution is required (untrusted multi-file runner sandboxing at scale). It is **not** a default runtime and the K3s runner is not implemented unless explicitly approved.
+
+### Controlled project-memory retrieval (Task 81)
+
+Project history grows; ForgeLoop adds *narrow* semantic recall — **not** broad RAG. `VectorStore` (`services/vector_store.py`) indexes **summarized** knowledge only: project memory candidates, approved project memory, artifact summaries, architecture decisions, prior human feedback, and incident/CI lessons. Raw repo/code/logs/secrets/binaries are **never** indexed (hard refusal in `index()`).
+
+- **Provider:** the smallest local-first option — a dependency-free, deterministic in-memory term-frequency cosine store. No embeddings API, no paid provider, no external vector DB; tests stay deterministic and offline. `chroma` / `qdrant` / `pgvector` are the recommended future local adapters (selecting them fails fast with guidance, no import — same pattern as Tasks 79/80).
+- **Disabled by default** (`VECTOR_RETRIEVAL_ENABLED=false`). ContextPack calls retrieval only when enabled **and** the request opts in (`use_retrieval`), as an additive enrichment that never alters the budgeted layers.
+- **Bounded** by `VECTOR_TOP_K` (count) and `VECTOR_MAX_CHUNK_TOKENS` (per-chunk), project-scoped, and every match carries citations (`source_id`/`kind`). Never the source of truth.

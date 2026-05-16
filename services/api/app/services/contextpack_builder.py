@@ -22,6 +22,7 @@ from ..models import ContextPackPurpose
 from . import prompt_context_cache as _cache
 from .cache_provider import get_cache_provider
 from .context_packs import create_context_pack, estimate_tokens
+from .vector_store import retrieve_for_context
 
 # Layers, highest retention priority first (last to be reduced/dropped).
 _LAYER_ORDER: list[str] = [
@@ -57,6 +58,10 @@ class ContextPackBuildRequest(BaseModel):
     known_bugs_or_ci_failures: str = ""
     relevant_artifacts: str = ""
     quality_rules: str = ""
+    # Task 81: opt-in controlled retrieval (off unless config-enabled AND
+    # requested). Never broad RAG; bounded by top_k + per-chunk tokens.
+    use_retrieval: bool = False
+    retrieval_query: str = ""
 
 
 class ContextPackBuildResult(BaseModel):
@@ -78,6 +83,8 @@ class ContextPackBuildResult(BaseModel):
     compression_level: Literal["none", "light", "aggressive"] = "none"
     compression_provider: str = ""
     source_ids: list[str] = []
+    retrieved_memory: str = ""
+    retrieved_source_ids: list[str] = []
     warnings: list[str] = []
     cached: bool = False
 
@@ -120,6 +127,33 @@ def _autofill(req: ContextPackBuildRequest, project_id: str) -> dict[str, str]:
     return layers
 
 
+def _apply_retrieval(
+    result: ContextPackBuildResult,
+    project_id: str,
+    body: ContextPackBuildRequest,
+) -> ContextPackBuildResult:
+    """Task 81: authoritative, cache-independent retrieval enrichment.
+
+    Applied on every return path (fresh or cached) so the result always
+    reflects current config — never a stale cached enrichment. Additive:
+    it never touches the budgeted layers.
+    """
+    if config.VECTOR_RETRIEVAL_ENABLED and body.use_retrieval:
+        text, sources = retrieve_for_context(
+            project_id,
+            body.retrieval_query or body.active_task_context or "",
+        )
+        result.retrieved_memory = text
+        result.retrieved_source_ids = sources
+        marker = f"retrieval_used:{len(sources)}_sources"
+        if text and marker not in result.warnings:
+            result.warnings.append(marker)
+    else:
+        result.retrieved_memory = ""
+        result.retrieved_source_ids = []
+    return result
+
+
 def build_context_pack(
     *,
     project_id: str,
@@ -135,7 +169,7 @@ def build_context_pack(
     if not config.CONTEXTPACK_ENABLED:
         warnings.append("contextpack_disabled_passthrough")
         layers = _autofill(body, project_id)
-        return ContextPackBuildResult(
+        passthrough = ContextPackBuildResult(
             project_id=project_id, purpose=body.purpose,
             token_budget=budget, source_ids=list(body.source_ids),
             warnings=warnings,
@@ -144,6 +178,7 @@ def build_context_pack(
             ),
             **layers,
         )
+        return _apply_retrieval(passthrough, project_id, body)
 
     layers = _autofill(body, project_id)
     comp_provider = _resolve_compression_provider(warnings)
@@ -181,7 +216,7 @@ def build_context_pack(
                 if raw:
                     cached = ContextPackBuildResult.model_validate_json(raw)
                     cached.cached = True
-                    return cached
+                    return _apply_retrieval(cached, project_id, body)
             except Exception:
                 cp_key = None
         hit = _cache.get_cached(prompt_cache_repo, cache_key)
@@ -198,7 +233,7 @@ def build_context_pack(
                     )
                 except Exception:
                     pass
-            return cached
+            return _apply_retrieval(cached, project_id, body)
 
     # Token accounting + structural reduction (deterministic).
     excluded: list[str] = []
@@ -308,7 +343,7 @@ def build_context_pack(
         except Exception:
             pass
 
-    return result
+    return _apply_retrieval(result, project_id, body)
 
 
 __all__ = [

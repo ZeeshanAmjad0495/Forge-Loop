@@ -345,6 +345,26 @@ TEMPORAL_NAMESPACE = os.getenv("TEMPORAL_NAMESPACE", "default")
 WORKER_ENABLED = os.getenv("WORKER_ENABLED", "false").lower() == "true"
 WORKER_CONCURRENCY = int(os.getenv("WORKER_CONCURRENCY", "1"))
 
+# --- Task 81: controlled project-memory vector retrieval ---
+# Narrow, local-first, OFF by default. Indexes summarized knowledge only
+# (memory, artifact summaries, decisions, feedback, incident/CI lessons)
+# — never raw repo/code/logs/secrets. Default provider is a dependency-
+# free deterministic in-memory store; chroma/qdrant/pgvector are future
+# local adapters (selecting them fails fast, no import). Bounded by
+# top_k + per-chunk tokens. Never the source of truth.
+VECTOR_RETRIEVAL_ENABLED = (
+    os.getenv("VECTOR_RETRIEVAL_ENABLED", "false").lower() == "true"
+)
+VECTOR_PROVIDER = os.getenv("VECTOR_PROVIDER", "memory").strip().lower()
+VECTOR_TOP_K = int(os.getenv("VECTOR_TOP_K", "5"))
+VECTOR_MAX_CHUNK_TOKENS = int(os.getenv("VECTOR_MAX_CHUNK_TOKENS", "800"))
+VECTOR_INDEX_ARTIFACT_SUMMARIES = (
+    os.getenv("VECTOR_INDEX_ARTIFACT_SUMMARIES", "true").lower() == "true"
+)
+VECTOR_INDEX_RAW_ARTIFACTS = (
+    os.getenv("VECTOR_INDEX_RAW_ARTIFACTS", "false").lower() == "true"
+)
+
 
 def validate_startup_config() -> None:
     if AUTH_ENABLED and not AUTH_TOKEN_SECRET:
@@ -399,4 +419,11 @@ def validate_startup_config() -> None:
         raise RuntimeError(
             "Unsupported WORKFLOW_ENGINE_PROVIDER="
             f"{WORKFLOW_ENGINE_PROVIDER!r}. Supported: memory, temporal"
+        )
+    if VECTOR_PROVIDER not in (
+        "memory", "inmemory", "local", "chroma", "qdrant", "pgvector", ""
+    ):
+        raise RuntimeError(
+            f"Unsupported VECTOR_PROVIDER={VECTOR_PROVIDER!r}. "
+            "Supported: memory (future: chroma, qdrant, pgvector)"
         )

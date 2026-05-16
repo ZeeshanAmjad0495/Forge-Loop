@@ -14,6 +14,7 @@ from ..auth import require_auth
 from ..services.cache_provider import cache_runtime_summary
 from ..services.cloud_compatibility import build_cloud_compatibility_report
 from ..services.event_bus import event_bus_runtime_summary
+from ..services.vector_store import vector_runtime_summary
 from ..services.workflow_engine import workflow_engine_runtime_summary
 from ..services.runtime_config import build_resolved_runtime_config
 from ..services.runtime_profile import build_runtime_summary
@@ -47,3 +48,8 @@ def get_runtime_workflow(_: str = Depends(require_auth)) -> dict:
         "event_bus": event_bus_runtime_summary(),
         "workflow_engine": workflow_engine_runtime_summary(),
     }
+
+
+@router.get("/runtime/vector")
+def get_runtime_vector(_: str = Depends(require_auth)) -> dict:
+    return vector_runtime_summary()
