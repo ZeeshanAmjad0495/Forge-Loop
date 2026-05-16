@@ -161,6 +161,14 @@ This is the **complete** post-32 scope. It is bounded: **no task beyond 85 may b
 | 84 | CLI-first UX + lightweight dashboard clarity | Complete |
 | 85 | Documentation / CLAUDE.md / roadmap alignment | Complete |
 
+### Post-pack stabilization fixes (from the 75–85 audit)
+
+Bounded, non-feature fixes surfaced by the post-pack stabilization audit. Not new scope.
+
+- **R-D — Complete.** CLI global flags (`--dry-run`/`--token`/`--base-url`) now parse **before or after** the subcommand (argparse parent parser with suppressed defaults + env fallback in `main()`). Audit had found the documented post-subcommand order errored. +3 regression tests.
+- **R-E — Complete.** Documented that the API **fail-closes** without `AUTH_TOKEN_SECRET` when `AUTH_ENABLED=true` (correct secure default, not a bug) in `.env.example` and `docs/cli.md`, with the local no-auth opt-in path.
+- **R-A — Resolved (ProbePilot, separate repo).** PR #12 was already merged; PR #13 (`forgeloop/probepilot-s6-integration`) branch pushed and PR #13 merged to ProbePilot `main`. No `gh` CLI available in-env; GitHub PR merge done via the web UI by the owner.
+
 ### Decisions matrix (adopted / deferred / rejected)
 
 | Item | Decision | Why |

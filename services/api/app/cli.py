@@ -109,29 +109,40 @@ _PATH_ARGS: dict[str, list[str]] = {
 }
 
 
+def _add_global_args(parser: argparse.ArgumentParser) -> None:
+    # default=SUPPRESS: an unspecified flag is absent from the namespace,
+    # so the same flag can be added to BOTH the top-level parser and each
+    # subparser without one clobbering the other. This lets global flags
+    # be passed either before OR after the subcommand (the natural,
+    # documented order). Env fallback is applied in main(), not here.
+    parser.add_argument(
+        "--base-url",
+        default=argparse.SUPPRESS,
+        help="API base URL (env FORGELOOP_API_URL).",
+    )
+    parser.add_argument(
+        "--token",
+        default=argparse.SUPPRESS,
+        help="Bearer token (env FORGELOOP_TOKEN).",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help="Print the request that would be sent; send nothing.",
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="forgeloop",
         description="CLI-first ForgeLoop client (stdlib only).",
     )
-    p.add_argument(
-        "--base-url",
-        default=os.getenv("FORGELOOP_API_URL", DEFAULT_URL),
-        help="API base URL (env FORGELOOP_API_URL).",
-    )
-    p.add_argument(
-        "--token",
-        default=os.getenv("FORGELOOP_TOKEN"),
-        help="Bearer token (env FORGELOOP_TOKEN).",
-    )
-    p.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Print the request that would be sent; send nothing.",
-    )
+    _add_global_args(p)  # accepted before the subcommand
     sub = p.add_subparsers(dest="command", required=True)
     for name, (_method, _path, body_keys) in _COMMANDS.items():
         sp = sub.add_parser(name, help=f"{_method} {_path}")
+        _add_global_args(sp)  # ...and after it
         for arg in _PATH_ARGS.get(name, []):
             sp.add_argument(f"--{arg}", required=True)
         for key in body_keys:
@@ -160,17 +171,23 @@ def _resolve(name: str, args: argparse.Namespace) -> tuple[str, str, dict]:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    # Globals work in either position; env is the fallback.
+    base_url = getattr(args, "base_url", None) or os.getenv(
+        "FORGELOOP_API_URL", DEFAULT_URL
+    )
+    token = getattr(args, "token", None) or os.getenv("FORGELOOP_TOKEN")
+    dry_run = getattr(args, "dry_run", False)
     method, path, body = _resolve(args.command, args)
     result = _request(
         method,
         path,
         body=body,
-        token=args.token,
-        base_url=args.base_url,
-        dry_run=args.dry_run,
+        token=token,
+        base_url=base_url,
+        dry_run=dry_run,
     )
     print(json.dumps(result, indent=2, sort_keys=True))
-    if args.command == "login" and not args.dry_run:
+    if args.command == "login" and not dry_run:
         tok = result.get("access_token")
         if tok:
             print(

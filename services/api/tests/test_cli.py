@@ -86,3 +86,43 @@ def test_request_dry_run_helper_offline():
         "url": "http://localhost:8080/projects",
         "body": None,
     }
+
+
+# R-D regression: global flags must work AFTER the subcommand (the
+# documented/natural order — previously errored "unrecognized arguments").
+def test_global_flags_after_subcommand(capsys):
+    code = cli.main(
+        ["create-project", "--name", "X", "--description", "Y", "--dry-run"]
+    )
+    assert code == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["dry_run"] is True
+    assert out["url"].endswith("/projects")
+    assert out["body"] == {"name": "X", "description": "Y"}
+
+
+def test_global_flags_before_subcommand_still_work(capsys):
+    code = cli.main(
+        ["--dry-run", "create-project", "--name", "X", "--description", "Y"]
+    )
+    assert code == 0
+    assert json.loads(capsys.readouterr().out)["dry_run"] is True
+
+
+def test_token_and_base_url_after_subcommand(capsys):
+    code = cli.main(
+        [
+            "cost",
+            "--project",
+            "P1",
+            "--base-url",
+            "http://example.test:9",
+            "--token",
+            "tok",
+            "--dry-run",
+        ]
+    )
+    assert code == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["url"] == "http://example.test:9/projects/P1/cost-report"
+    assert out["method"] == "GET"
