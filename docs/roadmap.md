@@ -249,3 +249,32 @@ runner, and auto-remediation stays advisory / draft-PR only.
   draft-PR only (Task 100): never auto-merge, auto-deploy, force-push,
   or bypass protected branches; approvals/checks gate the path.
 - Observability/metrics never expose secrets, tokens, prompts, or PII.
+
+### Controlled Branch/PR Automation Policy (Task 99) — binding
+
+Task 99 is documentation/governance only — it **authorizes** the
+bounded automation Task 100 implements, and nothing beyond it. No app
+code, runner, or GitHub-API change is made by Task 99.
+
+**Allowed (only when every condition holds):** create a *fresh*
+`forgeloop/*` branch off a non-protected base; commit human-approved
+runner output to it locally; push that `forgeloop/*` branch; open a
+**draft** pull request for human review. Every one of these is
+**config-gated** (dedicated flags, all default **false**), requires an
+**approved `Approval`** for the target, and runs **only after the
+deterministic QA/check gate passes**. The DB/audit log stays the source
+of truth; every action is audited.
+
+**Forbidden (always, regardless of config):** merging any PR;
+marking a PR ready-for-review automatically; deploying or releasing;
+force-pushing; pushing to / branching off / targeting a protected
+branch; creating or mutating GitHub branch-protection rulesets;
+destructive git (`reset --hard` outside the fenced sync, history
+rewrite, `clean -fd` outside the workspace, branch deletion on remote);
+auto-review/auto-approve of the PR; touching any repo or branch outside
+the connected project's `forgeloop/*` scope.
+
+Task 100 must implement exactly this envelope behind the
+flags-default-false gates and the existing approval + repo-safety
+controls; it may not widen it. Any expansion needs a further explicit
+update to this file.

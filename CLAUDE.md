@@ -297,8 +297,16 @@ expansion**. Authoritative direction lives in `docs/roadmap.md` and
 5. **Runner discipline.** Lightweight/deterministic runner by default;
    OpenHands only for broad/complex, human-approved work.
 6. **No deploy/merge automation without approval.** Auto-remediation is
-   advisory only — no auto-merge, auto-deploy, branch/PR creation, or
-   destructive commands. Human approval precedes any executable DevTask.
+   advisory only. Per the **Task 99 Controlled Branch/PR Automation
+   Policy** (see `docs/roadmap.md`), controlled automation is *allowed*
+   only within a strict envelope: create a fresh `forgeloop/*` branch
+   off a non-protected base, local commit of human-approved runner
+   output, push that branch, and open a **draft** PR — each
+   config-gated (flags default false), approval-gated, and
+   QA/check-gated, fully audited. Always forbidden: merge, auto-ready,
+   deploy/release, force-push, protected-branch push/branch/target,
+   ruleset mutation, destructive git, auto-review. Human approval
+   precedes any executable DevTask.
 7. **Infra is sequenced, not sprawled.** Valkey → NATS → Temporal;
    K3s optional spike only; Pub/Sub-Eventarc a later cloud adapter;
    Kafka deferred. New infra requires a provider abstraction and must
