@@ -3,9 +3,9 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Body, Depends, HTTPException
 
 from ..auth import require_auth
-from ..llm import ProviderError, get_default_provider_name, get_provider_by_name
 from ..models import PlanningRunCreate, PlanningRunResponse
 from ..planning_agent import run_planning_agent
+from .common import resolve_routed_provider_or_400
 from ..repositories_state import (
     agent_run_repo,
     artifact_repo,
@@ -25,13 +25,13 @@ def create_planning_run(
     ticket = repo.get(ticket_id)
     if ticket is None:
         raise HTTPException(status_code=404, detail="Ticket not found")
-    provider_name = body.provider if (body and body.provider) else get_default_provider_name()
-    try:
-        provider = get_provider_by_name(provider_name)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except ProviderError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    provider, _route_decision = resolve_routed_provider_or_400(
+        "planning",
+        body.provider if body else None,
+        project_id=ticket.project_id,
+        source_type="ticket",
+        source_id=ticket.id,
+    )
     context = None
     if ticket.project_id:
         context = project_context_repo.get(ticket.project_id)

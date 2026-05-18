@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Body, Depends, HTTPException
 
 from ..auth import require_auth
-from ..llm import ProviderError, get_default_provider_name, get_provider_by_name
 from ..models import TaskDecompositionResponse, TaskDecompositionRunCreate
 from ..repositories_state import (
     agent_run_repo,
@@ -18,6 +17,7 @@ from ..task_decomposition_agent import (
     run_task_decomposition_for_requirement,
     run_task_decomposition_for_ticket,
 )
+from .common import resolve_routed_provider_or_400
 
 router = APIRouter()
 
@@ -35,13 +35,13 @@ def create_task_decomposition_for_requirement(
     requirement = requirement_repo.get(requirement_id)
     if requirement is None:
         raise HTTPException(status_code=404, detail="Requirement not found")
-    provider_name = body.provider if (body and body.provider) else get_default_provider_name()
-    try:
-        provider = get_provider_by_name(provider_name)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except ProviderError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    provider, _route_decision = resolve_routed_provider_or_400(
+        "task_decomposition",
+        body.provider if body else None,
+        project_id=requirement.project_id,
+        source_type="requirement",
+        source_id=requirement.id,
+    )
     context = project_context_repo.get(requirement.project_id)
     latest_analysis = analysis_repo.get_latest_by_requirement(requirement_id)
     run, artifact, dev_tasks, subtasks = run_task_decomposition_for_requirement(
@@ -71,13 +71,13 @@ def create_task_decomposition_for_ticket(
     ticket = repo.get(ticket_id)
     if ticket is None:
         raise HTTPException(status_code=404, detail="Ticket not found")
-    provider_name = body.provider if (body and body.provider) else get_default_provider_name()
-    try:
-        provider = get_provider_by_name(provider_name)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except ProviderError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    provider, _route_decision = resolve_routed_provider_or_400(
+        "task_decomposition",
+        body.provider if body else None,
+        project_id=ticket.project_id,
+        source_type="ticket",
+        source_id=ticket.id,
+    )
     context = None
     if ticket.project_id:
         context = project_context_repo.get(ticket.project_id)

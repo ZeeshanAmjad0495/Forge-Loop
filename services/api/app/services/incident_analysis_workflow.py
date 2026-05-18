@@ -13,7 +13,8 @@ from datetime import datetime, timezone
 from fastapi import HTTPException
 
 from ..incident_triage.agent import run_incident_triage
-from ..llm import ProviderError, get_default_provider_name, get_provider_by_name
+from ..llm import ProviderError
+from .model_routing import RoutedProviderError, resolve_routed_provider
 from ..utils.redaction import redact_sensitive_text
 from ..models import (
     Artifact,
@@ -45,9 +46,16 @@ def create_analysis(
     if incident is None:
         raise HTTPException(status_code=404, detail="Incident not found")
 
-    provider_name = body.provider if (body and body.provider) else get_default_provider_name()
     try:
-        provider = get_provider_by_name(provider_name)
+        provider, _route_decision = resolve_routed_provider(
+            "incident_analysis",
+            provider_override=(body.provider if body else None),
+            project_id=incident.project_id,
+            source_type="incident",
+            source_id=incident.id,
+        )
+    except RoutedProviderError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except ProviderError as e:

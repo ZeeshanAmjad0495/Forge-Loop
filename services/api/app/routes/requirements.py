@@ -4,7 +4,6 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Body, Depends, HTTPException
 
 from ..auth import require_auth
-from ..llm import ProviderError, get_default_provider_name, get_provider_by_name
 from ..models import (
     Requirement,
     RequirementAnalysis,
@@ -32,6 +31,7 @@ from ..requirement_analysis_agent import (
     run_requirement_analysis_for_requirement,
 )
 from ..requirement_generation_agent import run_requirement_generation_agent
+from .common import resolve_routed_provider_or_400
 
 router = APIRouter()
 
@@ -49,13 +49,13 @@ def create_requirement_analysis(
     ticket = repo.get(ticket_id)
     if ticket is None:
         raise HTTPException(status_code=404, detail="Ticket not found")
-    provider_name = body.provider if (body and body.provider) else get_default_provider_name()
-    try:
-        provider = get_provider_by_name(provider_name)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except ProviderError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    provider, _route_decision = resolve_routed_provider_or_400(
+        "requirement_analysis",
+        body.provider if body else None,
+        project_id=ticket.project_id,
+        source_type="ticket",
+        source_id=ticket.id,
+    )
     context = None
     if ticket.project_id:
         context = project_context_repo.get(ticket.project_id)
@@ -164,13 +164,13 @@ def create_project_requirement_generation(
     project = project_repo.get(project_id)
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found")
-    provider_name = body.provider if (body and body.provider) else get_default_provider_name()
-    try:
-        provider = get_provider_by_name(provider_name)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except ProviderError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    provider, _route_decision = resolve_routed_provider_or_400(
+        "requirement_analysis",
+        body.provider if body else None,
+        project_id=project_id,
+        source_type="project",
+        source_id=project_id,
+    )
     context = project_context_repo.get(project_id)
     code_repos = code_repo_repo.list_by_project(project_id)
     code_repository = code_repos[0] if code_repos else None
@@ -221,13 +221,13 @@ def create_requirement_analysis_for_requirement(
     requirement = requirement_repo.get(requirement_id)
     if requirement is None:
         raise HTTPException(status_code=404, detail="Requirement not found")
-    provider_name = body.provider if (body and body.provider) else get_default_provider_name()
-    try:
-        provider = get_provider_by_name(provider_name)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except ProviderError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    provider, _route_decision = resolve_routed_provider_or_400(
+        "requirement_analysis",
+        body.provider if body else None,
+        project_id=requirement.project_id,
+        source_type="requirement",
+        source_id=requirement.id,
+    )
     context = project_context_repo.get(requirement.project_id)
     run, analysis, artifact = run_requirement_analysis_for_requirement(
         requirement, provider, agent_run_repo, artifact_repo, analysis_repo, context

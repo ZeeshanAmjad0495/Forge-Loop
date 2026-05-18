@@ -14,7 +14,8 @@ from datetime import datetime, timezone
 from fastapi import HTTPException
 
 from ..ci_analysis.agent import run_ci_failure_analysis
-from ..llm import ProviderError, get_default_provider_name, get_provider_by_name
+from ..llm import ProviderError
+from .model_routing import RoutedProviderError, resolve_routed_provider
 from ..utils.redaction import redact_sensitive_text
 from ..models import Artifact, CIAnalysis, CIAnalysisCreate
 from ..repositories_state import (
@@ -39,9 +40,16 @@ def create_analysis(
     if event is None:
         raise HTTPException(status_code=404, detail="CIEvent not found")
 
-    provider_name = body.provider if (body and body.provider) else get_default_provider_name()
     try:
-        provider = get_provider_by_name(provider_name)
+        provider, _route_decision = resolve_routed_provider(
+            "ci_analysis",
+            provider_override=(body.provider if body else None),
+            project_id=event.project_id,
+            source_type="ci_event",
+            source_id=event.id,
+        )
+    except RoutedProviderError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except ProviderError as e:

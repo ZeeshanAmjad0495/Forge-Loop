@@ -212,6 +212,8 @@ No profile is hard-coded. Local is the default for personal and product work. Cl
 
 `LLM_PROVIDER` sets the **default** provider. Per-request override is supported via the `provider` field on `POST /tickets/{ticket_id}/planning-runs`. `GET /llm/providers` exposes the list of providers and whether each is configured (without leaking keys).
 
+**Task 87 — enforced routed execution.** Every real LLM call resolves its provider through the ModelRouter via `services.model_routing.resolve_routed_provider` (the single enforced entrypoint; routes use `routes.common.resolve_routed_provider_or_400`). Routes/services never call the provider factory directly — only `llm/__init__.py` (factory internals) and the informational `GET /llm/providers` may name a concrete provider. A per-request `provider` override is still honored, but an expensive (Kimi) override is gated by the same approval/budget policy as automatic routing — it can no longer bypass the guard. When `LLM_PROVIDER=mock` (local/test profile, no keys) routing honors mock. `MODEL_ROUTING_ENFORCED` (default true) is an emergency escape hatch to the legacy path. A structural test asserts no route/service module selects a provider directly.
+
 The `LLMProvider` protocol in `llm/base.py` makes adding a new provider a matter of creating a new file and registering it in the factory's `_PROVIDER_REGISTRY` — no changes to `planning_agent.py` or the API routes.
 
 ---

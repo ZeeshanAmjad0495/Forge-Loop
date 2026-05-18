@@ -14,7 +14,8 @@ from datetime import datetime, timezone
 
 from fastapi import HTTPException
 
-from ..llm import ProviderError, get_default_provider_name, get_provider_by_name
+from ..llm import ProviderError
+from .model_routing import RoutedProviderError, resolve_routed_provider
 from ..memory_learning.agent import run_memory_learning
 from ..utils.redaction import redact_sensitive_text
 from ..memory_learning.applier import apply_candidate
@@ -145,9 +146,16 @@ def create_run(project_id: str, body: MemoryLearningRunCreate, current_user: str
         raise HTTPException(status_code=404, detail="Source not found")
     source_obj, source_block = fetched
 
-    provider_name = body.provider if body.provider else get_default_provider_name()
     try:
-        provider = get_provider_by_name(provider_name)
+        provider, _route_decision = resolve_routed_provider(
+            "memory_extraction",
+            provider_override=body.provider,
+            project_id=project_id,
+            source_type=body.source_type,
+            source_id=body.source_id,
+        )
+    except RoutedProviderError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except ProviderError as e:

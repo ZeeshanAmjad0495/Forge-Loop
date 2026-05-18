@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 
 from ..auth import require_auth
-from ..llm import ProviderError, get_default_provider_name, get_provider_by_name
 from ..models import (
     ImprovementProposal,
     ImprovementProposalCreate,
@@ -25,6 +24,7 @@ from ..services.retrospectives import (
     generate_retrospective,
     update_retrospective,
 )
+from .common import resolve_routed_provider_or_400
 
 router = APIRouter()
 
@@ -156,13 +156,13 @@ def generate_retrospective_for_trial(
     trial = project_build_trial_repo.get(trial_id)
     if trial is None:
         raise HTTPException(status_code=404, detail="Build trial not found")
-    resolved = provider_name or get_default_provider_name()
-    try:
-        provider = get_provider_by_name(resolved)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except ProviderError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    provider, _route_decision = resolve_routed_provider_or_400(
+        "analysis",
+        provider_name,
+        project_id=trial.project_id,
+        source_type="build_trial",
+        source_id=trial.id,
+    )
 
     title = body.title or f"Retrospective for trial {trial.name}"
     retro, _artifact = generate_retrospective(

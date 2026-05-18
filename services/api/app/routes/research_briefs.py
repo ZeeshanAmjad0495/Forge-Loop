@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 
 from ..auth import require_auth
-from ..llm import ProviderError, get_default_provider_name, get_provider_by_name
 from ..models import (
     ResearchBrief,
     ResearchBriefCreate,
@@ -21,6 +20,7 @@ from ..services.research_scout import (
     generate_brief,
     update_brief,
 )
+from .common import resolve_routed_provider_or_400
 
 router = APIRouter()
 
@@ -172,13 +172,12 @@ def generate_research_brief(
             if src is not None and src.summary:
                 summaries.append(src.summary)
 
-    resolved = provider_name or get_default_provider_name()
-    try:
-        provider = get_provider_by_name(resolved)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except ProviderError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    provider, _route_decision = resolve_routed_provider_or_400(
+        "research",
+        provider_name,
+        project_id=body.project_id,
+        source_type="research_brief",
+    )
 
     brief, _artifact = generate_brief(
         research_brief_repo,

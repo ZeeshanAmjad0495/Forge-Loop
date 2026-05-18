@@ -24,6 +24,13 @@ REPOSITORY_PROVIDER = os.getenv("REPOSITORY_PROVIDER", "memory")
 
 # --- Release 9: Model routing ---
 MODEL_ROUTING_ENABLED = os.getenv("MODEL_ROUTING_ENABLED", "true").lower() == "true"
+# Release 10 / Task 87: every real LLM call must resolve its provider
+# through the ModelRouter (services.model_routing.resolve_routed_provider).
+# Default on. Set false only as an emergency escape hatch to restore the
+# legacy "request override or LLM_PROVIDER" behavior.
+MODEL_ROUTING_ENFORCED = (
+    os.getenv("MODEL_ROUTING_ENFORCED", "true").lower() == "true"
+)
 # #46: Kimi is an EXPENSIVE provider, not a default routing target.
 NORMAL_REASONING_PROVIDER = os.getenv(
     "NORMAL_REASONING_PROVIDER",

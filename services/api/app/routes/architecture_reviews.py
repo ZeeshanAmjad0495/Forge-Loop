@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 
 from ..auth import require_auth
-from ..llm import ProviderError, get_default_provider_name, get_provider_by_name
 from ..models import (
     ArchitectureReview,
     ArchitectureReviewCreate,
@@ -20,6 +19,7 @@ from ..services.architecture_reviews import (
     generate_review,
     update_review,
 )
+from .common import resolve_routed_provider_or_400
 
 router = APIRouter()
 
@@ -169,13 +169,12 @@ def generate_architecture_review(
     current_user: str = Depends(require_auth),
 ):
     _ensure_project(body.project_id)
-    resolved = provider_name or get_default_provider_name()
-    try:
-        provider = get_provider_by_name(resolved)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except ProviderError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    provider, _route_decision = resolve_routed_provider_or_400(
+        "review",
+        provider_name,
+        project_id=body.project_id,
+        source_type="architecture_review",
+    )
     review, _artifact = generate_review(
         architecture_review_repo,
         artifact_repo,

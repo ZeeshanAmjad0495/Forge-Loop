@@ -23,7 +23,8 @@ from typing import Literal
 from pydantic import BaseModel
 
 from .. import config
-from ..llm import _PROVIDER_REGISTRY
+from ..llm import _PROVIDER_REGISTRY, get_default_provider_name, get_provider_by_name
+from ..llm.base import LLMProvider
 
 WorkflowType = Literal[
     "analysis", "planning", "coding", "review", "qa", "ci", "incident",
@@ -250,4 +251,101 @@ def routing_summary() -> dict:
         "default_reasoning_provider": config.NORMAL_REASONING_PROVIDER,
         "long_context_provider": config.EXPENSIVE_PROVIDER,
         "local_support_provider": config.LOCAL_CHEAP_PROVIDER,
+        "routing_enforced": config.MODEL_ROUTING_ENFORCED,
     }
+
+
+class RoutedProviderError(Exception):
+    """Raised when routing policy refuses to hand back a provider —
+    e.g. an expensive provider that the route decision blocked. This is
+    a defense-in-depth invariant: ``decide_route`` already reroutes a
+    blocked expensive provider to the normal reasoning provider, so this
+    should never fire on the normal path."""
+
+
+def resolve_routed_provider(
+    workflow_type: WorkflowType,
+    *,
+    provider_override: str | None = None,
+    project_id: str | None = None,
+    source_type: str | None = None,
+    source_id: str | None = None,
+    estimated_context_tokens: int = 0,
+    risk_level: RiskLevel = "low",
+    allow_expensive_provider: bool = False,
+    expensive_approved: bool = False,
+) -> tuple[LLMProvider, ModelRouteDecision]:
+    """The single enforced entrypoint for real LLM execution.
+
+    Every route/service that needs an ``LLMProvider`` for a real model
+    call must resolve it here. The provider is chosen by
+    ``decide_route`` (the ModelRouter), never by the caller. A
+    per-request ``provider_override`` is honored only insofar as the
+    route decision allows it — an expensive (Kimi) override is gated by
+    the same approval/budget policy as automatic routing.
+
+    Provider instantiation uses the ``app.llm`` factory (factory
+    internals may name a concrete adapter — that is the only allowed
+    direct provider selection).
+
+    Returns ``(provider, decision)`` so callers (and Task 88 cost
+    wiring) can record the routing decision without re-deciding.
+    """
+    if not config.MODEL_ROUTING_ENFORCED:
+        name = provider_override or get_default_provider_name()
+        decision = ModelRouteDecision(
+            workflow_type=workflow_type,
+            project_id=project_id,
+            source_type=source_type,
+            source_id=source_id,
+            selected_provider=name,
+            selected_model=_model_for(name),
+            reason="routing_enforcement_disabled_legacy_path",
+            warnings=["model_routing_enforced_false"],
+        )
+        return get_provider_by_name(name), decision
+
+    # No-key / test / local profile: when the global default provider is
+    # the keyless mock provider and the caller did not request a specific
+    # provider, honor it. Routing a reasoning workflow to a hosted
+    # provider (DeepSeek/Kimi) here would fail with no API key, and the
+    # local-first profile explicitly means "no real providers configured"
+    # (see docs/architecture.md provider strategy). decide_route — the
+    # pure policy used by the preview endpoint — is intentionally left
+    # unchanged.
+    if not provider_override and get_default_provider_name() == "mock":
+        decision = ModelRouteDecision(
+            workflow_type=workflow_type,
+            project_id=project_id,
+            source_type=source_type,
+            source_id=source_id,
+            selected_provider="mock",
+            selected_model=_model_for("mock"),
+            reason="global_default_provider_is_mock_no_real_providers",
+        )
+        return get_provider_by_name("mock"), decision
+
+    request = ModelRoutePreviewRequest(
+        workflow_type=workflow_type,
+        source_type=source_type,
+        source_id=source_id,
+        estimated_context_tokens=estimated_context_tokens,
+        risk_level=risk_level,
+        override_provider=provider_override,
+        allow_expensive_provider=allow_expensive_provider,
+        expensive_approved=expensive_approved,
+    )
+    decision = decide_route(request, project_id=project_id)
+
+    # Defense in depth. decide_route._finish already reroutes a blocked
+    # expensive provider to NORMAL; never hand back an expensive
+    # provider the policy did not allow.
+    if _is_expensive(decision.selected_provider) and not _expensive_allowed(
+        request
+    ):
+        raise RoutedProviderError(
+            f"Expensive provider {decision.selected_provider!r} blocked by "
+            f"routing policy for workflow {workflow_type!r}"
+        )
+
+    return get_provider_by_name(decision.selected_provider), decision
