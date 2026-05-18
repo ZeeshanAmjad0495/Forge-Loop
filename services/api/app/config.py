@@ -360,6 +360,12 @@ RATE_LIMIT_CACHE_FAIL_OPEN = (
 # is an optional spike, documented only (never a default runtime).
 EVENT_BUS_PROVIDER = os.getenv("EVENT_BUS_PROVIDER", "memory").strip().lower()
 NATS_URL = os.getenv("NATS_URL", "nats://localhost:4222")
+# Task 94: after an audit/DB event is persisted (source of truth),
+# best-effort publish it to the EventBus for local fan-out. Off by
+# default; failures never affect the audit write.
+EVENT_BUS_PUBLISH_ENABLED = (
+    os.getenv("EVENT_BUS_PUBLISH_ENABLED", "false").lower() == "true"
+)
 WORKFLOW_ENGINE_PROVIDER = os.getenv(
     "WORKFLOW_ENGINE_PROVIDER", "memory"
 ).strip().lower()

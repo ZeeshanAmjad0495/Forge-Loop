@@ -86,6 +86,57 @@ class InMemoryEventBus(EventBus):
             }
 
 
+def _nats_available() -> bool:
+    import importlib.util
+
+    return importlib.util.find_spec("nats") is not None
+
+
+class NatsEventBus(EventBus):
+    """Task 94 — NATS Phase B adapter (optional, config-gated).
+
+    Selectable via ``EVENT_BUS_PROVIDER=nats``. A live NATS fanout needs
+    the ``nats`` library AND a running NATS server — both out of scope
+    here (tests must not need real NATS). So this adapter **always
+    delegates to the local in-memory bus** while reporting whether
+    ``nats`` is importable, so a later task can add the live publisher
+    without changing call sites. Never the source of truth (durable
+    state stays in repositories + the audit log).
+    """
+
+    def __init__(self) -> None:
+        self._delegate = InMemoryEventBus()
+        self._nats = _nats_available()
+        self.backend = (
+            "nats" if self._nats else "nats_unavailable_fallback_memory"
+        )
+
+    def subscribe(self, event_type: str, handler: EventHandler) -> None:
+        self._delegate.subscribe(event_type, handler)
+
+    def publish(
+        self, event_type: str, payload: dict, *, project_id: str | None = None
+    ) -> int:
+        return self._delegate.publish(
+            event_type, payload, project_id=project_id
+        )
+
+    def health_check(self) -> dict:
+        h = self._delegate.health_check()
+        h.update(
+            {
+                "backend": self.backend,
+                "nats_importable": self._nats,
+                "live_nats": False,
+                "note": (
+                    "Phase-B seam: delegates to the local in-memory bus; "
+                    "live NATS publisher is a later task"
+                ),
+            }
+        )
+        return h
+
+
 _singleton_lock = threading.Lock()
 _instance: EventBus | None = None
 
@@ -95,13 +146,7 @@ def _build() -> EventBus:
     if sel in ("memory", "inmemory", "local", ""):
         return InMemoryEventBus()
     if sel == "nats":
-        # Phase B. Deliberately not implemented in Phase A — fail fast
-        # with guidance instead of importing an absent dependency.
-        raise RuntimeError(
-            "EVENT_BUS_PROVIDER=nats is a Phase B adapter and is not "
-            "implemented yet (Task 80 Phase A ships the in-memory bus "
-            "only). Use EVENT_BUS_PROVIDER=memory."
-        )
+        return NatsEventBus()
     raise RuntimeError(
         f"Unsupported EVENT_BUS_PROVIDER={sel!r}. Supported: memory, nats"
     )
@@ -133,7 +178,7 @@ def event_bus_runtime_summary() -> dict:
         "configured_provider": (_config.EVENT_BUS_PROVIDER or "memory"),
         "active_backend": bus.backend,
         "is_source_of_truth": False,
-        "nats_adapter": "designed_not_implemented_phase_b",
+        "nats_adapter": "phase_b_seam_in_memory_fallback",
         "health": health,
     }
 
@@ -141,6 +186,7 @@ def event_bus_runtime_summary() -> dict:
 __all__ = [
     "EventBus",
     "InMemoryEventBus",
+    "NatsEventBus",
     "EventHandler",
     "get_event_bus",
     "reset_event_bus",

@@ -58,13 +58,21 @@ def test_factory_memory_default_and_reset(monkeypatch):
     assert eb.get_event_bus() is not b1
 
 
-def test_nats_selection_fails_fast_without_import(monkeypatch):
+def test_nats_selection_falls_back_to_memory_without_import(monkeypatch):
+    # Task 94: EVENT_BUS_PROVIDER=nats is now an optional Phase-B
+    # adapter that degrades to the in-memory bus when nats is absent
+    # (no hard fail, no nats import).
     assert "nats" not in sys.modules
     monkeypatch.setattr(config, "EVENT_BUS_PROVIDER", "nats")
     eb.reset_event_bus()
-    with pytest.raises(RuntimeError, match="Phase B"):
-        eb.get_event_bus()
+    bus = eb.get_event_bus()
+    assert bus.backend == "nats_unavailable_fallback_memory"
+    h = bus.health_check()
+    assert h["nats_importable"] is False
+    assert h["live_nats"] is False
+    assert h["healthy"] is True
     assert "nats" not in sys.modules
+    eb.reset_event_bus()
 
 
 def test_unknown_provider_rejected(monkeypatch):
@@ -80,5 +88,5 @@ def test_runtime_summary(monkeypatch):
     s = eb.event_bus_runtime_summary()
     assert s["active_backend"] == "memory"
     assert s["is_source_of_truth"] is False
-    assert s["nats_adapter"] == "designed_not_implemented_phase_b"
+    assert s["nats_adapter"] == "phase_b_seam_in_memory_fallback"
     assert s["health"]["healthy"] is True
