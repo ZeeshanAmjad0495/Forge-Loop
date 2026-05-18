@@ -215,20 +215,20 @@ runner, and auto-remediation stays advisory / draft-PR only.
 | Task | Title | Type | Status |
 |------|-------|------|--------|
 | 86 | Release 10 roadmap / architecture / CLAUDE.md alignment | Docs/governance | Complete |
-| 87 | Enforce ModelRouter everywhere (no hidden provider selection) | Backend cost-safety | Planned |
-| 88 | Wire CostRecord + BudgetGuard into real execution | Backend cost-control | Planned |
-| 89 | Enforce ContextPack across agent workflows | Token/context | Planned |
-| 90 | Wire RunnerRouter into real execution (OpenHands not default) | Runner orchestration | Planned |
-| 91 | Runner locks + workspace isolation (force-wired) | Safety/reliability | Planned |
-| 92 | Local background worker execution (DB-backed jobs) | Backend worker | Planned |
-| 93 | Temporal Phase B — migrate exactly one workflow (optional, gated) | Optional durable workflow | Planned |
-| 94 | NATS Phase B — optional local event fan-out (off by default) | Optional event adapter | Planned |
-| 95 | Valkey Phase B — cache / rate-limits / ephemeral state | Cache/rate-limit | Planned |
-| 96 | Observability Phase B — real metrics wiring (free/local) | Observability | Planned |
-| 97 | CLI-first command layer (no deploy/merge commands) | CLI/usability | Planned |
-| 98 | Dashboard execution timeline (simple, operational) | Frontend usability | Planned |
-| 99 | Controlled branch/PR automation policy update | Docs/policy | Planned |
-| 100 | Draft PR creation end-to-end (controlled; never merge/deploy) | End-to-end backend/runner | Planned |
+| 87 | Enforce ModelRouter everywhere (no hidden provider selection) | Backend cost-safety | Complete |
+| 88 | Wire CostRecord + BudgetGuard into real execution | Backend cost-control | Complete |
+| 89 | Enforce ContextPack across agent workflows | Token/context | Complete |
+| 90 | Wire RunnerRouter into real execution (OpenHands not default) | Runner orchestration | Complete |
+| 91 | Runner locks + workspace isolation (force-wired) | Safety/reliability | Complete |
+| 92 | Local background worker execution (DB-backed jobs) | Backend worker | Complete |
+| 93 | Temporal Phase B — migrate exactly one workflow (optional, gated) | Optional durable workflow | Complete |
+| 94 | NATS Phase B — optional local event fan-out (off by default) | Optional event adapter | Complete |
+| 95 | Valkey Phase B — cache / rate-limits / ephemeral state | Cache/rate-limit | Complete |
+| 96 | Observability Phase B — real metrics wiring (free/local) | Observability | Complete |
+| 97 | CLI-first command layer (no deploy/merge commands) | CLI/usability | Complete |
+| 98 | Dashboard execution timeline (simple, operational) | Frontend usability | Complete |
+| 99 | Controlled branch/PR automation policy update | Docs/policy | Complete |
+| 100 | Draft PR creation end-to-end (controlled; never merge/deploy) | End-to-end backend/runner | Complete |
 
 ### Release 10 boundaries (binding)
 
