@@ -95,6 +95,7 @@ class DevTaskWithReadiness(DevTask):
 
 class TaskDecompositionRunCreate(BaseModel):
     provider: str | None = None
+    expensive_approved: bool = False
 
 
 class TaskDecompositionResponse(BaseModel):

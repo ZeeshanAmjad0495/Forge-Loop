@@ -11,3 +11,4 @@ class PlanningRunResponse(BaseModel):
 
 class PlanningRunCreate(BaseModel):
     provider: str | None = None
+    expensive_approved: bool = False

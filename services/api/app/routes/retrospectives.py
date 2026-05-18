@@ -151,6 +151,7 @@ def generate_retrospective_for_trial(
     trial_id: str,
     body: ProjectRetrospectiveGenerateRequest,
     provider_name: str | None = None,
+    expensive_approved: bool = False,
     current_user: str = Depends(require_auth),
 ):
     trial = project_build_trial_repo.get(trial_id)
@@ -162,6 +163,7 @@ def generate_retrospective_for_trial(
         project_id=trial.project_id,
         source_type="build_trial",
         source_id=trial.id,
+        expensive_approved=expensive_approved,
     )
 
     title = body.title or f"Retrospective for trial {trial.name}"

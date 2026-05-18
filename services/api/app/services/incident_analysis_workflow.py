@@ -27,6 +27,7 @@ from ..repositories_state import (
     audit_writer,
     ci_analysis_repo,
     ci_event_repo,
+    cost_record_repo,
     dev_task_repo,
     incident_analysis_repo,
     incident_repo,
@@ -47,12 +48,17 @@ def create_analysis(
         raise HTTPException(status_code=404, detail="Incident not found")
 
     try:
+        _approved = bool(body.expensive_approved) if body else False
         provider, _route_decision = resolve_routed_provider(
             "incident_analysis",
             provider_override=(body.provider if body else None),
             project_id=incident.project_id,
             source_type="incident",
             source_id=incident.id,
+            allow_expensive_provider=_approved,
+            expensive_approved=_approved,
+            approval_present=_approved,
+            cost_record_repo=cost_record_repo,
         )
     except RoutedProviderError as e:
         raise HTTPException(status_code=403, detail=str(e))

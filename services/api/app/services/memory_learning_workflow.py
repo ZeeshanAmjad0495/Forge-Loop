@@ -35,6 +35,7 @@ from ..repositories_state import (
     audit_writer,
     check_run_repo,
     ci_analysis_repo,
+    cost_record_repo,
     dev_task_repo,
     incident_analysis_repo,
     memory_candidate_repo,
@@ -147,12 +148,17 @@ def create_run(project_id: str, body: MemoryLearningRunCreate, current_user: str
     source_obj, source_block = fetched
 
     try:
+        _approved = bool(body.expensive_approved)
         provider, _route_decision = resolve_routed_provider(
             "memory_extraction",
             provider_override=body.provider,
             project_id=project_id,
             source_type=body.source_type,
             source_id=body.source_id,
+            allow_expensive_provider=_approved,
+            expensive_approved=_approved,
+            approval_present=_approved,
+            cost_record_repo=cost_record_repo,
         )
     except RoutedProviderError as e:
         raise HTTPException(status_code=403, detail=str(e))

@@ -92,6 +92,7 @@ class MemoryLearningRunCreate(BaseModel):
     source_type: MemoryCandidateSourceType
     source_id: str
     provider: str | None = None
+    expensive_approved: bool = False
 
 
 class MemoryLearningRun(BaseModel):

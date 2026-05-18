@@ -83,6 +83,7 @@ CIAnalysisConclusion = Literal[
 
 class CIAnalysisCreate(BaseModel):
     provider: str | None = None
+    expensive_approved: bool = False
 
 
 class CIAnalysis(BaseModel):

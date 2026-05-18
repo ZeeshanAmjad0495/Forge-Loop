@@ -166,12 +166,14 @@ def archive_architecture_review(
 def generate_architecture_review(
     body: ArchitectureReviewGenerateRequest,
     provider_name: str | None = None,
+    expensive_approved: bool = False,
     current_user: str = Depends(require_auth),
 ):
     _ensure_project(body.project_id)
     provider, _route_decision = resolve_routed_provider_or_400(
         "review",
         provider_name,
+        expensive_approved=expensive_approved,
         project_id=body.project_id,
         source_type="architecture_review",
     )

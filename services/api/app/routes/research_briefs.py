@@ -158,6 +158,7 @@ def archive_research_brief(
 def generate_research_brief(
     body: ResearchBriefGenerateRequest,
     provider_name: str | None = None,
+    expensive_approved: bool = False,
     current_user: str = Depends(require_auth),
 ):
     _ensure_project(body.project_id)
@@ -177,6 +178,7 @@ def generate_research_brief(
         provider_name,
         project_id=body.project_id,
         source_type="research_brief",
+        expensive_approved=expensive_approved,
     )
 
     brief, _artifact = generate_brief(

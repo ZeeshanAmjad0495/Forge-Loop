@@ -103,6 +103,7 @@ class RequirementAnalysis(BaseModel):
 
 class RequirementAnalysisRunCreate(BaseModel):
     provider: str | None = None
+    expensive_approved: bool = False
 
 
 class RequirementAnalysisRunResponse(BaseModel):
@@ -113,6 +114,7 @@ class RequirementAnalysisRunResponse(BaseModel):
 
 class RequirementGenerationRunCreate(BaseModel):
     provider: str | None = None
+    expensive_approved: bool = False
 
 
 class RequirementGenerationResponse(BaseModel):

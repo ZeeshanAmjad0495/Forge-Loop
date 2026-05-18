@@ -55,6 +55,7 @@ def create_requirement_analysis(
         project_id=ticket.project_id,
         source_type="ticket",
         source_id=ticket.id,
+        expensive_approved=(body.expensive_approved if body else False),
     )
     context = None
     if ticket.project_id:
@@ -170,6 +171,7 @@ def create_project_requirement_generation(
         project_id=project_id,
         source_type="project",
         source_id=project_id,
+        expensive_approved=(body.expensive_approved if body else False),
     )
     context = project_context_repo.get(project_id)
     code_repos = code_repo_repo.list_by_project(project_id)
@@ -227,6 +229,7 @@ def create_requirement_analysis_for_requirement(
         project_id=requirement.project_id,
         source_type="requirement",
         source_id=requirement.id,
+        expensive_approved=(body.expensive_approved if body else False),
     )
     context = project_context_repo.get(requirement.project_id)
     run, analysis, artifact = run_requirement_analysis_for_requirement(

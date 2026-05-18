@@ -41,6 +41,7 @@ def create_task_decomposition_for_requirement(
         project_id=requirement.project_id,
         source_type="requirement",
         source_id=requirement.id,
+        expensive_approved=(body.expensive_approved if body else False),
     )
     context = project_context_repo.get(requirement.project_id)
     latest_analysis = analysis_repo.get_latest_by_requirement(requirement_id)
@@ -77,6 +78,7 @@ def create_task_decomposition_for_ticket(
         project_id=ticket.project_id,
         source_type="ticket",
         source_id=ticket.id,
+        expensive_approved=(body.expensive_approved if body else False),
     )
     context = None
     if ticket.project_id:

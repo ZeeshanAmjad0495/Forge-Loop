@@ -31,6 +31,7 @@ def create_planning_run(
         project_id=ticket.project_id,
         source_type="ticket",
         source_id=ticket.id,
+        expensive_approved=(body.expensive_approved if body else False),
     )
     context = None
     if ticket.project_id:

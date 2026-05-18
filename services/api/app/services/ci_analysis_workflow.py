@@ -24,6 +24,7 @@ from ..repositories_state import (
     check_run_repo,
     ci_analysis_repo,
     ci_event_repo,
+    cost_record_repo,
     dev_task_repo,
     pr_draft_repo,
     project_context_repo,
@@ -41,12 +42,17 @@ def create_analysis(
         raise HTTPException(status_code=404, detail="CIEvent not found")
 
     try:
+        _approved = bool(body.expensive_approved) if body else False
         provider, _route_decision = resolve_routed_provider(
             "ci_analysis",
             provider_override=(body.provider if body else None),
             project_id=event.project_id,
             source_type="ci_event",
             source_id=event.id,
+            allow_expensive_provider=_approved,
+            expensive_approved=_approved,
+            approval_present=_approved,
+            cost_record_repo=cost_record_repo,
         )
     except RoutedProviderError as e:
         raise HTTPException(status_code=403, detail=str(e))

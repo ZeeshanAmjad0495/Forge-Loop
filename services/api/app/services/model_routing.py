@@ -263,6 +263,141 @@ class RoutedProviderError(Exception):
     should never fire on the normal path."""
 
 
+# Task 88: the routing WorkflowType vocabulary is finer-grained than the
+# CostRecord enums. Map to the nearest CostRecord bucket for reporting.
+_COST_WORKFLOW_MAP = {
+    "requirement_analysis": "analysis",
+    "task_decomposition": "planning",
+    "implementation_planning": "planning",
+    "pr_review": "review",
+    "ci_analysis": "ci",
+    "incident_analysis": "incident",
+    "artifact_summary": "compression",
+    "memory_extraction": "memory",
+    "classification": "compression",
+    "long_context_review": "review",
+    "high_risk": "analysis",
+    "test": "manual",
+    "smoke": "manual",
+    "demo": "manual",
+}
+_COST_SOURCE_MAP = {
+    "requirement_analysis": "requirement_analysis",
+    "task_decomposition": "task_decomposition",
+    "pr_review": "pr_review",
+    "ci_analysis": "ci_analysis",
+    "incident_analysis": "incident_analysis",
+    "memory_extraction": "memory_learning",
+    "artifact_summary": "artifact_summary",
+}
+_COST_WORKFLOW_DIRECT = {
+    "analysis", "planning", "coding", "review", "qa", "ci", "incident",
+    "memory", "compression", "research", "manual", "custom",
+}
+
+
+def _cost_workflow_for(workflow_type: str) -> str:
+    if workflow_type in _COST_WORKFLOW_DIRECT:
+        return workflow_type
+    return _COST_WORKFLOW_MAP.get(workflow_type, "custom")
+
+
+def _cost_source_type_for(workflow_type: str) -> str:
+    return _COST_SOURCE_MAP.get(workflow_type, "agent_run")
+
+
+def _apply_budget_and_record(
+    cost_record_repo,
+    decision: ModelRouteDecision,
+    *,
+    project_id: str,
+    workflow_type: str,
+    source_id: str | None,
+    estimated_context_tokens: int,
+    risk_level: str,
+    approval_present: bool,
+) -> ModelRouteDecision:
+    """Task 88: BudgetGuard + CostRecord at the routed-execution
+    boundary. Mirrors the model-route preview endpoint exactly: the
+    expensive provider is blocked when approval/budget is missing, the
+    decision is rerouted to the normal reasoning provider, and a
+    ``planned``/``blocked`` audit CostRecord is persisted. Cost/budget
+    bookkeeping must never break a real workflow, so persistence errors
+    are swallowed (same posture as the preview endpoint).
+    """
+    from . import provider_budget
+    from .cost_tracking import record_cost
+
+    src_id = source_id or "routed_execution"
+    try:
+        budget = provider_budget.check_provider_allowed(
+            cost_record_repo,
+            project_id=project_id,
+            provider=decision.selected_provider,
+            source_id=src_id,
+            approval_present=approval_present,
+        )
+    except Exception:
+        budget = None
+
+    if budget is not None and not budget.allowed:
+        warnings = list(decision.warnings) + [
+            f"budget_blocked:{budget.blocked_reason}"
+        ]
+        decision = decision.model_copy(update={
+            "selected_provider": config.NORMAL_REASONING_PROVIDER,
+            "selected_model": _model_for(config.NORMAL_REASONING_PROVIDER),
+            "reason": f"{decision.reason}__budget_blocked",
+            "expensive_provider_blocked": True,
+            "warnings": warnings,
+        })
+        try:
+            provider_budget.record_blocked(
+                cost_record_repo,
+                project_id=project_id,
+                source_type=_cost_source_type_for(workflow_type),
+                source_id=src_id,
+                workflow_type=_cost_workflow_for(workflow_type),
+                provider=decision.selected_provider,
+                model=decision.selected_model,
+                blocked_reason=budget.blocked_reason or "budget_blocked",
+                was_expensive=False,
+                required_approval=decision.requires_human_approval,
+            )
+        except Exception:
+            pass
+        return decision
+
+    try:
+        record_cost(
+            cost_record_repo,
+            project_id=project_id,
+            source_type=_cost_source_type_for(workflow_type),  # type: ignore[arg-type]
+            source_id=src_id,
+            workflow_type=_cost_workflow_for(workflow_type),  # type: ignore[arg-type]
+            provider=decision.selected_provider,
+            model=decision.selected_model,
+            status="planned",
+            selected_provider=decision.selected_provider,
+            selected_model=decision.selected_model,
+            routing_reason=decision.reason,
+            fallback_chain=list(decision.fallback_chain),
+            was_expensive_provider=(
+                decision.selected_provider == config.EXPENSIVE_PROVIDER
+            ),
+            required_approval=decision.requires_human_approval,
+            metadata={
+                "estimated_context_tokens": estimated_context_tokens,
+                "risk_level": risk_level,
+                "routing_workflow_type": workflow_type,
+                "token_usage": "unavailable_provider_does_not_surface_usage",
+            },
+        )
+    except Exception:
+        pass
+    return decision
+
+
 def resolve_routed_provider(
     workflow_type: WorkflowType,
     *,
@@ -274,6 +409,8 @@ def resolve_routed_provider(
     risk_level: RiskLevel = "low",
     allow_expensive_provider: bool = False,
     expensive_approved: bool = False,
+    cost_record_repo=None,
+    approval_present: bool = False,
 ) -> tuple[LLMProvider, ModelRouteDecision]:
     """The single enforced entrypoint for real LLM execution.
 
@@ -288,8 +425,17 @@ def resolve_routed_provider(
     internals may name a concrete adapter — that is the only allowed
     direct provider selection).
 
-    Returns ``(provider, decision)`` so callers (and Task 88 cost
-    wiring) can record the routing decision without re-deciding.
+    Task 88: when ``cost_record_repo`` and ``project_id`` are provided,
+    the real routing path runs the provider BudgetGuard and persists a
+    ``planned``/``blocked`` CostRecord (an expensive over-budget /
+    unapproved provider is rerouted to the normal reasoning provider).
+    The mock no-provider profile and the enforcement-disabled escape
+    hatch do not record cost (no real provider spend to guard).
+    ``approval_present`` authorizes the expensive provider at the
+    BudgetGuard.
+
+    Returns ``(provider, decision)`` so callers can record/observe the
+    routing decision without re-deciding.
     """
     if not config.MODEL_ROUTING_ENFORCED:
         name = provider_override or get_default_provider_name()
@@ -346,6 +492,18 @@ def resolve_routed_provider(
         raise RoutedProviderError(
             f"Expensive provider {decision.selected_provider!r} blocked by "
             f"routing policy for workflow {workflow_type!r}"
+        )
+
+    if cost_record_repo is not None and project_id:
+        decision = _apply_budget_and_record(
+            cost_record_repo,
+            decision,
+            project_id=project_id,
+            workflow_type=workflow_type,
+            source_id=source_id,
+            estimated_context_tokens=estimated_context_tokens,
+            risk_level=risk_level,
+            approval_present=approval_present,
         )
 
     return get_provider_by_name(decision.selected_provider), decision
