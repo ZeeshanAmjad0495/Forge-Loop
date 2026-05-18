@@ -173,6 +173,80 @@ def decide_runner(
     )
 
 
+class RunnerRouteRejected(Exception):
+    """Task 90: the RunnerRouter refused this execution request — e.g. a
+    narrow task asked for OpenHands without human approval, or the router
+    selected a no-code-generation runner (deterministic)."""
+
+
+# DevTask.task_type -> router request. documentation/testing already
+# live in _DOC_TEST_TYPES (router -> tiny). The multi-file-ish types get
+# a multi_file hint so the router can consider OpenHands.
+_MULTIFILE_TASK_TYPES = {"full_stack", "infrastructure", "refactor"}
+
+
+def _dev_task_to_request(
+    dev_task, requested_runner: str, approved: bool
+) -> RunnerRoutePreviewRequest:
+    task_type = getattr(dev_task, "task_type", "unknown") or "unknown"
+    description = getattr(dev_task, "description", "") or ""
+    multi_file = task_type in _MULTIFILE_TASK_TYPES or len(description) > 1200
+    return RunnerRoutePreviewRequest(
+        task_type=task_type,
+        source_type="dev_task",
+        source_id=getattr(dev_task, "id", None),
+        estimated_files=3 if multi_file else 1,
+        multi_file=multi_file,
+        allow_openhands=(requested_runner == "openhands"),
+        openhands_approved=approved,
+    )
+
+
+def enforce_runner_route(
+    dev_task, requested_runner: str, *, approved: bool
+) -> RunnerRouteDecision:
+    """Task 90: mandatory RunnerRouter gate for real coding execution.
+
+    The RunnerRouter is consulted (and its decision recorded by the
+    caller) for every execution. OpenHands is never auto-selected for
+    narrow tasks (``decide_runner`` guarantees this). A direct OpenHands
+    request the router would route elsewhere is permitted ONLY when the
+    run is human-approved (the approval is the documented broad/complex
+    justification) — and the override is recorded. A no-code-generation
+    (``deterministic``) selection is always blocked for a code-execution
+    request.
+    """
+    decision = decide_runner(
+        _dev_task_to_request(dev_task, requested_runner, approved)
+    )
+    if not config.RUNNER_ROUTER_ENFORCED:
+        decision.warnings.append("runner_router_enforcement_disabled")
+        return decision
+
+    if decision.runner_name == "deterministic":
+        raise RunnerRouteRejected(
+            "RUNNER_ROUTER_REJECTED: router selected a non-code-generation "
+            "runner (deterministic) for this execution request"
+        )
+    if decision.requires_human_approval and not approved:
+        raise RunnerRouteRejected(
+            "RUNNER_ROUTER_REJECTED: this task requires human approval "
+            "before runner execution"
+        )
+    if requested_runner == "openhands" and decision.runner_name != "openhands":
+        if not approved:
+            raise RunnerRouteRejected(
+                f"RUNNER_ROUTER_REJECTED: router selected "
+                f"{decision.runner_name!r}; OpenHands is reserved for "
+                f"broad/complex, human-approved work"
+            )
+        decision.warnings.append(
+            f"runner_router_preferred_{decision.runner_name}_"
+            f"overridden_by_human_approval"
+        )
+    return decision
+
+
 def runner_routing_summary() -> dict:
     return {
         "enabled": config.RUNNER_ROUTING_ENABLED,
@@ -190,6 +264,8 @@ __all__ = [
     "RunnerName",
     "RunnerRoutePreviewRequest",
     "RunnerRouteDecision",
+    "RunnerRouteRejected",
     "decide_runner",
+    "enforce_runner_route",
     "runner_routing_summary",
 ]

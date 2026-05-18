@@ -989,6 +989,32 @@ class OpenHandsExecutionService:
             agent_run_id=getattr(dev_task, "agent_run_id", None),
         )
 
+        # Task 90: RunnerRouter is mandatory for real coding execution.
+        # The decision is recorded; an approved direct OpenHands call is
+        # the documented broad/complex justification (override audited).
+        from .runner_router import RunnerRouteRejected, enforce_runner_route
+
+        _runner_approved = getattr(approval, "status", None) == "approved"
+        try:
+            _runner_decision = enforce_runner_route(
+                dev_task, "openhands", approved=_runner_approved
+            )
+        except RunnerRouteRejected as e:
+            raise HTTPException(status_code=409, detail=str(e))
+        self.audit_writer.write(
+            "runner_route_decided",
+            "dev_task",
+            dev_task.id,
+            project_id=project.id,
+            actor_email=actor_email,
+            details={
+                "requested_runner": "openhands",
+                "selected_runner": _runner_decision.runner_name,
+                "reason": _runner_decision.reason,
+                "warnings": _runner_decision.warnings,
+            },
+        )
+
         # Build the instruction package via the existing helper (no duplication).
         from ..repositories_state import (
             code_repo_repo,

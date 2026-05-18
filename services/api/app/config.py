@@ -193,6 +193,12 @@ AIDER_EXECUTION_ENABLED = (
 RUNNER_ROUTING_ENABLED = (
     os.getenv("RUNNER_ROUTING_ENABLED", "true").lower() == "true"
 )
+# Task 90: make the RunnerRouter mandatory for real coding execution
+# (OpenHands/Aider local). Default on. Set false only as an emergency
+# escape hatch — the router decision is still recorded, just not enforced.
+RUNNER_ROUTER_ENFORCED = (
+    os.getenv("RUNNER_ROUTER_ENFORCED", "true").lower() == "true"
+)
 DEFAULT_CODING_RUNNER = os.getenv("DEFAULT_CODING_RUNNER", "lightweight")
 OPENHANDS_AUTO_SELECT_ENABLED = (
     os.getenv("OPENHANDS_AUTO_SELECT_ENABLED", "false").lower() == "true"
