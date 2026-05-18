@@ -207,6 +207,63 @@ class InMemoryWorkflowEngine(WorkflowEngine):
             }
 
 
+def _temporalio_available() -> bool:
+    import importlib.util
+
+    return importlib.util.find_spec("temporalio") is not None
+
+
+class TemporalWorkflowEngine(WorkflowEngine):
+    """Task 93 — Temporal Phase B adapter (optional, config-gated).
+
+    Selectable via ``WORKFLOW_ENGINE_PROVIDER=temporal``. This is the
+    Phase-B *seam*: a real Temporal client/worker needs the
+    ``temporalio`` library AND a running Temporal server AND deployed
+    workflow definitions — all explicitly out of scope here (and tests
+    must not need real Temporal). So the adapter **always falls back to
+    the local in-memory/DB engine** while reporting whether ``temporalio``
+    is importable, so a later task can implement the live client without
+    changing call sites. It is never the source of truth (durable
+    effects stay in the repositories).
+    """
+
+    def __init__(self) -> None:
+        self._delegate = InMemoryWorkflowEngine()
+        self._temporalio = _temporalio_available()
+        self.backend = (
+            "temporal"
+            if self._temporalio
+            else "temporal_unavailable_fallback_memory"
+        )
+
+    def start_workflow(self, *a, **kw) -> WorkflowState:
+        return self._delegate.start_workflow(*a, **kw)
+
+    def signal_workflow(self, *a, **kw) -> WorkflowState | None:
+        return self._delegate.signal_workflow(*a, **kw)
+
+    def get_workflow_status(self, workflow_id: str) -> WorkflowState | None:
+        return self._delegate.get_workflow_status(workflow_id)
+
+    def cancel_workflow(self, workflow_id: str) -> WorkflowState | None:
+        return self._delegate.cancel_workflow(workflow_id)
+
+    def health_check(self) -> dict:
+        h = self._delegate.health_check()
+        h.update(
+            {
+                "backend": self.backend,
+                "temporalio_importable": self._temporalio,
+                "live_temporal": False,
+                "note": (
+                    "Phase-B seam: delegates to the local DB/in-memory "
+                    "engine; live Temporal client is a later task"
+                ),
+            }
+        )
+        return h
+
+
 _singleton_lock = threading.Lock()
 _instance: WorkflowEngine | None = None
 
@@ -216,11 +273,7 @@ def _build() -> WorkflowEngine:
     if sel in ("memory", "inmemory", "local", ""):
         return InMemoryWorkflowEngine()
     if sel == "temporal":
-        raise RuntimeError(
-            "WORKFLOW_ENGINE_PROVIDER=temporal is a Phase B adapter and "
-            "is not implemented yet (Task 80 Phase A ships the in-memory "
-            "engine only). Use WORKFLOW_ENGINE_PROVIDER=memory."
-        )
+        return TemporalWorkflowEngine()
     raise RuntimeError(
         f"Unsupported WORKFLOW_ENGINE_PROVIDER={sel!r}. "
         "Supported: memory, temporal"
@@ -254,7 +307,7 @@ def workflow_engine_runtime_summary() -> dict:
         "active_backend": engine.backend,
         "is_source_of_truth": False,
         "candidate_workflows": list(CANDIDATE_WORKFLOWS),
-        "temporal_adapter": "designed_not_implemented_phase_b",
+        "temporal_adapter": "phase_b_seam_db_fallback",
         "worker_enabled": _config.WORKER_ENABLED,
         "health": health,
     }
@@ -263,6 +316,7 @@ def workflow_engine_runtime_summary() -> dict:
 __all__ = [
     "WorkflowEngine",
     "InMemoryWorkflowEngine",
+    "TemporalWorkflowEngine",
     "WorkflowState",
     "WorkflowStatus",
     "CANDIDATE_WORKFLOWS",

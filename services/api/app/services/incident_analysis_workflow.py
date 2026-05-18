@@ -38,6 +38,54 @@ from ..repositories_state import (
 )
 
 
+# Task 93: the one workflow migrated onto the WorkflowEngine abstraction.
+# Best-effort + swallowed: the engine is ephemeral orchestration
+# bookkeeping, never the source of truth (the IncidentAnalysis row is).
+# A real Temporal backend can later run this same workflow_type with no
+# call-site change.
+def _wf_id(analysis_id: str) -> str:
+    return f"incident_to_triage:{analysis_id}"
+
+
+def _wf_track_begin(
+    project_id: str, incident_id: str, analysis_id: str
+) -> None:
+    from .. import config
+
+    if not config.WORKFLOW_ENGINE_TRACKING_ENABLED:
+        return
+    try:
+        from .workflow_engine import get_workflow_engine
+
+        get_workflow_engine().start_workflow(
+            "incident_to_triage",
+            _wf_id(analysis_id),
+            {"incident_id": incident_id, "analysis_id": analysis_id},
+            project_id=project_id,
+        )
+    except Exception:
+        pass
+
+
+def _wf_track_terminal(analysis_id: str, *, ok: bool) -> None:
+    from .. import config
+
+    if not config.WORKFLOW_ENGINE_TRACKING_ENABLED:
+        return
+    try:
+        from .workflow_engine import get_workflow_engine
+
+        eng = get_workflow_engine()
+        if ok:
+            eng.signal_workflow(
+                _wf_id(analysis_id), "triage_completed", {"ok": True}
+            )
+        else:
+            eng.cancel_workflow(_wf_id(analysis_id))
+    except Exception:
+        pass
+
+
 def create_analysis(
     incident_id: str,
     body: IncidentAnalysisCreate | None,
@@ -85,6 +133,7 @@ def create_analysis(
     project_context = project_context_repo.get(incident.project_id)
 
     analysis_id = str(uuid.uuid4())
+    _wf_track_begin(incident.project_id, incident.id, analysis_id)
     audit_writer.write(
         "incident_analysis_requested", "incident_analysis", analysis_id,
         project_id=incident.project_id, actor_email=current_user,
@@ -141,6 +190,7 @@ def create_analysis(
                 "error": redact_sensitive_text(str(exc)),
             },
         )
+        _wf_track_terminal(analysis_id, ok=False)
         return failed
 
     raw_output = parsed.get("raw_output")
@@ -188,6 +238,7 @@ def create_analysis(
             "conclusion": analysis.conclusion,
         },
     )
+    _wf_track_terminal(analysis_id, ok=True)
     return analysis
 
 

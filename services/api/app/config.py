@@ -365,6 +365,13 @@ WORKFLOW_ENGINE_PROVIDER = os.getenv(
 ).strip().lower()
 TEMPORAL_ADDRESS = os.getenv("TEMPORAL_ADDRESS", "localhost:7233")
 TEMPORAL_NAMESPACE = os.getenv("TEMPORAL_NAMESPACE", "default")
+# Task 93: best-effort WorkflowEngine tracking for the one migrated
+# workflow (incident_to_triage). Default on; the engine is deterministic
+# + side-effect-free and never the source of truth, so tracking never
+# changes durable behavior. Failures are swallowed.
+WORKFLOW_ENGINE_TRACKING_ENABLED = (
+    os.getenv("WORKFLOW_ENGINE_TRACKING_ENABLED", "true").lower() == "true"
+)
 WORKER_ENABLED = os.getenv("WORKER_ENABLED", "false").lower() == "true"
 WORKER_CONCURRENCY = int(os.getenv("WORKER_CONCURRENCY", "1"))
 

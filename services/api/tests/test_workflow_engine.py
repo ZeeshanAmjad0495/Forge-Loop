@@ -77,13 +77,21 @@ def test_factory_memory_default_and_reset(monkeypatch):
     assert we.get_workflow_engine() is not e1
 
 
-def test_temporal_selection_fails_fast_without_import(monkeypatch):
+def test_temporal_selection_falls_back_to_db_without_import(monkeypatch):
+    # Task 93: WORKFLOW_ENGINE_PROVIDER=temporal is now an optional
+    # Phase-B adapter that degrades to the local DB/in-memory engine
+    # when temporalio is absent (no hard fail, no temporalio import).
     assert "temporalio" not in sys.modules
     monkeypatch.setattr(config, "WORKFLOW_ENGINE_PROVIDER", "temporal")
     we.reset_workflow_engine()
-    with pytest.raises(RuntimeError, match="Phase B"):
-        we.get_workflow_engine()
+    eng = we.get_workflow_engine()
+    assert eng.backend == "temporal_unavailable_fallback_memory"
+    h = eng.health_check()
+    assert h["temporalio_importable"] is False
+    assert h["live_temporal"] is False
+    assert h["healthy"] is True
     assert "temporalio" not in sys.modules
+    we.reset_workflow_engine()
 
 
 def test_unknown_provider_rejected(monkeypatch):
@@ -102,7 +110,7 @@ def test_runtime_summary(monkeypatch):
     assert s["active_backend"] == "memory"
     assert s["is_source_of_truth"] is False
     assert len(s["candidate_workflows"]) == len(CANDIDATE_WORKFLOWS) == 7
-    assert s["temporal_adapter"] == "designed_not_implemented_phase_b"
+    assert s["temporal_adapter"] == "phase_b_seam_db_fallback"
 
 
 def test_runtime_workflow_route(client):
