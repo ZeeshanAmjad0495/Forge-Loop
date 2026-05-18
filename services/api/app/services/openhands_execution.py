@@ -1383,16 +1383,25 @@ def execute(
     actor_email: str,
 ) -> OpenHandsExecuteResponse:
     # Concurrency hardening: a same-workspace execution must not overlap
-    # (B1 hard-sync would corrupt a concurrent run). Different workspaces
-    # are unaffected and run in parallel.
-    from .workspace_locks import WorkspaceBusyError, workspace_execution_lock
+    # (B1 hard-sync would corrupt a concurrent run). Task 91 also blocks
+    # the same dev task running concurrently across different workspaces.
+    # Both locks are non-blocking and release on success/failure/timeout.
+    from .workspace_locks import (
+        TaskBusyError,
+        WorkspaceBusyError,
+        task_execution_lock,
+        workspace_execution_lock,
+    )
 
     ws_id = getattr(body, "workspace_id", None)
     if getattr(body, "mode", None) != "local" or not ws_id:
         return _service().execute(dev_task_id, body, actor_email)
     try:
-        with workspace_execution_lock(ws_id):
-            return _service().execute(dev_task_id, body, actor_email)
+        with task_execution_lock(dev_task_id):
+            with workspace_execution_lock(ws_id):
+                return _service().execute(dev_task_id, body, actor_email)
+    except TaskBusyError as exc:
+        raise HTTPException(status_code=409, detail="TASK_BUSY") from exc
     except WorkspaceBusyError as exc:
         raise HTTPException(status_code=409, detail="WORKSPACE_BUSY") from exc
 
