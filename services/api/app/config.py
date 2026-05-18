@@ -214,6 +214,16 @@ RUNNER_MAX_PARALLEL_LOCAL = int(
 CONTEXTPACK_ENABLED = (
     os.getenv("CONTEXTPACK_ENABLED", "true").lower() == "true"
 )
+# Task 89: require a ContextPack for every real model-facing routed call
+# (built+linked at the resolve_routed_provider chokepoint). Default on.
+CONTEXTPACK_ENFORCED = (
+    os.getenv("CONTEXTPACK_ENFORCED", "true").lower() == "true"
+)
+# Task 89: when raw assembled context cannot fit the token budget,
+# warn by default; set true to hard-block (4xx) instead.
+CONTEXTPACK_BLOCK_OVERSIZED = (
+    os.getenv("CONTEXTPACK_BLOCK_OVERSIZED", "false").lower() == "true"
+)
 CONTEXTPACK_DEFAULT_TOKEN_BUDGET = int(
     os.getenv("CONTEXTPACK_DEFAULT_TOKEN_BUDGET", "12000")
 )

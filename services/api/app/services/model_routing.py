@@ -68,6 +68,9 @@ class ModelRouteDecision(BaseModel):
     requires_human_approval: bool = False
     expensive_provider_blocked: bool = False
     context_reduction_recommended: bool = False
+    # Task 89: the ContextPack assembled+linked for this routed call.
+    context_pack_id: str | None = None
+    context_pack_estimated_tokens: int = 0
     warnings: list[str] = []
 
 
@@ -306,6 +309,74 @@ def _cost_source_type_for(workflow_type: str) -> str:
     return _COST_SOURCE_MAP.get(workflow_type, "agent_run")
 
 
+# Task 89: routing WorkflowType -> ContextPackPurpose (no "planning"
+# purpose exists; planning/analysis fall through to "custom").
+_CONTEXT_PURPOSE_MAP = {
+    "requirement_analysis": "requirement_analysis",
+    "task_decomposition": "task_decomposition",
+    "pr_review": "pr_review",
+    "review": "pr_review",
+    "ci_analysis": "ci_analysis",
+    "incident_analysis": "incident_analysis",
+    "memory_extraction": "memory_learning",
+    "artifact_summary": "artifact_summary",
+    "research": "research",
+}
+
+
+def _context_purpose_for(workflow_type: str) -> str:
+    return _CONTEXT_PURPOSE_MAP.get(workflow_type, "custom")
+
+
+def _ensure_context_pack(
+    decision: ModelRouteDecision,
+    *,
+    project_id: str,
+    workflow_type: str,
+    source_id: str | None,
+) -> ModelRouteDecision:
+    """Task 89: build + persist + link a compact ContextPack before the
+    real model call. Project state is auto-filled and reduced to the
+    token budget by the existing builder. Oversized raw context warns by
+    default; ``CONTEXTPACK_BLOCK_OVERSIZED`` makes it a hard block.
+    Builder failures are swallowed — context bookkeeping must never
+    break a real workflow (same posture as the cost wiring).
+    """
+    from .contextpack_builder import ContextPackBuildRequest, build_context_pack
+
+    try:
+        result = build_context_pack(
+            project_id=project_id,
+            body=ContextPackBuildRequest(
+                purpose=_context_purpose_for(workflow_type),  # type: ignore[arg-type]
+                source_type="routed_execution",
+                source_id=source_id or "routed_execution",
+            ),
+            persist=True,
+        )
+    except Exception:
+        return decision
+
+    warnings = list(decision.warnings)
+    oversized = result.compression_level == "aggressive" or any(
+        "context_exceeds_budget_after_reduction" in w
+        for w in result.warnings
+    )
+    if oversized:
+        if config.CONTEXTPACK_BLOCK_OVERSIZED:
+            raise RoutedProviderError(
+                f"ContextPack for workflow {workflow_type!r} exceeds the "
+                f"token budget and CONTEXTPACK_BLOCK_OVERSIZED is set"
+            )
+        warnings.append("contextpack_oversized_reduced_to_budget")
+
+    return decision.model_copy(update={
+        "context_pack_id": result.context_pack_id,
+        "context_pack_estimated_tokens": result.estimated_tokens,
+        "warnings": warnings,
+    })
+
+
 def _apply_budget_and_record(
     cost_record_repo,
     decision: ModelRouteDecision,
@@ -391,6 +462,10 @@ def _apply_budget_and_record(
                 "risk_level": risk_level,
                 "routing_workflow_type": workflow_type,
                 "token_usage": "unavailable_provider_does_not_surface_usage",
+                "context_pack_id": decision.context_pack_id,
+                "context_pack_estimated_tokens": (
+                    decision.context_pack_estimated_tokens
+                ),
             },
         )
     except Exception:
@@ -492,6 +567,14 @@ def resolve_routed_provider(
         raise RoutedProviderError(
             f"Expensive provider {decision.selected_provider!r} blocked by "
             f"routing policy for workflow {workflow_type!r}"
+        )
+
+    if config.CONTEXTPACK_ENFORCED and project_id:
+        decision = _ensure_context_pack(
+            decision,
+            project_id=project_id,
+            workflow_type=workflow_type,
+            source_id=source_id,
         )
 
     if cost_record_repo is not None and project_id:
