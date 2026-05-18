@@ -304,6 +304,28 @@ def cache_runtime_summary() -> dict:
     }
 
 
+def runner_dedupe_touch(dev_task_id: str, workspace_id: str) -> bool:
+    """Task 95: optional additive runner dedupe marker.
+
+    NOT a lock and NOT a replacement for the authoritative in-process
+    Task-91 locks — purely an observable ephemeral hint. Returns True if
+    a fresh marker was set, False if one already existed (likely a
+    duplicate) or if disabled / the cache errored (fail-open: never
+    blocks execution; the Task-91 locks remain the real guard).
+    """
+    if not _config.RUNNER_DEDUPE_CACHE_ENABLED:
+        return True
+    try:
+        key = f"runner:dedupe:{dev_task_id}:{workspace_id}"
+        cache = get_cache_provider()
+        if cache.get(key) is not None:
+            return False
+        cache.set(key, "1", _config.RUNNER_DEDUPE_TTL_SECONDS)
+        return True
+    except Exception:
+        return True  # fail open
+
+
 __all__ = [
     "CacheProvider",
     "InMemoryCacheProvider",
@@ -311,5 +333,6 @@ __all__ = [
     "get_cache_provider",
     "reset_cache_provider",
     "require_rate_limit_backend",
+    "runner_dedupe_touch",
     "cache_runtime_summary",
 ]

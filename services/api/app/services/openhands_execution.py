@@ -1399,6 +1399,9 @@ def execute(
     try:
         with task_execution_lock(dev_task_id):
             with workspace_execution_lock(ws_id):
+                from .cache_provider import runner_dedupe_touch
+
+                runner_dedupe_touch(dev_task_id, ws_id)
                 return _service().execute(dev_task_id, body, actor_email)
     except TaskBusyError as exc:
         raise HTTPException(status_code=409, detail="TASK_BUSY") from exc

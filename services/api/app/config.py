@@ -352,6 +352,24 @@ CACHE_FAIL_OPEN = os.getenv("CACHE_FAIL_OPEN", "true").lower() == "true"
 RATE_LIMIT_CACHE_FAIL_OPEN = (
     os.getenv("RATE_LIMIT_CACHE_FAIL_OPEN", "false").lower() == "true"
 )
+# Task 95: optional per-provider rate limit at the routed-execution
+# chokepoint, backed by the Task-79 ephemeral cache. Off by default;
+# a cache error always fails OPEN (a cache outage must never block a
+# model call). Never the source of truth.
+PROVIDER_RATE_LIMIT_ENABLED = (
+    os.getenv("PROVIDER_RATE_LIMIT_ENABLED", "false").lower() == "true"
+)
+PROVIDER_RATE_LIMIT_PER_MINUTE = int(
+    os.getenv("PROVIDER_RATE_LIMIT_PER_MINUTE", "60")
+)
+# Task 95: optional additive runner dedupe key (NOT a replacement for
+# the authoritative in-process Task-91 locks). Off by default.
+RUNNER_DEDUPE_CACHE_ENABLED = (
+    os.getenv("RUNNER_DEDUPE_CACHE_ENABLED", "false").lower() == "true"
+)
+RUNNER_DEDUPE_TTL_SECONDS = int(
+    os.getenv("RUNNER_DEDUPE_TTL_SECONDS", "900")
+)
 
 # --- Task 80 (Phase A): durable workflow + event foundation ---
 # Local-first. Defaults are in-memory: no dependency, deterministic,

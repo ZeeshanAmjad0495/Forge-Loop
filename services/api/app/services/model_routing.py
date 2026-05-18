@@ -377,6 +377,35 @@ def _ensure_context_pack(
     })
 
 
+def _check_provider_rate_limit(provider: str) -> None:
+    """Task 95: per-provider rate limit via the Task-79 ephemeral cache.
+
+    Off by default. A cache error ALWAYS fails open (a cache outage must
+    never block a real model call). Never the source of truth.
+    """
+    if not config.PROVIDER_RATE_LIMIT_ENABLED:
+        return
+    try:
+        from .cache_provider import get_cache_provider
+
+        window = int(_time_window_minute())
+        key = f"ratelimit:provider:{provider}:{window}"
+        count = get_cache_provider().increment(key, 1, ttl_seconds=60)
+    except Exception:
+        return  # fail open
+    if count > int(config.PROVIDER_RATE_LIMIT_PER_MINUTE):
+        raise RoutedProviderError(
+            f"RATE_LIMITED: provider {provider!r} exceeded "
+            f"{config.PROVIDER_RATE_LIMIT_PER_MINUTE}/min"
+        )
+
+
+def _time_window_minute() -> int:
+    import time
+
+    return int(time.time() // 60)
+
+
 def _apply_budget_and_record(
     cost_record_repo,
     decision: ModelRouteDecision,
@@ -568,6 +597,8 @@ def resolve_routed_provider(
             f"Expensive provider {decision.selected_provider!r} blocked by "
             f"routing policy for workflow {workflow_type!r}"
         )
+
+    _check_provider_rate_limit(decision.selected_provider)
 
     if config.CONTEXTPACK_ENFORCED and project_id:
         decision = _ensure_context_pack(
