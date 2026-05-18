@@ -51,11 +51,20 @@ Post-Release-6 hardening & capability work (shipped):
 - Per-workspace execution mutual-exclusion (concurrency hardening)
 - Security: OWASP-aligned audit + fixes — see `docs/security-architecture.md` and `docs/security-audit-findings.md`. All feature/execution/push gates default OFF; auth/secret/SSRF/injection/confinement controls enforced without changing usability.
 
-All 32 core tasks are complete. Next work is Release 7 (LaunchPilot) or explicit follow-on tasks.
+All 32 core tasks are complete. The post-32 controlled-adoption roadmap
+(Tasks 75–85) is also complete. The active scope is now **Release 10 —
+Operational Execution Layer (Tasks 86–100)**, authorized by Task 86 via
+an explicit `docs/roadmap.md` update. Release 10 wires already-built
+cost/router/context/runner/observability foundations into real
+execution; it adds no new product surface beyond Tasks 86–100.
 
 ## Active Roadmap
 
-The active engineering roadmap is fixed at 32 tasks across 6 releases. All releases are complete.
+The fixed core engineering roadmap is 32 tasks across 6 releases. All
+six are complete. The bounded post-32 controlled-adoption roadmap
+(Tasks 75–85) is also complete. **Release 10 — Operational Execution
+Layer (Tasks 86–100)** is the current active, explicitly-authorized
+scope (authorized by Task 86; see `docs/roadmap.md`).
 
 - Release 1: Core planning platform — complete
 - Release 2: Provider + usability + project context — complete
@@ -63,6 +72,24 @@ The active engineering roadmap is fixed at 32 tasks across 6 releases. All relea
 - Release 4: Golden path + deterministic QA — complete
 - Release 5: Tool runner + PR workflow (OpenHands primary) — complete
 - Release 6: CI + incident + learning loop — complete
+- Post-32 controlled adoption: Tasks 75–85 — complete
+- Release 10: Operational Execution Layer (Tasks 86–100) — **active**
+
+Release 10 is bounded to Tasks 86–100. It wires existing
+ModelRouter / CostRecord / BudgetGuard / ContextPack / RunnerRouter /
+locks / observability foundations into real execution, plus optional
+Phase-B infra adapters (Temporal/NATS/Valkey, all config-gated, DB
+remains source of truth) and a controlled draft-PR path (never
+merge/deploy). No work beyond Task 100 without a further
+`docs/roadmap.md` update.
+
+> Note: `docs/release-8…release-12-*-summary.md` are historical
+> exploratory artifacts from an earlier numbering experiment and are
+> **not** the authoritative release scheme. In particular
+> `docs/release-10-evaluation-lab-summary.md` (old Tasks 57–62) is
+> unrelated to this Release 10. The authoritative scheme is: Releases
+> 1–6 (Tasks 1–32) + controlled adoption (Tasks 75–85) + Release 10
+> (Tasks 86–100). Historical summaries are preserved, never deleted.
 
 See `docs/roadmap.md` for full scope and `docs/tooling-strategy.md` for tool choices.
 
@@ -243,7 +270,7 @@ Do not commit or push if:
 - unrelated files are changed
 - the user has not approved the task implementation
 
-## Cost & Safety Policy (Tasks 75–85) — Enforced
+## Cost & Safety Policy (Tasks 75–100) — Enforced
 
 This policy is binding. It supersedes any older "always out of scope"
 phrasing: the direction is **controlled adoption, not endless
@@ -254,8 +281,13 @@ expansion**. Authoritative direction lives in `docs/roadmap.md` and
    then implement the approved scope only. No large unplanned
    implementation.
 2. **No scope expansion.** The post-32 roadmap is bounded to Tasks
-   75–85. Do not start work beyond 85, and do not re-expand a
-   "deferred" item, without an explicit `docs/roadmap.md` update.
+   75–85 (controlled adoption, complete) and Release 10 — Operational
+   Execution Layer, Tasks 86–100 (authorized by Task 86). Do not start
+   work beyond 100, and do not re-expand a "deferred" item, without an
+   explicit `docs/roadmap.md` update. Release 10 wires existing
+   foundations into real execution and adds only the optional,
+   config-gated Phase-B adapters and the controlled draft-PR path
+   scoped in Tasks 86–100.
 3. **No paid/expensive services without approval.** Default to free /
    local-first (Ollama local, DeepSeek default hosted). Prometheus/
    OpenTelemetry/Grafana stay free/local; no paid monitoring.

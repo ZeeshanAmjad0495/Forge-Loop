@@ -1,6 +1,8 @@
 # ForgeLoop Roadmap
 
-Releases 1–6 (32 tasks) are complete. Post-32 work is the **bounded controlled-adoption roadmap, Tasks 75–85** (see the section near the end of this file). The scope is fixed: **do not start any task beyond 85, or re-expand earlier "deferred" items, without an explicit update to this file.** This file + `docs/architecture.md` + the repo `CLAUDE.md` are the authoritative direction.
+Releases 1–6 (32 tasks) are complete. The bounded controlled-adoption roadmap **Tasks 75–85** is also complete. The currently authorized active scope is **Release 10 — Operational Execution Layer, Tasks 86–100** (see the Release 10 section near the end of this file). The scope is fixed: **do not start any task beyond 100, or re-expand earlier "deferred" items, without an explicit update to this file.** This file + `docs/architecture.md` + the repo `CLAUDE.md` are the authoritative direction.
+
+> **Authoritative release scheme:** Releases 1–6 (Tasks 1–32) → controlled adoption (Tasks 75–85) → Release 10 — Operational Execution Layer (Tasks 86–100). The `docs/release-8…release-12-*-summary.md` files are **historical exploratory artifacts** from an earlier informal numbering experiment; they are *not* authoritative and are unrelated to this Release 10. In particular `docs/release-10-evaluation-lab-summary.md` (old Tasks 57–62, "Evaluation Lab") is a different, superseded "Release 10". Historical summaries are preserved and never deleted (CLAUDE.md rule 10).
 
 ---
 
@@ -145,7 +147,7 @@ See [`docs/execution-bridge.md`](execution-bridge.md).
 
 ## Post-32 Controlled-Adoption Roadmap (Tasks 75–85) — Bounded
 
-This is the **complete** post-32 scope. It is bounded: **no task beyond 85 may be started without an explicit update to this file.** Historical release summaries above are retained and unchanged. The direction is *controlled adoption, not endless expansion* — items previously phrased "always out of scope" are **deferred / controlled adoption**, never silent scope creep.
+This is the **complete** post-32 controlled-adoption scope, and it is **complete**. It is succeeded by **Release 10 — Operational Execution Layer (Tasks 86–100)**, defined below and authorized by Task 86. The bound is now: **no task beyond 100 may be started without an explicit update to this file.** Historical release summaries above are retained and unchanged. The direction is *controlled adoption, not endless expansion* — items previously phrased "always out of scope" are **deferred / controlled adoption**, never silent scope creep.
 
 | Task | Title | Status |
 |------|-------|--------|
@@ -191,3 +193,59 @@ Bounded, non-feature fixes surfaced by the post-pack stabilization audit. Not ne
 | Auto-remediation | Adopt **advisory only** (Task 83) | No deploy/merge/branch/PR without human approval |
 | Slack/email notifications | **Deferred** until workflows stable | Not core |
 | Complex dashboard / billing / multi-tenancy / MCP | **Deferred / out of scope now** | CLI-first; not needed for current use |
+
+---
+
+## Release 10 — Operational Execution Layer (Tasks 86–100) — Authorized, Active
+
+Tasks 75–85 built cost/router/context/runner/observability *foundations*
+but several were only advisory or not force-wired into real execution.
+**Release 10 makes those foundations operational** and adds the optional
+Phase-B infra adapters and a controlled draft-PR path. It is bounded to
+Tasks 86–100. **No task beyond 100 without a further explicit update to
+this file.**
+
+Release 10 adds **no new product surface** beyond the table below. It
+preserves every existing safety boundary: human approval for risky
+transitions, no merge/deploy/force-push/protected-branch bypass, no
+secret exposure, DB remains the source of truth, Kimi stays an
+approval-gated expensive fallback, OpenHands is never the default
+runner, and auto-remediation stays advisory / draft-PR only.
+
+| Task | Title | Type | Status |
+|------|-------|------|--------|
+| 86 | Release 10 roadmap / architecture / CLAUDE.md alignment | Docs/governance | Complete |
+| 87 | Enforce ModelRouter everywhere (no hidden provider selection) | Backend cost-safety | Planned |
+| 88 | Wire CostRecord + BudgetGuard into real execution | Backend cost-control | Planned |
+| 89 | Enforce ContextPack across agent workflows | Token/context | Planned |
+| 90 | Wire RunnerRouter into real execution (OpenHands not default) | Runner orchestration | Planned |
+| 91 | Runner locks + workspace isolation (force-wired) | Safety/reliability | Planned |
+| 92 | Local background worker execution (DB-backed jobs) | Backend worker | Planned |
+| 93 | Temporal Phase B — migrate exactly one workflow (optional, gated) | Optional durable workflow | Planned |
+| 94 | NATS Phase B — optional local event fan-out (off by default) | Optional event adapter | Planned |
+| 95 | Valkey Phase B — cache / rate-limits / ephemeral state | Cache/rate-limit | Planned |
+| 96 | Observability Phase B — real metrics wiring (free/local) | Observability | Planned |
+| 97 | CLI-first command layer (no deploy/merge commands) | CLI/usability | Planned |
+| 98 | Dashboard execution timeline (simple, operational) | Frontend usability | Planned |
+| 99 | Controlled branch/PR automation policy update | Docs/policy | Planned |
+| 100 | Draft PR creation end-to-end (controlled; never merge/deploy) | End-to-end backend/runner | Planned |
+
+### Release 10 boundaries (binding)
+
+- Every real LLM call flows through ModelRouter/routed execution and is
+  cost-recorded + budget-checked. Direct provider choice is allowed only
+  inside provider adapter/factory internals.
+- ContextPacks are required for model-facing workflows; large raw
+  context is warned/blocked.
+- RunnerRouter is mandatory for coding/remediation execution; OpenHands
+  is selected only for broad/complex, human-approved work.
+- Runner execution acquires locks + workspace isolation; concurrent
+  same-task/workspace runs are blocked.
+- Temporal/NATS/Valkey Phase-B adapters are **optional, config-gated,
+  disabled by default**, with local DB fallback; the DB/audit log
+  remains the source of truth. Kafka and Pub/Sub–Eventarc stay deferred.
+  K3s remains an optional spike only.
+- Branch/PR automation is policy-first (Task 99), then controlled
+  draft-PR only (Task 100): never auto-merge, auto-deploy, force-push,
+  or bypass protected branches; approvals/checks gate the path.
+- Observability/metrics never expose secrets, tokens, prompts, or PII.

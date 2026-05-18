@@ -480,9 +480,9 @@ These concepts are used across Studio modules. ForgeLoop owns and stores all of 
 
 ### Active build boundary
 
-**Releases 1–6 are complete (all 32 tasks).** The implemented core includes everything from ticket creation through project memory learning. The post-32 work (Tasks 75–85) is **controlled adoption**, not endless expansion — see the bounded roadmap and decisions matrix in [`roadmap.md`](roadmap.md). ForgeLoop Studio (ProductScout, AuditLens, LaunchPilot) and the future Execution Bridge (live OpenHands execution, real branch/PR creation, live Kody/GitHub integration) are **deferred** (not "always out of scope"): they may be adopted later only via an explicit roadmap update, never by silent scope creep.
+**Releases 1–6 are complete (all 32 tasks).** The implemented core includes everything from ticket creation through project memory learning. The post-32 controlled-adoption work (Tasks 75–85) is also complete. The **currently authorized active scope is Release 10 — Operational Execution Layer (Tasks 86–100)**, authorized by Task 86 via an explicit [`roadmap.md`](roadmap.md) update. Release 10 wires the already-built cost/router/context/runner/observability foundations into real execution, adds optional config-gated Phase-B infra adapters (Temporal/NATS/Valkey, DB remains source of truth), and a controlled draft-PR path (never merge/deploy). It is **controlled adoption**, not endless expansion — bounded to Tasks 86–100; no work beyond 100 without a further explicit roadmap update. ForgeLoop Studio (ProductScout, AuditLens, LaunchPilot) and live Kody/GitHub-merge/deploy automation remain **deferred** (not "always out of scope"): adopted later only via explicit roadmap update, never by silent scope creep. The `docs/release-8…release-12-*-summary.md` files (including `release-10-evaluation-lab-summary.md`, old Tasks 57–62) are historical exploratory artifacts, **not** the authoritative scheme, and unrelated to this Release 10; they are preserved, never deleted.
 
-### Controlled adoption & cost-safe policy (Tasks 75–85)
+### Controlled adoption & cost-safe policy (Tasks 75–100)
 
 The maintained direction (this file + `roadmap.md` + the repo `CLAUDE.md`) is authoritative; older "always out of scope" phrasing elsewhere is superseded by **deferred / controlled adoption**.
 
@@ -492,7 +492,8 @@ The maintained direction (this file + `roadmap.md` + the repo `CLAUDE.md`) is au
 - **RAG:** controlled project-memory/summary retrieval only — **no broad raw-code/log/secret RAG**; off by default (Task 81).
 - **Observability:** free/local-first OpenTelemetry-flag / Prometheus-text / optional Grafana; no paid monitoring (Task 82).
 - **Auto-remediation:** advisory only — no merge/deploy/branch/PR automation; human approval before any DevTask (Task 83).
-- **Bounded roadmap:** Tasks 75–85 are the post-32 scope. No new tasks without an explicit `roadmap.md` update.
+- **Release 10 — Operational Execution Layer (Tasks 86–100):** makes the Task 75–85 foundations operational — ModelRouter enforced everywhere, CostRecord/BudgetGuard force-wired, ContextPack required, RunnerRouter mandatory, runner locks/workspace isolation, DB-backed local worker, optional config-gated Temporal/NATS/Valkey Phase-B adapters (DB stays source of truth), real free metrics, CLI-first layer, dashboard timeline, and a controlled draft-PR path (Task 99 policy → Task 100 implementation; never merge/deploy/force-push).
+- **Bounded roadmap:** Tasks 75–85 (complete) plus Release 10 (Tasks 86–100) are the post-32 scope. No task beyond 100 without an explicit `roadmap.md` update.
 
 ### Durable workflow + event foundation (Task 80)
 
