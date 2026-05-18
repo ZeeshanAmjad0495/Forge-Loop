@@ -82,6 +82,12 @@ def _wf_track_terminal(analysis_id: str, *, ok: bool) -> None:
             )
         else:
             eng.cancel_workflow(_wf_id(analysis_id))
+            try:  # Task 96 metric (no-op if disabled)
+                from .metrics import record_workflow_failed
+
+                record_workflow_failed("incident_to_triage")
+            except Exception:
+                pass
     except Exception:
         pass
 

@@ -216,6 +216,12 @@ def build_context_pack(
                 if raw:
                     cached = ContextPackBuildResult.model_validate_json(raw)
                     cached.cached = True
+                    try:
+                        from .metrics import record_cache_event
+
+                        record_cache_event(True)
+                    except Exception:
+                        pass
                     return _apply_retrieval(cached, project_id, body)
             except Exception:
                 cp_key = None
@@ -233,8 +239,20 @@ def build_context_pack(
                     )
                 except Exception:
                     pass
+            try:
+                from .metrics import record_cache_event
+
+                record_cache_event(True)
+            except Exception:
+                pass
             return _apply_retrieval(cached, project_id, body)
 
+    try:  # Task 96: ContextPack render-cache miss (no-op if disabled)
+        from .metrics import record_cache_event
+
+        record_cache_event(False)
+    except Exception:
+        pass
     # Token accounting + structural reduction (deterministic).
     excluded: list[str] = []
     tokens = {n: estimate_tokens(layers[n]) for n in _LAYER_ORDER}

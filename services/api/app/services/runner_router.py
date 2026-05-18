@@ -219,6 +219,12 @@ def enforce_runner_route(
     decision = decide_runner(
         _dev_task_to_request(dev_task, requested_runner, approved)
     )
+    try:  # Task 96: real-path runner-selected metric (no-op if disabled)
+        from .metrics import record_runner_selected
+
+        record_runner_selected(decision.runner_name)
+    except Exception:
+        pass
     if not config.RUNNER_ROUTER_ENFORCED:
         decision.warnings.append("runner_router_enforcement_disabled")
         return decision

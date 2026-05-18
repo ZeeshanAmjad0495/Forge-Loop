@@ -539,7 +539,20 @@ def execute(dev_task_id: str, body, actor_email: str) -> ToolRun:
                 from .cache_provider import runner_dedupe_touch
 
                 runner_dedupe_touch(dev_task_id, ws_id)
-                return _service().execute(dev_task_id, body, actor_email)
+                _t0 = time.perf_counter()
+                try:
+                    return _service().execute(
+                        dev_task_id, body, actor_email
+                    )
+                finally:
+                    try:  # Task 96 metric (no-op if disabled)
+                        from .metrics import observe_runner_duration
+
+                        observe_runner_duration(
+                            time.perf_counter() - _t0, "aider"
+                        )
+                    except Exception:
+                        pass
     except TaskBusyError as exc:
         raise HTTPException(status_code=409, detail="TASK_BUSY") from exc
     except WorkspaceBusyError as exc:

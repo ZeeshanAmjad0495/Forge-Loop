@@ -394,6 +394,12 @@ def _check_provider_rate_limit(provider: str) -> None:
     except Exception:
         return  # fail open
     if count > int(config.PROVIDER_RATE_LIMIT_PER_MINUTE):
+        try:  # Task 96 metric (no-op if disabled)
+            from .metrics import record_provider_rate_limited
+
+            record_provider_rate_limited(provider)
+        except Exception:
+            pass
         raise RoutedProviderError(
             f"RATE_LIMITED: provider {provider!r} exceeded "
             f"{config.PROVIDER_RATE_LIMIT_PER_MINUTE}/min"

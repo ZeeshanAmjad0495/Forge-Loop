@@ -48,6 +48,17 @@ _KNOWN: dict[str, tuple[_MetricType, str]] = {
     "workflow_started_total": ("counter", "Workflows started"),
     "workflow_failed_total": ("counter", "Workflows failed"),
     "approval_wait_seconds": ("summary", "Human-approval wait duration"),
+    # Task 96 — Release 10 chokepoint signals.
+    "provider_rate_limited_total": (
+        "counter",
+        "Provider calls blocked by the Task-95 rate limit",
+    ),
+    "cache_hit_total": ("counter", "Ephemeral cache hits"),
+    "cache_miss_total": ("counter", "Ephemeral cache misses"),
+    "remediation_proposal_total": (
+        "counter",
+        "Advisory remediation proposals created",
+    ),
 }
 
 _lock = threading.RLock()
@@ -196,6 +207,18 @@ def record_workflow_failed(workflow_type: str) -> None:
 
 def observe_approval_wait(seconds: float) -> None:
     observe("approval_wait_seconds", max(0.0, float(seconds)))
+
+
+def record_provider_rate_limited(provider: str) -> None:
+    inc("provider_rate_limited_total", provider=provider)
+
+
+def record_cache_event(hit: bool) -> None:
+    inc("cache_hit_total" if hit else "cache_miss_total")
+
+
+def record_remediation_proposal(source_type: str) -> None:
+    inc("remediation_proposal_total", source_type=source_type)
 
 
 def observability_runtime_summary() -> dict:

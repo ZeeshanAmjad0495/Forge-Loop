@@ -61,6 +61,12 @@ def _tests_for(areas: list[str]) -> list[str]:
 
 def _persist(proposal: RemediationProposal, actor: str) -> RemediationProposal:
     remediation_proposal_repo.save(proposal)
+    try:  # Task 96 metric (no-op if disabled)
+        from .metrics import record_remediation_proposal
+
+        record_remediation_proposal(proposal.source_type)
+    except Exception:
+        pass
     audit_writer.write(
         "remediation_proposal_created",
         "remediation_proposal",
