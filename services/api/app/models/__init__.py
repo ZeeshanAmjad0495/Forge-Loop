@@ -223,6 +223,8 @@ from .memory import (
 )
 from .planning import PlanningRunCreate, PlanningRunResponse
 from .pr import (
+    DraftPrPipelineResult,
+    DraftPrPipelineStep,
     GitHubDraftCreate,
     GitHubDraftCreationResponse,
     GitHubPublicationSummary,
@@ -552,6 +554,8 @@ __all__ = [
     "IntegrationRunResult",
     "IntegrationRunStatus",
     "GitHubDraftCreate",
+    "DraftPrPipelineResult",
+    "DraftPrPipelineStep",
     "GitHubDraftCreationResponse",
     "GitHubPublicationSummary",
     "GitInspectionResponse",

@@ -97,6 +97,37 @@ class GitHubDraftCreationResponse(BaseModel):
     publication_summary: GitHubPublicationSummary
 
 
+class DraftPrPipelineStep(BaseModel):
+    name: str
+    status: Literal["ok", "skipped_flag_off", "blocked", "failed"]
+    detail: str = ""
+
+
+class DraftPrPipelineResult(BaseModel):
+    """Task 100: consolidated end-to-end draft-PR pipeline outcome.
+
+    The pipeline orchestrates already-gated steps; it never merges,
+    marks-ready, deploys, force-pushes, or bypasses protected branches.
+    The terminal state is at most 'draft PR opened, awaiting human
+    review'.
+    """
+
+    dev_task_id: str
+    project_id: str
+    enabled: bool
+    final_status: Literal[
+        "disabled",
+        "blocked",
+        "branch_ready",
+        "pushed",
+        "draft_pr_opened",
+        "failed",
+    ]
+    pr_draft_id: str | None = None
+    steps: list[DraftPrPipelineStep] = []
+    awaiting_human_review: bool = True
+
+
 PullRequestReviewProvider = Literal["kody", "manual", "custom"]
 PullRequestReviewStatus = Literal[
     "pending",

@@ -332,6 +332,15 @@ GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 GITHUB_API_BASE_URL = os.getenv("GITHUB_API_BASE_URL", "https://api.github.com")
 GITHUB_DEFAULT_REMOTE = os.getenv("GITHUB_DEFAULT_REMOTE", "origin")
 GITHUB_PR_DRAFT_DEFAULT = os.getenv("GITHUB_PR_DRAFT_DEFAULT", "true").lower() == "true"
+# Task 100: end-to-end draft-PR pipeline orchestrator. Dormant by
+# default — the pipeline is a no-op/clear-block unless this AND every
+# downstream gate (GITHUB_PUSH_ENABLED, GITHUB_INTEGRATION_ENABLED, ...)
+# are explicitly enabled AND an approved Approval exists. It never
+# merges, marks-ready, deploys, force-pushes, or bypasses protected
+# branches (Task 99 envelope).
+DRAFT_PR_PIPELINE_ENABLED = (
+    os.getenv("DRAFT_PR_PIPELINE_ENABLED", "false").lower() == "true"
+)
 GITHUB_REQUEST_TIMEOUT_SECONDS = int(os.getenv("GITHUB_REQUEST_TIMEOUT_SECONDS", "30"))
 GITHUB_MAX_RESPONSE_BYTES = int(os.getenv("GITHUB_MAX_RESPONSE_BYTES", "200000"))
 

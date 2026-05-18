@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from ..auth import require_auth
 from ..models import (
+    DraftPrPipelineResult,
     GitHubDraftCreate,
     GitHubDraftCreationResponse,
     PullRequestDraft,
@@ -16,7 +17,7 @@ from ..pr_draft import (
     derive_source_branch,
     is_allowed_status_transition,
 )
-from ..services import pr_publication
+from ..services import draft_pr_pipeline, pr_publication
 from ..repositories_state import (
     audit_writer,
     check_run_repo,
@@ -266,3 +267,17 @@ def approve_pr_draft(
         details={"pr_draft_id": draft.id},
     )
     return updated
+
+
+@router.post(
+    "/dev-tasks/{dev_task_id}/draft-pr-pipeline",
+    response_model=DraftPrPipelineResult,
+)
+def run_draft_pr_pipeline(
+    dev_task_id: str,
+    current_user: str = Depends(require_auth),
+):
+    """Task 100: orchestrated, dormant-by-default, approval+checks-gated
+    draft-PR pipeline. Never merges/deploys/force-pushes; terminal state
+    is at most 'draft PR opened, awaiting human review'."""
+    return draft_pr_pipeline.run_pipeline(dev_task_id, current_user)
