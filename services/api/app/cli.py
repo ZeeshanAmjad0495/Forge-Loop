@@ -84,6 +84,12 @@ _COMMANDS: dict[str, tuple[str, str, list[str]]] = {
         "PATCH", "/approvals/{approval}", ["status", "feedback"]
     ),
     "approvals": ("GET", "/projects/{project}/approvals", []),
+    "list-tickets": ("GET", "/projects/{project}/tickets", []),
+    "dev-tasks": ("GET", "/projects/{project}/dev-tasks", []),
+    "events": ("GET", "/projects/{project}/audit-events", []),
+    "jobs": ("GET", "/projects/{project}/jobs", []),
+    "providers": ("GET", "/llm/providers", []),
+    "worker-run-once": ("POST", "/jobs/worker/run-once", []),
     "runner-preview": (
         "POST", "/projects/{project}/runner-route/preview", []
     ),
@@ -102,6 +108,10 @@ _PATH_ARGS: dict[str, list[str]] = {
     "create-dev-tasks": ["ticket"],
     "decide-approval": ["approval"],
     "approvals": ["project"],
+    "list-tickets": ["project"],
+    "dev-tasks": ["project"],
+    "events": ["project"],
+    "jobs": ["project"],
     "runner-preview": ["project"],
     "model-route-preview": ["project"],
     "cost": ["project"],
@@ -130,6 +140,12 @@ def _add_global_args(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         default=argparse.SUPPRESS,
         help="Print the request that would be sent; send nothing.",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help="Emit raw JSON instead of the human-readable summary.",
     )
 
 
@@ -168,6 +184,31 @@ def _resolve(name: str, args: argparse.Namespace) -> tuple[str, str, dict]:
     return method, path, body  # type: ignore[return-value]
 
 
+def _fmt_row(item: object) -> str:
+    if isinstance(item, dict):
+        # Prefer the few fields a human scans for; fall back to all.
+        keys = [
+            k
+            for k in ("id", "name", "title", "status", "provider",
+                      "job_type", "action", "conclusion", "created_at")
+            if k in item
+        ] or list(item)[:6]
+        return "  ".join(f"{k}={item[k]}" for k in keys)
+    return str(item)
+
+
+def render_human(result: object) -> str:
+    if isinstance(result, dict) and result.get("error"):
+        return f"ERROR: {result.get('error')}"
+    if isinstance(result, list):
+        if not result:
+            return "(empty)"
+        return "\n".join(_fmt_row(i) for i in result)
+    if isinstance(result, dict):
+        return "\n".join(f"{k}: {v}" for k, v in result.items())
+    return str(result)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -177,6 +218,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     token = getattr(args, "token", None) or os.getenv("FORGELOOP_TOKEN")
     dry_run = getattr(args, "dry_run", False)
+    as_json = getattr(args, "json", False)
     method, path, body = _resolve(args.command, args)
     result = _request(
         method,
@@ -186,7 +228,13 @@ def main(argv: list[str] | None = None) -> int:
         base_url=base_url,
         dry_run=dry_run,
     )
-    print(json.dumps(result, indent=2, sort_keys=True))
+    # Dry-run always prints the raw request envelope (machine/debug
+    # contract). Real results default to a human-readable summary;
+    # --json restores raw JSON.
+    if dry_run or as_json:
+        print(json.dumps(result, indent=2, sort_keys=True))
+    else:
+        print(render_human(result))
     if args.command == "login" and not dry_run:
         tok = result.get("access_token")
         if tok:

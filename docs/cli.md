@@ -1,4 +1,4 @@
-# ForgeLoop CLI-first workflow (Task 84)
+# ForgeLoop CLI-first workflow (Task 84, extended Task 97)
 
 ForgeLoop is CLI-first. The CLI is standard-library only (no extra
 dependencies) and is a thin wrapper over the HTTP API — every command
@@ -10,7 +10,22 @@ export FORGELOOP_API_URL=http://localhost:8080
 python -m app.cli --help                 # all commands
 python -m app.cli create-project --help  # per-command help
 python -m app.cli <command> --dry-run    # print the request, send nothing
+python -m app.cli list-projects          # human-readable summary (default)
+python -m app.cli list-projects --json   # raw JSON instead
 ```
+
+## Task 97 — daily-ops commands
+
+Added for daily local operation (read/inspect; no deploy/merge):
+`list-projects`, `list-tickets --project`, `dev-tasks --project`,
+`approvals --project`, `events --project` (audit tail equivalent),
+`jobs --project` (Task 92 background jobs), `providers` (LLM provider
+status), `cost --project`, `worker-run-once`, plus the existing
+`runtime --topic` / `*-preview` commands.
+
+Output is **human-readable by default**; pass `--json` for raw JSON.
+`--dry-run` always prints the JSON request envelope (debug contract).
+No deploy / merge / push / force commands exist (out of scope).
 
 Global flags (`--dry-run`, `--token`, `--base-url`) work **either before
 or after** the subcommand.
