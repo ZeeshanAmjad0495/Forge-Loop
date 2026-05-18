@@ -60,6 +60,8 @@ from .models import (
     PullRequestDraft,
     PullRequestReview,
     RepoSafetyProfile,
+    Job,
+    JobAttempt,
     Requirement,
     RequirementAnalysis,
     ResearchBrief,
@@ -602,6 +604,31 @@ class MongoRemediationProposalRepository(
         )
 
 
+class MongoJobRepository(MongoDocumentRepository[Job]):
+    collection_name = "jobs"
+    model_cls = Job
+
+    def list_by_project(self, project_id: str) -> list[Job]:
+        return _sorted_desc(self.list_by_field("project_id", project_id))
+
+    def list_queued(self) -> list[Job]:
+        return sorted(
+            self.list_by_field("status", "queued"),
+            key=lambda j: j.created_at,
+        )
+
+
+class MongoJobAttemptRepository(MongoDocumentRepository[JobAttempt]):
+    collection_name = "job_attempts"
+    model_cls = JobAttempt
+
+    def list_by_job(self, job_id: str) -> list[JobAttempt]:
+        return sorted(
+            self.list_by_field("job_id", job_id),
+            key=lambda a: a.attempt_no,
+        )
+
+
 class MongoBenchmarkScenarioRepository(MongoDocumentRepository[BenchmarkScenario]):
     collection_name = "benchmark_scenarios"
     model_cls = BenchmarkScenario
@@ -1092,6 +1119,15 @@ _INDEX_PLAN: dict[str, list[Any]] = {
         "source_id",
         "approval_status",
     ],
+    "jobs": [
+        "project_id",
+        "status",
+        "job_type",
+    ],
+    "job_attempts": [
+        "job_id",
+        "project_id",
+    ],
     "cost_records": [
         "project_id",
         "workflow_type",
@@ -1364,6 +1400,8 @@ def build_mongo_repositories():
         review_feedback=MongoReviewFeedbackRepository(db),
         revision_work_item=MongoRevisionWorkItemRepository(db),
         remediation_proposal=MongoRemediationProposalRepository(db),
+        job=MongoJobRepository(db),
+        job_attempt=MongoJobAttemptRepository(db),
         cost_record=MongoCostRecordRepository(db),
         context_pack=MongoContextPackRepository(db),
         artifact_summary=MongoArtifactSummaryRepository(db),

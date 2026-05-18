@@ -72,6 +72,7 @@ from .routes import (
     health,
     incidents,
     integration_runs,
+    jobs,
     llm,
     memory,
     memory_retrieval,
@@ -227,6 +228,7 @@ app.include_router(workflow_templates.router)
 app.include_router(project_packs.router)
 app.include_router(work_safe_policies.router)
 app.include_router(backups.router)
+app.include_router(jobs.router)
 
 
 __all__ = [

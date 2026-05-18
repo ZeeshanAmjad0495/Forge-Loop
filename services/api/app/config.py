@@ -502,3 +502,17 @@ def validate_startup_config() -> None:
             "AUTO_REMEDIATION_ALLOW_PR_CREATION. Auto-remediation must "
             "not create branches or PRs."
         )
+
+
+# --- Task 92: DB-backed local background worker ---
+# Off by default. The worker only drains jobs when explicitly invoked
+# (POST /jobs/worker/run-once); there is no daemon thread. The Job
+# repository is the durable source of truth.
+BACKGROUND_WORKER_ENABLED = (
+    os.getenv("BACKGROUND_WORKER_ENABLED", "false").lower() == "true"
+)
+JOB_DEFAULT_MAX_ATTEMPTS = int(os.getenv("JOB_DEFAULT_MAX_ATTEMPTS", "3"))
+JOB_DEFAULT_TIMEOUT_SECONDS = int(
+    os.getenv("JOB_DEFAULT_TIMEOUT_SECONDS", "300")
+)
+JOB_WORKER_MAX_DRAIN = int(os.getenv("JOB_WORKER_MAX_DRAIN", "10"))

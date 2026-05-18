@@ -46,6 +46,8 @@ from .models import (
     ProjectContext,
     PullRequestDraft,
     PullRequestReview,
+    Job,
+    JobAttempt,
     Requirement,
     RemediationProposal,
     RequirementAnalysis,
@@ -1778,6 +1780,113 @@ class FirestoreRevisionWorkItemRepository:
         docs = self._collection.where("project_id", "==", project_id).stream()
         items = [RevisionWorkItem(**d.to_dict()) for d in docs]
         return sorted(items, key=lambda r: r.created_at, reverse=True)
+
+
+class JobRepository(Protocol):
+    def save(self, job: Job) -> None: ...
+    def get(self, job_id: str) -> Job | None: ...
+    def update(self, job: Job) -> None: ...
+    def list_by_project(self, project_id: str) -> list[Job]: ...
+    def list_queued(self) -> list[Job]: ...
+
+
+class InMemoryJobRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, Job] = {}
+
+    def save(self, job: Job) -> None:
+        self._store[job.id] = job
+
+    def get(self, job_id: str) -> Job | None:
+        return self._store.get(job_id)
+
+    def update(self, job: Job) -> None:
+        self._store[job.id] = job
+
+    def list_by_project(self, project_id: str) -> list[Job]:
+        items = [j for j in self._store.values() if j.project_id == project_id]
+        return sorted(items, key=lambda j: j.created_at, reverse=True)
+
+    def list_queued(self) -> list[Job]:
+        items = [j for j in self._store.values() if j.status == "queued"]
+        return sorted(items, key=lambda j: j.created_at)
+
+    def clear(self) -> None:
+        self._store.clear()
+
+
+class JobAttemptRepository(Protocol):
+    def save(self, attempt: JobAttempt) -> None: ...
+    def get(self, attempt_id: str) -> JobAttempt | None: ...
+    def list_by_job(self, job_id: str) -> list[JobAttempt]: ...
+
+
+class InMemoryJobAttemptRepository:
+    def __init__(self) -> None:
+        self._store: dict[str, JobAttempt] = {}
+
+    def save(self, attempt: JobAttempt) -> None:
+        self._store[attempt.id] = attempt
+
+    def get(self, attempt_id: str) -> JobAttempt | None:
+        return self._store.get(attempt_id)
+
+    def list_by_job(self, job_id: str) -> list[JobAttempt]:
+        items = [a for a in self._store.values() if a.job_id == job_id]
+        return sorted(items, key=lambda a: a.attempt_no)
+
+    def clear(self) -> None:
+        self._store.clear()
+
+
+class FirestoreJobRepository:
+    def __init__(self, client, collection_name: str = "jobs") -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, job: Job) -> None:
+        self._collection.document(job.id).set(job.model_dump(mode="python"))
+
+    def get(self, job_id: str) -> Job | None:
+        snap = self._collection.document(job_id).get()
+        if not snap.exists:
+            return None
+        return Job(**snap.to_dict())
+
+    def update(self, job: Job) -> None:
+        self._collection.document(job.id).set(job.model_dump(mode="python"))
+
+    def list_by_project(self, project_id: str) -> list[Job]:
+        docs = self._collection.where("project_id", "==", project_id).stream()
+        items = [Job(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda j: j.created_at, reverse=True)
+
+    def list_queued(self) -> list[Job]:
+        docs = self._collection.where("status", "==", "queued").stream()
+        items = [Job(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda j: j.created_at)
+
+
+class FirestoreJobAttemptRepository:
+    def __init__(
+        self, client, collection_name: str = "job_attempts"
+    ) -> None:
+        self._collection = client.collection(collection_name)
+
+    def save(self, attempt: JobAttempt) -> None:
+        self._collection.document(attempt.id).set(
+            attempt.model_dump(mode="python")
+        )
+
+    def get(self, attempt_id: str) -> JobAttempt | None:
+        snap = self._collection.document(attempt_id).get()
+        if not snap.exists:
+            return None
+        return JobAttempt(**snap.to_dict())
+
+    def list_by_job(self, job_id: str) -> list[JobAttempt]:
+        docs = self._collection.where("job_id", "==", job_id).stream()
+        items = [JobAttempt(**d.to_dict()) for d in docs]
+        return sorted(items, key=lambda a: a.attempt_no)
 
 
 class RemediationProposalRepository(Protocol):
@@ -3771,6 +3880,8 @@ class Repositories:
     review_feedback: ReviewFeedbackRepository
     revision_work_item: RevisionWorkItemRepository
     remediation_proposal: RemediationProposalRepository
+    job: JobRepository
+    job_attempt: JobAttemptRepository
     cost_record: CostRecordRepository
     context_pack: ContextPackRepository
     artifact_summary: ArtifactSummaryRepository
@@ -3838,6 +3949,8 @@ def get_repositories() -> Repositories:
             review_feedback=InMemoryReviewFeedbackRepository(),
             revision_work_item=InMemoryRevisionWorkItemRepository(),
             remediation_proposal=InMemoryRemediationProposalRepository(),
+            job=InMemoryJobRepository(),
+            job_attempt=InMemoryJobAttemptRepository(),
             cost_record=InMemoryCostRecordRepository(),
             context_pack=InMemoryContextPackRepository(),
             artifact_summary=InMemoryArtifactSummaryRepository(),
@@ -3911,6 +4024,8 @@ def get_repositories() -> Repositories:
             remediation_proposal=FirestoreRemediationProposalRepository(
                 client
             ),
+            job=FirestoreJobRepository(client),
+            job_attempt=FirestoreJobAttemptRepository(client),
             cost_record=FirestoreCostRecordRepository(client),
             context_pack=FirestoreContextPackRepository(client),
             artifact_summary=FirestoreArtifactSummaryRepository(client),

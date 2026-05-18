@@ -283,6 +283,13 @@ from .review_feedback import (
     ReviewFeedbackStatus,
     ReviewFeedbackUpdate,
 )
+from .jobs import (
+    Job,
+    JobAttempt,
+    JobCreate,
+    JobStatus,
+    JobType,
+)
 from .remediation import (
     RemediationApprovalStatus,
     RemediationProposal,
@@ -665,6 +672,11 @@ __all__ = [
     "ReviewFeedbackStatus",
     "ReviewFeedbackUpdate",
     "RevisionPlanResponse",
+    "Job",
+    "JobAttempt",
+    "JobCreate",
+    "JobStatus",
+    "JobType",
     "RemediationApprovalStatus",
     "RemediationProposal",
     "RemediationSeverity",
