@@ -31,6 +31,7 @@ import { IncidentsPanel } from './panels/IncidentsPanel'
 import { MemoryCandidatesPanel } from './panels/MemoryCandidatesPanel'
 import { ApprovalsPanel } from './panels/ApprovalsPanel'
 import { AuditEventsPanel } from './panels/AuditEventsPanel'
+import { ExecutionTimelinePanel } from './panels/ExecutionTimelinePanel'
 
 export function ProjectView({
   project,
@@ -218,6 +219,7 @@ export function ProjectView({
 
       <hr style={{ margin: '24px 0', borderColor: '#333' }} />
       <ApprovalsPanel projectId={project.id} approvals={approvals} onApprovalChange={loadGovernance} />
+      <ExecutionTimelinePanel events={auditEvents} />
       <AuditEventsPanel events={auditEvents} />
     </div>
   )

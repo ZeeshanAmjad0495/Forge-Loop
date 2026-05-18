@@ -84,8 +84,17 @@ These surface in API responses and in the dashboard header legend:
 
 ## Dashboard
 
-The web app (`apps/web`) is intentionally minimal. The header now shows
+The web app (`apps/web`) is intentionally minimal. The header shows
 the canonical pipeline (Project → Requirement/Ticket → Plan → DevTasks →
 Runner/PR → Review → CI/Incident → Memory) and a collapsible legend of
 the warnings above — enough for presentation/supervision without a
 complex dashboard.
+
+**Task 98 — Execution timeline.** `ProjectView` adds an
+`ExecutionTimelinePanel`: a curated, colour-coded chronological read of
+the audit log (the source of truth) highlighting provider/route
+decisions, runner decisions, approvals, failures and CI/incident
+analysis, with a "key decisions only" filter. No new backend — derived
+from already-loaded audit events; the raw audit log panel remains below
+it. Deliberately simple: no analytics, billing, multi-tenant admin, or
+workflow-builder UI.
