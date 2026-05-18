@@ -52,19 +52,22 @@ Post-Release-6 hardening & capability work (shipped):
 - Security: OWASP-aligned audit + fixes — see `docs/security-architecture.md` and `docs/security-audit-findings.md`. All feature/execution/push gates default OFF; auth/secret/SSRF/injection/confinement controls enforced without changing usability.
 
 All 32 core tasks are complete. The post-32 controlled-adoption roadmap
-(Tasks 75–85) is also complete. The active scope is now **Release 10 —
-Operational Execution Layer (Tasks 86–100)**, authorized by Task 86 via
-an explicit `docs/roadmap.md` update. Release 10 wires already-built
-cost/router/context/runner/observability foundations into real
-execution; it adds no new product surface beyond Tasks 86–100.
+(Tasks 75–85) is also complete. **Release 10 — Operational Execution
+Layer (Tasks 86–100) is also complete** (authorized by Task 86 via an
+explicit `docs/roadmap.md` update; all 15 tasks implemented, tested, and
+pushed). Release 10 wired already-built cost/router/context/runner/
+observability foundations into real execution; it added no new product
+surface beyond Tasks 86–100. No work beyond Task 100 without a further
+explicit `docs/roadmap.md` update.
 
 ## Active Roadmap
 
 The fixed core engineering roadmap is 32 tasks across 6 releases. All
 six are complete. The bounded post-32 controlled-adoption roadmap
 (Tasks 75–85) is also complete. **Release 10 — Operational Execution
-Layer (Tasks 86–100)** is the current active, explicitly-authorized
-scope (authorized by Task 86; see `docs/roadmap.md`).
+Layer (Tasks 86–100) is also complete** (authorized by Task 86; see
+`docs/roadmap.md`). There is no active release; no work beyond Task 100
+may start without a further explicit `docs/roadmap.md` update.
 
 - Release 1: Core planning platform — complete
 - Release 2: Provider + usability + project context — complete
@@ -73,7 +76,7 @@ scope (authorized by Task 86; see `docs/roadmap.md`).
 - Release 5: Tool runner + PR workflow (OpenHands primary) — complete
 - Release 6: CI + incident + learning loop — complete
 - Post-32 controlled adoption: Tasks 75–85 — complete
-- Release 10: Operational Execution Layer (Tasks 86–100) — **active**
+- Release 10: Operational Execution Layer (Tasks 86–100) — complete
 
 Release 10 is bounded to Tasks 86–100. It wires existing
 ModelRouter / CostRecord / BudgetGuard / ContextPack / RunnerRouter /
